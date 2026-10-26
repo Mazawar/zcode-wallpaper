@@ -282,6 +282,20 @@ setTimeout(() => {
 // engine hiccup, GPU reset, assembly that never produced a frame. If no
 // frames have flowed for 20s (paused renderers are exempt — pause is
 // deliberate), remount once instead of showing a dead wallpaper.
+// Context loss is the nastier twin: the engine keeps 'rendering' into a
+// LOST context (fps stays > 0, the watchdog is fooled) while the canvas
+// stays black — catch the event directly and remount.
+try {
+  const engineCanvas = inst.canvas;
+  if (engineCanvas && typeof engineCanvas.addEventListener === "function") {
+    engineCanvas.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault();
+      reloadOnce();
+    });
+  }
+} catch {
+  /* canvas not available yet — the size/liveness watchdogs cover us */
+}
 var liveAt = Date.now();
 setInterval(function () {
   try {
