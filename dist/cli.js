@@ -52370,7 +52370,6 @@ var require_adm_zip = __commonJS({
 var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
-  daemonEntry: () => daemonEntry,
   existingServePid: () => existingServePid,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
@@ -52385,10 +52384,6 @@ import { promisify as promisify4 } from "node:util";
 import { fileURLToPath } from "node:url";
 function liveDir() {
   return path7.join(pluginRoot, "live");
-}
-function daemonEntry() {
-  const entry = path7.join(pluginRoot, "dist", "cli.js");
-  return fs10.existsSync(entry) ? entry : null;
 }
 function engineFile() {
   const candidates = [
@@ -52813,20 +52808,6 @@ async function startServe(opts) {
       `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) \u2014 open its panel, or stop that process first`
     );
   }
-  let lastMcpAt = Date.now();
-  let lastGoneAt = 0;
-  let daemonClosed = false;
-  if (process.env.ZW_DAEMON === "1") {
-    setInterval(() => {
-      if (daemonClosed) return;
-      const silentFor = Date.now() - lastMcpAt;
-      const disabled = lastGoneAt > lastMcpAt && silentFor > 15e3;
-      if (silentFor < 12e4 && !disabled) return;
-      daemonClosed = true;
-      console.log("serve: no MCP instances left \u2014 restoring default appearance and exiting");
-      void shutdownServe().catch(() => void 0).finally(() => process.exit(0));
-    }, 5e3);
-  }
   const server = http.createServer((req, res) => {
     activeServer = server;
     handleRequest(req, res).catch(() => {
@@ -52881,17 +52862,7 @@ async function startServe(opts) {
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, daemon: process.env.ZW_DAEMON === "1" });
-        return;
-      }
-      if (req.method === "POST" && (url.pathname === "/api/mcp-alive" || url.pathname === "/api/mcp-gone")) {
-        if (url.pathname === "/api/mcp-alive") {
-          lastMcpAt = Date.now();
-          lastGoneAt = 0;
-        } else {
-          lastGoneAt = Date.now();
-        }
-        sendJson(res, 200, { ok: true });
+        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/config") {

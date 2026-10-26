@@ -59297,7 +59297,6 @@ var require_adm_zip = __commonJS({
 var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
-  daemonEntry: () => daemonEntry,
   existingServePid: () => existingServePid,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
@@ -59312,10 +59311,6 @@ import { promisify as promisify3 } from "node:util";
 import { fileURLToPath } from "node:url";
 function liveDir() {
   return path6.join(pluginRoot, "live");
-}
-function daemonEntry() {
-  const entry = path6.join(pluginRoot, "dist", "cli.js");
-  return fs9.existsSync(entry) ? entry : null;
 }
 function engineFile() {
   const candidates = [
@@ -59740,20 +59735,6 @@ async function startServe(opts) {
       `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) \u2014 open its panel, or stop that process first`
     );
   }
-  let lastMcpAt = Date.now();
-  let lastGoneAt = 0;
-  let daemonClosed = false;
-  if (process.env.ZW_DAEMON === "1") {
-    setInterval(() => {
-      if (daemonClosed) return;
-      const silentFor = Date.now() - lastMcpAt;
-      const disabled = lastGoneAt > lastMcpAt && silentFor > 15e3;
-      if (silentFor < 12e4 && !disabled) return;
-      daemonClosed = true;
-      console.log("serve: no MCP instances left \u2014 restoring default appearance and exiting");
-      void shutdownServe().catch(() => void 0).finally(() => process.exit(0));
-    }, 5e3);
-  }
   const server2 = http.createServer((req, res) => {
     activeServer = server2;
     handleRequest(req, res).catch(() => {
@@ -59808,17 +59789,7 @@ async function startServe(opts) {
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, daemon: process.env.ZW_DAEMON === "1" });
-        return;
-      }
-      if (req.method === "POST" && (url.pathname === "/api/mcp-alive" || url.pathname === "/api/mcp-gone")) {
-        if (url.pathname === "/api/mcp-alive") {
-          lastMcpAt = Date.now();
-          lastGoneAt = 0;
-        } else {
-          lastGoneAt = Date.now();
-        }
-        sendJson(res, 200, { ok: true });
+        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/config") {
@@ -70864,42 +70835,24 @@ init_inject();
 function bootstrapServe() {
   try {
     delete process.env.ZW_DATA_DIR;
-    const api = `http://127.0.0.1:${DEFAULT_API_PORT}`;
-    let spawning = false;
-    const spawnDaemon = async () => {
-      if (spawning) return;
-      spawning = true;
-      try {
-        const { spawn: spawn2 } = await import("node:child_process");
-        const { daemonEntry: daemonEntry2 } = await Promise.resolve().then(() => (init_server(), server_exports));
-        const entry = daemonEntry2();
-        if (!entry) return;
-        const child = spawn2(process.execPath, [entry, "serve"], {
-          detached: true,
-          stdio: "ignore",
-          env: { ...process.env, ZW_DAEMON: "1" },
-          windowsHide: true
-        });
-        child.unref();
-      } catch {
-      } finally {
-        spawning = false;
-      }
-    };
+    let hosting = false;
     const ensure = () => {
-      void (async () => {
-        try {
-          const r2 = await fetch(`${api}/api/health`, { signal: AbortSignal.timeout(1500) });
-          const body = await r2.json();
-          if (body?.service !== "zcode-wallpaper") throw new Error("foreign service");
-        } catch {
-          await spawnDaemon();
-        }
-        await fetch(`${api}/api/mcp-alive`, { method: "POST" }).catch(() => void 0);
-      })();
+      if (hosting) return;
+      fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) }).then((r2) => r2.json()).then((body) => {
+        if (body?.service !== "zcode-wallpaper") throw new Error("foreign service");
+      }).catch(() => {
+        Promise.resolve().then(() => (init_server(), server_exports)).then((m) => {
+          hosting = true;
+          return m.startServe({ cdpPort: 28256, apiPort: DEFAULT_API_PORT }).catch((err) => {
+            hosting = false;
+            if (!String(err?.message ?? err).includes("already running")) throw err;
+          });
+        }).catch(() => {
+        });
+      });
     };
     ensure();
-    setInterval(ensure, 3e4).unref();
+    setInterval(ensure, 6e4).unref();
     Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.ensureShortcutsHaveCdpFlag(28256)).catch(() => void 0);
   } catch {
   }
@@ -71071,10 +71024,8 @@ server.registerTool(
 await server.connect(new StdioServerTransport());
 async function gracefulShutdown() {
   try {
-    await fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/mcp-gone`, {
-      method: "POST",
-      signal: AbortSignal.timeout(800)
-    });
+    const { shutdownServe: shutdownServe2 } = await Promise.resolve().then(() => (init_server(), server_exports));
+    await shutdownServe2();
   } catch {
   }
   process.exit(0);

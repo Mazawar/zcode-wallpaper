@@ -71,13 +71,6 @@ function liveDir(): string {
   return path.join(pluginRoot, "live");
 }
 
-/** Entry script for the detached daemon (spawned by any plugin MCP): the
- *  bundled CLI next to this module. null when the layout doesn't match. */
-export function daemonEntry(): string | null {
-  const entry = path.join(pluginRoot, "dist", "cli.js");
-  return fs.existsSync(entry) ? entry : null;
-}
-
 /** The WebWallGL engine build: explicit override, vendored copy, then node_modules. */
 function engineFile(): string | undefined {
   const candidates = [
@@ -681,31 +674,6 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     );
   }
 
-  // Daemon liveness (ZW_DAEMON=1, spawned by a plugin MCP): MCP instances are
-  // per-conversation and come and go, so the daemon must NOT die with any one
-  // of them — but it must follow the PLUGIN's lifecycle. Contract: every MCP
-  // heartbeats /api/mcp-alive (30s) and posts /api/mcp-gone on shutdown. When
-  // no MCP has been heard from for 120s (hard kill), or 15s after the last
-  // goodbye with no hello in between (clean disable), restore ZCode's default
-  // appearance and exit — a re-enabled plugin respawns the daemon and its
-  // stored config re-applies automatically.
-  let lastMcpAt = Date.now();
-  let lastGoneAt = 0;
-  let daemonClosed = false;
-  if (process.env.ZW_DAEMON === "1") {
-    setInterval(() => {
-      if (daemonClosed) return;
-      const silentFor = Date.now() - lastMcpAt;
-      const disabled = lastGoneAt > lastMcpAt && silentFor > 15_000;
-      if (silentFor < 120_000 && !disabled) return;
-      daemonClosed = true;
-      console.log("serve: no MCP instances left — restoring default appearance and exiting");
-      void shutdownServe()
-        .catch(() => undefined)
-        .finally(() => process.exit(0));
-    }, 5_000);
-  }
-
   // A request handler that rejects would otherwise take the whole process down
   // (unhandled rejection), killing every held injection session with it.
   const server = http.createServer((req, res) => {
@@ -777,18 +745,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       // --- control API -------------------------------------------------------
 
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, daemon: process.env.ZW_DAEMON === "1" });
-        return;
-      }
-
-      if (req.method === "POST" && (url.pathname === "/api/mcp-alive" || url.pathname === "/api/mcp-gone")) {
-        if (url.pathname === "/api/mcp-alive") {
-          lastMcpAt = Date.now();
-          lastGoneAt = 0;
-        } else {
-          lastGoneAt = Date.now();
-        }
-        sendJson(res, 200, { ok: true });
+        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
         return;
       }
 

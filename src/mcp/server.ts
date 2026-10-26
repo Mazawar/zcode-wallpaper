@@ -28,53 +28,40 @@ import { DEFAULT_API_PORT } from "../core/inject.js";
 
 function bootstrapServe(): void {
   try {
-    // The wallpaper serve is a DETACHED daemon, not this process: MCP
-    // instances are per-conversation and die when a chat closes, which used
-    // to take the wallpaper with it. Any MCP instance (re)spawns the daemon
-    // when the health check fails and heartbeats it every 30s; the daemon
-    // follows the PLUGIN's lifecycle instead (all MCPs gone -> reset UI and
-    // exit; app closed -> exit). ZW_DATA_DIR points at a plugin-scoped dir
-    // when ZCode spawns us — strip it early so everything shares one data dir.
+    // The serve lives INSIDE this plugin-host process. ZCode spawns plugin
+    // hosts at app start, kills them on app close / plugin disable, and
+    // restarts them after a crash — which is exactly the lifecycle the
+    // wallpaper needs, with no watching protocol of our own. Multiple hosts
+    // (multi-window) race for the port; the losers idle and re-check.
+    // ZW_DATA_DIR points at a plugin-scoped dir when ZCode spawns us — strip
+    // it early so every module uses the shared default data dir.
     delete process.env.ZW_DATA_DIR;
 
-    const api = `http://127.0.0.1:${DEFAULT_API_PORT}`;
-    let spawning = false;
-    const spawnDaemon = async () => {
-      if (spawning) return;
-      spawning = true;
-      try {
-        const { spawn } = await import("node:child_process");
-        const { daemonEntry } = await import("../core/server.js");
-        const entry = daemonEntry();
-        if (!entry) return;
-        const child = spawn(process.execPath, [entry, "serve"], {
-          detached: true,
-          stdio: "ignore",
-          env: { ...process.env, ZW_DAEMON: "1" },
-          windowsHide: true,
-        });
-        child.unref();
-      } catch {
-        /* best effort — the next ensure() retries */
-      } finally {
-        spawning = false;
-      }
-    };
+    let hosting = false;
     const ensure = () => {
-      void (async () => {
-        try {
-          const r = await fetch(`${api}/api/health`, { signal: AbortSignal.timeout(1500) });
-          const body = await r.json();
+      if (hosting) return;
+      fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) })
+        .then((r) => r.json())
+        .then((body) => {
           if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign service");
-        } catch {
-          await spawnDaemon();
-        }
-        // heartbeat either way so a fresh daemon never ages out under us
-        await fetch(`${api}/api/mcp-alive`, { method: "POST" }).catch(() => undefined);
-      })();
+        })
+        .catch(() => {
+          import("../core/server.js")
+            .then((m) => {
+              hosting = true;
+              return m.startServe({ cdpPort: 28256, apiPort: DEFAULT_API_PORT }).catch((err: Error) => {
+                // EADDRINUSE-style: another host process won the race — fine.
+                hosting = false;
+                if (!String(err?.message ?? err).includes("already running")) throw err;
+              });
+            })
+            .catch(() => {
+              /* best effort */
+            });
+        });
     };
     ensure();
-    setInterval(ensure, 30_000).unref();
+    setInterval(ensure, 60_000).unref();
 
     // Self-heal launch shortcuts: without the CDP flag a start-menu launch
     // gets no injection for the whole session. Fire-and-forget, silent.
@@ -274,18 +261,17 @@ server.registerTool(
 
 await server.connect(new StdioServerTransport());
 
-// Lifecycle: ZCode closes our stdio pipe on plugin disable / app close. The
-// daemon outlives this MCP instance (sessions come and go), so we only say
-// goodbye — the daemon decides whether that was the last MCP (plugin
-// disabled: reset UI + exit) or just a closing chat (keep serving).
+// Lifecycle, event-driven: ZCode closes our stdio pipe on plugin disable /
+// app close. At that moment restore ZCode's default appearance and stop the
+// in-process serve — disable is immediate, and a re-enabled plugin brings
+// the stored wallpaper back by itself. (Hard kills are covered by the
+// injected page scripts' heartbeat self-clean.)
 async function gracefulShutdown(): Promise<void> {
   try {
-    await fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/mcp-gone`, {
-      method: "POST",
-      signal: AbortSignal.timeout(800),
-    });
+    const { shutdownServe } = await import("../core/server.js");
+    await shutdownServe();
   } catch {
-    /* daemon already gone */
+    /* best effort */
   }
   process.exit(0);
 }
