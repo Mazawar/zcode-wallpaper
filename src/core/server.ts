@@ -214,13 +214,16 @@ function toRel(dir: string, file: string): string {
 export interface ApplyLiveResult {
   entry: WallpaperEntry;
   mediaType: "live" | "video";
+  /** The composed config that was (or would be) persisted for this source. */
+  config: BeautifyConfig;
   windows: number;
 }
 
 /**
  * Applies a wallpaper source (workshop subscription, WE project or custom dir)
- * as the current wallpaper. Scene/web sources render live via the WebWallGL
- * iframe; video sources stream through the same /files surface as <video>.
+ * as the current wallpaper. Scenes, web pages and video files all render live
+ * through the WebWallGL iframe — videos ride the same engine pipeline as
+ * scenes (dsh-style) instead of a separately injected <video> element.
  */
 async function applySource(
   id: string,
@@ -246,14 +249,16 @@ async function applySource(
   } else if (type === "video") {
     const video = findVideoInDir(entry.dir);
     if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
+    const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
     next = {
       ...config,
-      mediaType: "video",
-      sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${toRel(entry.dir, video)
-        .split("/")
-        .map(encodeURIComponent)
-        .join("/")}`,
-      live: undefined,
+      // Videos render through the same WebWallGL iframe as scenes (dsh-style):
+      // one pipeline, cross-fade on switch, Monet colors from real frames.
+      mediaType: "live",
+      live: { sourceId: id, kind: "video", title: entry.title, poster: entry.preview, file },
+      // sceneVideoUrl stays so the legacy <video> bootstrap still registered
+      // in long-lived pages keeps rendering until the live payload lands.
+      sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${file}`,
       wallpaperPath: undefined,
       monetSourcePath: entry.preview ? path.join(entry.dir, entry.preview) : config.monetSourcePath,
     };
@@ -276,7 +281,26 @@ async function applySource(
       await pushConfigToSessions(next, true).catch(() => 0);
     })();
   }
-  return { entry, mediaType: next.mediaType === "video" ? "video" : "live", windows };
+  return { entry, mediaType: next.mediaType === "video" ? "video" : "live", config: next, windows };
+}
+
+/**
+ * One-time migration: configs written while video wallpapers streamed through
+ * an injected <video> layer are re-pointed at the live renderer pipeline, so
+ * they pick up cross-fade and real-frame Monet colors on the next start. A
+ * source that no longer resolves keeps its legacy config — the <video>
+ * bootstrap path still renders it — rather than losing the wallpaper.
+ */
+async function migrateLegacyVideo(): Promise<void> {
+  const stored = loadConfig() as Partial<BeautifyConfig>;
+  if (stored.mediaType !== "video" || !stored.sceneVideoUrl) return;
+  const id = /\/files\/([^/]+)\//.exec(stored.sceneVideoUrl)?.[1];
+  if (!id) return;
+  const result = await applySource(id, { ...DEFAULT_CONFIG, ...stored } as BeautifyConfig, false).catch(() => undefined);
+  if (result?.config.mediaType === "live") {
+    saveConfig(persisted(result.config));
+    console.log(`serve: migrated video wallpaper to the live renderer (${id})`);
+  }
 }
 
 /** Walks up from a picked file to the nearest enclosing project.json directory. */
@@ -328,7 +352,7 @@ async function importPackageFromFile(
   zipPath: string,
   config: BeautifyConfig,
   apply: boolean
-): Promise<{ id: string; entry: WallpaperEntry; mediaType: "live" | "video"; windows: number }> {
+): Promise<{ id: string } & ApplyLiveResult> {
   const { default: AdmZip } = await import("adm-zip");
   const zip = new AdmZip(zipPath);
   const dest = path.join(dataDir(), "packages", `pkg-${Date.now()}`);
@@ -1128,6 +1152,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     }, 30_000);
   }
 
+  await migrateLegacyVideo();
   await poll(runtimeConfig(), apiPort);
   // Self-heal: every ~30s compare each held page against the expected
   // injection (wallpaper layer / live iframe / css present when configured).

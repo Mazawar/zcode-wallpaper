@@ -3,9 +3,11 @@
  *
  * Three wallpaper layer kinds share one fixed-position container behind the UI:
  *   image  — background-image (data URI)
- *   video  — <video> streaming from the serve HTTP endpoint (WE video wallpapers)
- *   live   — <iframe> to /live/index.html, where WebWallGL renders the scene in
- *            real time (particles, SceneScript, parallax — no recording)
+ *   live   — <iframe> to /live/index.html, where WebWallGL renders the source
+ *            in real time (scenes with particles/SceneScript/parallax, web
+ *            wallpapers, and video files — one engine pipeline for all)
+ *   video  — legacy <video> element; only configs written before videos moved
+ *            into the live renderer still stream this way
  */
 
 import {
@@ -24,10 +26,12 @@ export type WallpaperFit = "cover" | "contain" | "smart";
 export interface LiveSourceRef {
   /** Registry id served under /files/<id>/. */
   sourceId: string;
-  kind: "scene" | "web";
+  kind: "scene" | "web" | "video";
   title?: string;
   /** Relative path of the poster preview inside the source dir. */
   poster?: string;
+  /** Relative media file path inside the source dir (kind "video"). */
+  file?: string;
 }
 
 export interface CustomSource {
@@ -45,7 +49,7 @@ export interface BeautifyConfig {
   monet: boolean;
   wallpaperVisible: boolean;
   fit: WallpaperFit;
-  /** "video" streams via sceneVideoUrl; "live" renders via the WebWallGL iframe. */
+  /** "live" renders via the WebWallGL iframe; "video" is the pre-0.1.0 <video> path. */
   mediaType?: "image" | "video" | "live";
   /** Loop video URL for video wallpapers (serve /files endpoint, Range-capable). */
   sceneVideoUrl?: string;
@@ -80,13 +84,17 @@ export interface BuiltPayload extends InjectionPayload {
 /** URL of the live renderer page for the config's live source. */
 export function buildLiveUrl(config: BeautifyConfig): string | undefined {
   if (!config.live) return undefined;
+  // Videos play at the media's native cadence — the scene fps cap (30) exists
+  // to budget scene GPU cost and must not halve a 60fps loop.
+  const fps = config.live.kind === "video" ? 60 : (config.liveFps ?? 30);
   const q = new URLSearchParams({
     type: config.live.kind,
     src: config.live.sourceId,
     fit: config.fit === "contain" ? "contain" : "cover",
-    fps: String(config.liveFps ?? 30),
+    fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1",
   });
+  if (config.live.file) q.set("file", config.live.file);
   if (config.live.poster) {
     q.set("poster", `/files/${config.live.sourceId}/${config.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}`);
   }

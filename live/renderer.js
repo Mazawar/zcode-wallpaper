@@ -5,7 +5,8 @@
  * loose scene.json projects in WebGL2 (layers, particles, puppets, SceneScript,
  * audio reaction) and mounts web wallpapers with the WE API shim. This page is
  * only the host adapter:
- *   - URL protocol: type (scene|web), src (source id), fit, fps, muted, dpr,
+ *   - URL protocol: type (scene|video|web), src (source id), file (relative
+ *     media path for video), fit, fps, muted, dpr, poster
  *     poster (preview image to show until the first frame)
  *   - input bridge: parent window postMessage {zw:'ptr'|'ptrup'|'ptrleave'|
  *     'wheel'|'pause'|'resume'} -> inst.pushPointer / pause / resume, so the
@@ -66,7 +67,12 @@ function webSource(sourceId) {
 function sourceOf(cfg) {
   if (cfg.type === "web") return cfg.src ? webSource(cfg.src) : null;
   if (!cfg.src) return null;
-  return httpSource(`${location.origin}/files/${cfg.src}`);
+  // Videos ride the same engine pipeline as scenes (dsh-style): httpSource
+  // sniffs the file's content type and the engine plays it in WebGL — one
+  // renderer for every kind, so switches cross-fade and Monet colors come
+  // from real rendered frames.
+  const file = cfg.type === "video" && cfg.file ? `/${cfg.file}` : "";
+  return httpSource(`${location.origin}/files/${cfg.src}${file}`);
 }
 
 const inst = createScene(host, {
@@ -93,7 +99,7 @@ inst.on("error", (err) => {
 });
 
 function loadCurrent() {
-  const source = sourceOf({ type: pageType, src: pageSrc });
+  const source = sourceOf({ type: pageType, src: pageSrc, file: params.get("file") || "" });
   if (!source) {
     diag(`missing src for ${pageType}`, "error");
     return;
