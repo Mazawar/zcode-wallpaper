@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 18;
+  var V = 19;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -602,15 +602,15 @@ export function buildPanelScript(apiPort: number): string {
     curCard.appendChild(ui.curBadge);
     tabLib.appendChild(curCard);
 
-    // ── picture & playback pane, dsh layout: one full-width row per slider
-    // (label left · slider middle · value chip right), segments fill their row ──
+    // ── picture pane: two columns of slider rows (user preference). Each cell
+    // keeps the label · slider · chip anatomy; the grid supplies the gutter. ──
     tabPlay.appendChild(groupLabel('画面'));
 
     function sliderRow(k, cfgKey, labelText, min, max, unit, def) {
       var r = el('div', 'border-t border-border');
-      r.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 16px;';
+      r.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;';
       var lab = el('span', 'text-sm text-foreground-subtle', labelText);
-      lab.style.cssText = 'flex:none;width:72px;';
+      lab.style.cssText = 'flex:none;width:48px;';
       r.appendChild(lab);
       var i = el('input');
       i.type = 'range';
@@ -619,10 +619,11 @@ export function buildPanelScript(apiPort: number): string {
       i.max = String(max);
       i.value = String(def);
       i.style.flex = '1 1 0';
+      i.style.minWidth = '0';
       i.setAttribute('data-k', k);
       var v = el('span', 'text-xs text-foreground-subtle');
       v.setAttribute('data-k', k + 'v');
-      v.style.cssText = 'flex:none;min-width:52px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 8px;font-variant-numeric:tabular-nums;';
+      v.style.cssText = 'flex:none;min-width:46px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 6px;font-variant-numeric:tabular-nums;';
       v.textContent = def + unit;
       i.addEventListener('input', function () {
         v.textContent = i.value + unit;
@@ -636,15 +637,18 @@ export function buildPanelScript(apiPort: number): string {
       r.appendChild(v);
       return r;
     }
-    tabPlay.appendChild(sliderRow('blur', 'blur', '模糊', 0, 40, 'px', 0));
-    tabPlay.appendChild(sliderRow('dim', 'dim', '压暗', 0, 100, '%', 0));
-    tabPlay.appendChild(sliderRow('bright', 'wallBrightness', '亮度', 40, 160, '%', 100));
-    tabPlay.appendChild(sliderRow('contrast', 'wallContrast', '对比度', 40, 200, '%', 100));
-    tabPlay.appendChild(sliderRow('saturate', 'wallSaturate', '饱和度', 0, 200, '%', 100));
-    tabPlay.appendChild(sliderRow('opacity', 'wallOpacity', '透明度', 0, 90, '%', 0));
-    tabPlay.appendChild(sliderRow('posx', 'posX', '水平', 0, 100, '', 50));
-    tabPlay.appendChild(sliderRow('posy', 'posY', '垂直', 0, 100, '', 50));
-    tabPlay.appendChild(sliderRow('scale', 'layerScale', '缩放', 50, 150, '%', 100));
+    var knobs = el('div');
+    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;';
+    knobs.appendChild(sliderRow('blur', 'blur', '模糊', 0, 40, 'px', 0));
+    knobs.appendChild(sliderRow('dim', 'dim', '压暗', 0, 100, '%', 0));
+    knobs.appendChild(sliderRow('bright', 'wallBrightness', '亮度', 40, 160, '%', 100));
+    knobs.appendChild(sliderRow('contrast', 'wallContrast', '对比度', 40, 200, '%', 100));
+    knobs.appendChild(sliderRow('saturate', 'wallSaturate', '饱和度', 0, 200, '%', 100));
+    knobs.appendChild(sliderRow('opacity', 'wallOpacity', '透明度', 0, 90, '%', 0));
+    knobs.appendChild(sliderRow('posx', 'posX', '水平', 0, 100, '', 50));
+    knobs.appendChild(sliderRow('posy', 'posY', '垂直', 0, 100, '', 50));
+    knobs.appendChild(sliderRow('scale', 'layerScale', '缩放', 50, 150, '%', 100));
+    tabPlay.appendChild(knobs);
 
     var rFit = prow('适配', '覆盖 = 裁切铺满 · 留边 = 完整显示 · 拉伸 = 变形填满 · 智能 = 自动构图。');
     rFit.right.style.flex = '1 1 0';

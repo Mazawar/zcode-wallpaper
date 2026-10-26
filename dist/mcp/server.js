@@ -55373,7 +55373,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 18;
+  var V = 19;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -55947,15 +55947,15 @@ function buildPanelScript(apiPort) {
     curCard.appendChild(ui.curBadge);
     tabLib.appendChild(curCard);
 
-    // \u2500\u2500 picture & playback pane, dsh layout: one full-width row per slider
-    // (label left \xB7 slider middle \xB7 value chip right), segments fill their row \u2500\u2500
+    // \u2500\u2500 picture pane: two columns of slider rows (user preference). Each cell
+    // keeps the label \xB7 slider \xB7 chip anatomy; the grid supplies the gutter. \u2500\u2500
     tabPlay.appendChild(groupLabel('\u753B\u9762'));
 
     function sliderRow(k, cfgKey, labelText, min, max, unit, def) {
       var r = el('div', 'border-t border-border');
-      r.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 16px;';
+      r.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;';
       var lab = el('span', 'text-sm text-foreground-subtle', labelText);
-      lab.style.cssText = 'flex:none;width:72px;';
+      lab.style.cssText = 'flex:none;width:48px;';
       r.appendChild(lab);
       var i = el('input');
       i.type = 'range';
@@ -55964,10 +55964,11 @@ function buildPanelScript(apiPort) {
       i.max = String(max);
       i.value = String(def);
       i.style.flex = '1 1 0';
+      i.style.minWidth = '0';
       i.setAttribute('data-k', k);
       var v = el('span', 'text-xs text-foreground-subtle');
       v.setAttribute('data-k', k + 'v');
-      v.style.cssText = 'flex:none;min-width:52px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 8px;font-variant-numeric:tabular-nums;';
+      v.style.cssText = 'flex:none;min-width:46px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 6px;font-variant-numeric:tabular-nums;';
       v.textContent = def + unit;
       i.addEventListener('input', function () {
         v.textContent = i.value + unit;
@@ -55981,15 +55982,18 @@ function buildPanelScript(apiPort) {
       r.appendChild(v);
       return r;
     }
-    tabPlay.appendChild(sliderRow('blur', 'blur', '\u6A21\u7CCA', 0, 40, 'px', 0));
-    tabPlay.appendChild(sliderRow('dim', 'dim', '\u538B\u6697', 0, 100, '%', 0));
-    tabPlay.appendChild(sliderRow('bright', 'wallBrightness', '\u4EAE\u5EA6', 40, 160, '%', 100));
-    tabPlay.appendChild(sliderRow('contrast', 'wallContrast', '\u5BF9\u6BD4\u5EA6', 40, 200, '%', 100));
-    tabPlay.appendChild(sliderRow('saturate', 'wallSaturate', '\u9971\u548C\u5EA6', 0, 200, '%', 100));
-    tabPlay.appendChild(sliderRow('opacity', 'wallOpacity', '\u900F\u660E\u5EA6', 0, 90, '%', 0));
-    tabPlay.appendChild(sliderRow('posx', 'posX', '\u6C34\u5E73', 0, 100, '', 50));
-    tabPlay.appendChild(sliderRow('posy', 'posY', '\u5782\u76F4', 0, 100, '', 50));
-    tabPlay.appendChild(sliderRow('scale', 'layerScale', '\u7F29\u653E', 50, 150, '%', 100));
+    var knobs = el('div');
+    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;';
+    knobs.appendChild(sliderRow('blur', 'blur', '\u6A21\u7CCA', 0, 40, 'px', 0));
+    knobs.appendChild(sliderRow('dim', 'dim', '\u538B\u6697', 0, 100, '%', 0));
+    knobs.appendChild(sliderRow('bright', 'wallBrightness', '\u4EAE\u5EA6', 40, 160, '%', 100));
+    knobs.appendChild(sliderRow('contrast', 'wallContrast', '\u5BF9\u6BD4\u5EA6', 40, 200, '%', 100));
+    knobs.appendChild(sliderRow('saturate', 'wallSaturate', '\u9971\u548C\u5EA6', 0, 200, '%', 100));
+    knobs.appendChild(sliderRow('opacity', 'wallOpacity', '\u900F\u660E\u5EA6', 0, 90, '%', 0));
+    knobs.appendChild(sliderRow('posx', 'posX', '\u6C34\u5E73', 0, 100, '', 50));
+    knobs.appendChild(sliderRow('posy', 'posY', '\u5782\u76F4', 0, 100, '', 50));
+    knobs.appendChild(sliderRow('scale', 'layerScale', '\u7F29\u653E', 50, 150, '%', 100));
+    tabPlay.appendChild(knobs);
 
     var rFit = prow('\u9002\u914D', '\u8986\u76D6 = \u88C1\u5207\u94FA\u6EE1 \xB7 \u7559\u8FB9 = \u5B8C\u6574\u663E\u793A \xB7 \u62C9\u4F38 = \u53D8\u5F62\u586B\u6EE1 \xB7 \u667A\u80FD = \u81EA\u52A8\u6784\u56FE\u3002');
     rFit.right.style.flex = '1 1 0';
