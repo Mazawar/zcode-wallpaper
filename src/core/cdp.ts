@@ -357,12 +357,6 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       doSwap('');
     }
   }
-  // dsh's underlay: the wallpaper's poster sits under the live layer — a
-  // blank/reloading/stalled engine then shows a still of the wallpaper
-  // instead of nothing. Never cleared while a live layer is configured.
-  if (LIVE_SRC && ${JSON.stringify(payload.livePoster ?? "")}) {
-    wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.livePoster ?? "")} + ')';
-  }
   applyLive(LIVE_SRC);
 
   // --- loop video layer (dsh's model: a native <video> in the host page) ----
@@ -410,21 +404,25 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     if (vid) vid.remove();
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
       wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
-    } else if (wp && !LIVE_SRC) {
+    } else if (wp) {
       wp.style.backgroundImage = 'none';
     }
   }
 
-  // --- blurred backdrop for contain framing --------------------------------
+  // --- blurred backdrop: contain framing, and the live underlay -----------
+  // The blurred layer doubles as dsh's ambient underlay: while the engine
+  // assembles (or blanks/reloads), the wallpaper poster shows as a soft
+  // blurred wash instead of a hard-cropped zoomed section of itself.
   var FIT = ${JSON.stringify(payload.fit ?? "cover")};
   var bp = document.getElementById(MARKER + '-backdrop');
-  if (FIT === 'contain' && ${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
+  var UNDERLAY = ${JSON.stringify(payload.livePoster ?? "")};
+  if ((FIT === 'contain' && ${JSON.stringify(Boolean(payload.wallpaperDataUri))}) || (LIVE_SRC && UNDERLAY)) {
     if (!bp) {
       bp = document.createElement('div');
       bp.id = MARKER + '-backdrop';
       document.documentElement.appendChild(bp);
     }
-    bp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
+    bp.style.backgroundImage = 'url(' + (${JSON.stringify(Boolean(payload.wallpaperDataUri))} ? ${JSON.stringify(payload.wallpaperDataUri ?? "")} : UNDERLAY) + ')';
     bp.dataset.on = '1';
   } else if (bp) {
     bp.dataset.on = '0';
