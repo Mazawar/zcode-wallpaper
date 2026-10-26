@@ -5,3 +5,4 @@ zcode-shot*.jpg
 reference/
 .zcode/
 .DS_Store
+serve.log

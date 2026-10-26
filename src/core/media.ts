@@ -87,6 +87,22 @@ export function sendStaticFile(
 
   // Handles "bytes=A-B", "bytes=A-" and suffix "bytes=-N".
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
+  const pipe = (opts?: { start: number; end: number }) => {
+    // A client abort (the cross-fade drops the old engine's in-flight media
+    // fetch mid-body) must not escalate to an unhandled stream error — that
+    // takes the whole in-process serve, i.e. the plugin's MCP, down and the
+    // page heartbeats unmount everything ("plugin looks uninstalled").
+    const stream = opts ? fs.createReadStream(filePath, opts) : fs.createReadStream(filePath);
+    stream.on("error", () => {
+      try {
+        res.destroy();
+      } catch {
+        /* already gone */
+      }
+    });
+    res.on("close", () => stream.destroy());
+    stream.pipe(res);
+  };
   if (range && (range[1] !== "" || range[2] !== "")) {
     let start: number;
     let end: number;
@@ -114,13 +130,13 @@ export function sendStaticFile(
       res.end();
     } else {
       res.writeHead(206, headers);
-      fs.createReadStream(filePath, { start, end }).pipe(res);
+      pipe({ start, end });
     }
   } else {
     const headers = bodyHeaders({ "Content-Length": stat.size });
     res.writeHead(200, headers);
     if (isHead) res.end();
-    else fs.createReadStream(filePath).pipe(res);
+    else pipe();
   }
   return true;
 }

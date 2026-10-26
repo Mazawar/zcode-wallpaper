@@ -674,6 +674,12 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     });
   });
 
+  // Belt and braces: this process IS the plugin's MCP. Any stray exception
+  // must not unmount the whole plugin — log it and keep serving; the page-side
+  // heartbeats already tolerate brief stalls and the 30s self-heal re-injects.
+  process.on("uncaughtException", (err) => console.error(`serve: uncaught exception — ${(err as Error).stack ?? err}`));
+  process.on("unhandledRejection", (err) => console.error(`serve: unhandled rejection — ${(err as Error)?.stack ?? err}`));
+
   async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {

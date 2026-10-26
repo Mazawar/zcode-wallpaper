@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 20;
+  var V = 21;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -813,6 +813,7 @@ export function buildPanelScript(apiPort: number): string {
   }
   function scan() {
     scheduled = false;
+    if (hbRetired) return; // serve is gone — no stale panel without data
     // Retire when a newer build has taken over the page.
     if (typeof window.__zwSettingsBoot === 'number' && window.__zwSettingsBoot > V) {
       if (mountObserver) mountObserver.disconnect();
@@ -841,30 +842,39 @@ export function buildPanelScript(apiPort: number): string {
     scheduled = true;
     setTimeout(scan, 80);
   }
-  // Lifecycle heartbeat (mirrors the bootstrap's): when the serve is gone
-  // (plugin disabled / app closed / hard kill), disconnect and remove this
-  // section within ~10s so the panel follows the plugin's lifecycle.
-  // Latch: at ZCode cold start the page can load before the in-process serve
-  // is listening (the MCP needs seconds to boot) — misses before the FIRST
-  // success must not retire the panel, or it never mounts (the exact bug
-  // where a restart left the section gone while the serve was healthy).
-  var hbMiss = 0;
+  // Lifecycle heartbeat — same hard/soft contract as the theme bootstrap:
+  //   hard = connection REFUSED (fast reject): the serve process is really
+  //   gone (plugin disabled / crash) → retire the section within ~10s.
+  //   soft = timeout while the serve is alive but busy (Monet decode, sync
+  //   library enumeration block its loop for seconds) → tolerated, never
+  //   retires. Latched on first success: cold start (page up before the
+  //   serve) doesn't count. If health returns after a retire (serve
+  //   respawned), the panel revives itself.
+  var hbHard = 0;
+  var hbSoft = 0;
   var hbSeen = false;
+  var hbRetired = false;
   setInterval(function () {
+    var t0 = Date.now();
     fetch(API + '/api/health', { signal: AbortSignal.timeout(2500) })
       .then(function (r) { return r.json(); })
       .then(function (b) {
         if (!b || b.service !== 'zcode-wallpaper') throw 0;
-        var first = !hbSeen;
+        var revive = hbRetired || !hbSeen;
         hbSeen = true;
-        hbMiss = 0;
-        if (first) schedule(); // serve just came up — maybe settings opened during the gap
+        hbHard = 0;
+        hbSoft = 0;
+        hbRetired = false;
+        if (revive) schedule(); // serve just came up (or back) — (re)mount
       })
       .catch(function () {
         if (!hbSeen) return; // cold-start race: keep waiting for the serve
-        if (++hbMiss < 2) return;
-        if (mountObserver) mountObserver.disconnect();
-        neutralize.disconnect();
+        var hard = (Date.now() - t0) < 150;
+        if (hard) { hbHard++; hbSoft = 0; } else { hbSoft++; hbHard = 0; }
+        if (hbHard < 2 && hbSoft < 6) return;
+        hbHard = 0;
+        hbSoft = 0;
+        hbRetired = true;
         var mine = document.getElementById(MARKER);
         if (mine) mine.remove();
       });
