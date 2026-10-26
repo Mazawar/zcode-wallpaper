@@ -177,6 +177,35 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   var MARKER = ${JSON.stringify(marker)};
   if (!window.__zw) window.__zw = {};
   var S = window.__zw;
+
+  // Flight recorder: layer lifecycle, visibility, engine messages, heartbeat
+  // verdicts — a ring buffer read after an incident instead of guessing.
+  if (!window.__zwRec) {
+    window.__zwLog = [];
+    window.__zwRec = function (tag, d) {
+      try {
+        window.__zwLog.push({ t: new Date().toISOString().slice(11, 23), tag: tag, d: d === undefined ? '' : String(d).slice(0, 160) });
+        if (window.__zwLog.length > 800) window.__zwLog.shift();
+      } catch (e) {}
+    };
+    try {
+      new MutationObserver(function (muts) {
+        muts.forEach(function (mu) {
+          if (mu.removedNodes) Array.prototype.forEach.call(mu.removedNodes, function (n) {
+            if (n.id && String(n.id).indexOf(MARKER) === 0) window.__zwRec('REMOVE', n.id + ' @ ' + (mu.target.id || mu.target.tagName));
+          });
+          if (mu.addedNodes) Array.prototype.forEach.call(mu.addedNodes, function (n) {
+            if (n.id && String(n.id).indexOf(MARKER) === 0) window.__zwRec('ADD', n.id);
+          });
+          if (mu.type === 'attributes' && mu.target.id && String(mu.target.id).indexOf(MARKER) === 0) window.__zwRec('ATTR', mu.target.id + '.' + mu.attributeName);
+        });
+      }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'src'] });
+      document.addEventListener('visibilitychange', function () { window.__zwRec('VIS', document.hidden ? 'hidden' : 'visible'); });
+      window.addEventListener('message', function (ev) { if (ev.data && ev.data.zwEvent) window.__zwRec('MSG', ev.data.zwEvent); });
+      window.addEventListener('error', function (e) { window.__zwRec('PAGEERR', (e.message || '') + ' @' + (e.lineno || 0)); });
+    } catch (e2) { /* recorder must never break the bootstrap */ }
+    window.__zwRec('BOOT', 'bootstrap v' + ${JSON.stringify(payload.transition ?? "fade")} + ' installed');
+  }
   var VIDEO_SRC = ${JSON.stringify(videoSrc)};
   var LIVE_SRC = ${JSON.stringify(liveSrc)};
   var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : "fade")};

@@ -52,6 +52,24 @@ const POLL_MS = 1500;
 const MAX_WALLPAPER_BYTES = 20 * 1024 * 1024;
 const MAX_BODY_BYTES = MAX_WALLPAPER_BYTES + 1024 * 1024;
 
+// Serve-side flight recorder: everything the serve logs also lands in a ring
+// buffer exposed at GET /api/log — after an incident both sides (page +
+// serve) can be read side by side. console.log in the host is already
+// stderr-routed by mcp/server.ts before this module loads.
+const serveLog: string[] = [];
+{
+  const orig = console.log.bind(console);
+  console.log = (...args: unknown[]) => {
+    try {
+      serveLog.push(`${new Date().toISOString().slice(11, 19)} ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ").slice(0, 200)}`);
+      if (serveLog.length > 400) serveLog.shift();
+    } catch {
+      /* recording must never break logging */
+    }
+    orig(...args);
+  };
+}
+
 // Plugin root: the directory holding live/ and .zcode-plugin/. Located by
 // probing upward because the module's own depth differs between the tsc
 // layout (dist/core/server.js -> 2 up) and the bundled layout (dist/cli.js ->
@@ -743,6 +761,11 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       }
 
       // --- control API -------------------------------------------------------
+
+      if (req.method === "GET" && url.pathname === "/api/log") {
+        sendJson(res, 200, { log: serveLog });
+        return;
+      }
 
       if (req.method === "GET" && url.pathname === "/api/health") {
         sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
