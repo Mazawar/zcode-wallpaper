@@ -48445,8 +48445,8 @@ function buildPanelScript(apiPort) {
   var MARKER = 'zcode-wallpaper-settings-v6';
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
-  var PAGE_SIZE = 6;
-  var V = 17;
+  var PAGE_SIZE = 12;
+  var V = 18;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -48682,9 +48682,11 @@ function buildPanelScript(apiPort) {
   // --- segmented control (dsh's \u500D\u901F / \u5E27\u7387 / \u9002\u914D rows) --------------------------
   // Dropdowns hide the choices; a segment row shows them. Active segment =
   // bg-input pill with a hairline inset border, verified classes + inline only.
-  function makeSeg(options, value, onChange, key) {
+  function makeSeg(options, value, onChange, key, fill) {
     var wrap = el('div', 'inline-flex items-center gap-1 rounded-lg border border-border');
-    wrap.style.cssText = 'padding:3px;flex-wrap:wrap;row-gap:2px;';
+    wrap.style.cssText = fill
+      ? 'padding:3px;display:flex;flex-wrap:nowrap;width:100%;'
+      : 'padding:3px;flex-wrap:wrap;row-gap:2px;';
     wrap.setAttribute('role', 'radiogroup');
     if (key) wrap.setAttribute('data-k', key);
     wrap.setAttribute('data-value', String(value));
@@ -48699,8 +48701,9 @@ function buildPanelScript(apiPort) {
       });
     };
     options.forEach(function (o) {
-      var b = el('button', 'h-7 px-3 rounded-md text-xs cursor-pointer outline-none transition-colors');
+      var b = el('button', 'h-7 rounded-md text-xs cursor-pointer outline-none transition-colors');
       b.type = 'button';
+      b.style.cssText = fill ? 'flex:1 1 0;padding:0 8px;' : 'padding:0 12px;';
       b.textContent = o[1];
       b.setAttribute('data-v', String(o[0]));
       b.addEventListener('click', function () {
@@ -48735,8 +48738,9 @@ function buildPanelScript(apiPort) {
     return { r: r, right: right };
   }
   function groupLabel(t) {
-    var g = el('div', 'text-xs font-medium text-foreground-subtlest');
-    g.style.cssText = 'padding:14px 16px 6px;letter-spacing:.08em;';
+    // dsh section heading: big, bold, white \u2014 the visual anchor of a group.
+    var g = el('div', 'text-sm font-semibold text-foreground');
+    g.style.cssText = 'padding:16px 16px 8px;font-size:15px;';
     g.textContent = t;
     return g;
   }
@@ -48783,69 +48787,85 @@ function buildPanelScript(apiPort) {
     if (state.page >= pages) state.page = pages - 1;
     var slice = all.slice(state.page * PAGE_SIZE, state.page * PAGE_SIZE + PAGE_SIZE);
 
-    // With the fixed min-height, a short last page keeps its rows at natural
-    // size instead of stretching them to fill the container. Inline style \u2014
-    // the align-content utility class may not exist in ZCode's compiled CSS.
-    var grid = el('div', 'grid grid-cols-1 gap-2 sm:grid-cols-2');
+    // Poster grid (dsh picker): 16:9 image cards, title overlaid at the
+    // bottom, type tag top-left, export/delete chips top-right. Inline styles
+    // throughout \u2014 aspect-ratio & gradient utilities aren't in the app CSS.
+    var grid = el('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;';
     grid.style.alignContent = 'start';
     slice.forEach(function (w) {
-      var item = el('div', 'flex items-center gap-3 border rounded-lg p-2 cursor-pointer transition-colors ' +
-        (w.id === currentId ? 'border-input-border-focused bg-input' : 'border-border bg-background hover:border-input-border-hover'));
-      var img = el('img', 'w-20 h-11 object-cover rounded-md bg-black/20 flex-none');
+      var sel = w.id === currentId;
+      var card = el('div');
+      card.style.cssText = 'position:relative;aspect-ratio:16/9;border-radius:8px;overflow:hidden;cursor:pointer;' +
+        'background:rgba(0,0,0,.3);border:1px solid ' + (sel ? 'var(--color-primary,#fff)' : 'var(--color-border,#ffffff1a)') + ';' +
+        (sel ? 'box-shadow:0 0 0 1px var(--color-primary,#fff);' : '');
+      var img = el('img');
       img.loading = 'lazy';
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
       if (w.previewUrl) img.src = API + w.previewUrl;
-      var info = el('div', 'min-w-0 flex-1');
-      var name = el('div', 'text-ui-base font-medium text-foreground truncate');
-      name.textContent = w.title || w.id;
-      var meta = el('div', 'text-ui-base text-foreground-subtle truncate');
-      var badge = el('span', 'inline-block text-xs px-1.5 py-px rounded-full mr-1 border border-border', TYPE_LABEL[w.type] || w.type);
-      meta.appendChild(badge);
-      meta.appendChild(document.createTextNode(
-        (w.sizeBytes / 1048576).toFixed(1) + 'MB \xB7 ' + (ORIGIN_LABEL[w.origin] || w.origin)));
-      info.appendChild(name); info.appendChild(meta);
-      item.appendChild(img); item.appendChild(info);
-      if (w.id === currentId) item.appendChild(el('span', 'text-xs text-foreground-subtle flex-none', '\u4F7F\u7528\u4E2D'));
-      item.appendChild(button('\u5BFC\u51FA', function (e) {
-        e.stopPropagation();
-        var a = el('a');
-        a.href = API + '/api/export?id=' + encodeURIComponent(w.id);
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }, '\u6253\u5305\u4E3A .zw.zip\uFF0C\u53EF\u5728\u53E6\u4E00\u53F0\u7535\u8111\u5BFC\u5165', CLS.btnIcon));
-      if (w.origin === 'custom') {
-        item.appendChild(button('\u5220\u9664', function (e) {
-          e.stopPropagation();
-          post('/api/delete-source', { id: w.id }).then(function (r) {
-            if (r.error) { toast('\u5220\u9664\u5931\u8D25\uFF1A' + r.error); return; }
-            toast('\u5DF2\u5220\u9664\u300C' + (w.title || w.id) + '\u300D' + (r.switchedTo ? '\uFF0C\u5DF2\u5207\u6362\u5230\u300C' + r.switchedTo + '\u300D' : ''));
-            state.page = 0;
-            refresh();
-          }).catch(function (err) { toast('\u5220\u9664\u5931\u8D25\uFF1A' + (err && err.message ? err.message : '\u7F51\u7EDC\u9519\u8BEF')); });
-        }, '\u4ECE\u5E93\u4E2D\u5220\u9664\uFF08\u5DF2\u5BFC\u5165\u7684\u6587\u4EF6\u4E00\u5E76\u6E05\u7406\uFF1B\u82E5\u6B63\u5728\u4F7F\u7528\u4F1A\u81EA\u52A8\u5207\u6362\uFF09', CLS.btnIcon));
+      card.appendChild(img);
+      var tag = el('span', null, TYPE_LABEL[w.type] || w.type || '');
+      tag.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;';
+      card.appendChild(tag);
+      if (sel) {
+        var use = el('span', null, '\u4F7F\u7528\u4E2D');
+        use.style.cssText = 'position:absolute;top:6px;right:6px;background:var(--color-primary,#fff);color:var(--color-primary-foreground,#000);font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;';
+        card.appendChild(use);
+      } else {
+        var chips = el('div');
+        chips.style.cssText = 'position:absolute;top:6px;right:6px;display:flex;gap:4px;';
+        var mini = function (t, title, fn) {
+          var mb = el('button', null, t);
+          mb.type = 'button';
+          mb.title = title;
+          mb.style.cssText = 'background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;border:0;cursor:pointer;';
+          mb.addEventListener('click', function (e) { e.stopPropagation(); fn(); });
+          return mb;
+        };
+        chips.appendChild(mini('\u5BFC\u51FA', '\u6253\u5305\u4E3A .zw.zip\uFF0C\u53EF\u5728\u53E6\u4E00\u53F0\u7535\u8111\u5BFC\u5165', function () {
+          var a = el('a');
+          a.href = API + '/api/export?id=' + encodeURIComponent(w.id);
+          a.download = '';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }));
+        if (w.origin === 'custom') {
+          chips.appendChild(mini('\u5220\u9664', '\u4ECE\u5E93\u4E2D\u5220\u9664\uFF08\u6B63\u5728\u4F7F\u7528\u4F1A\u81EA\u52A8\u5207\u6362\uFF09', function () {
+            post('/api/delete-source', { id: w.id }).then(function (r) {
+              if (r.error) { toast('\u5220\u9664\u5931\u8D25\uFF1A' + r.error); return; }
+              toast('\u5DF2\u5220\u9664\u300C' + (w.title || w.id) + '\u300D' + (r.switchedTo ? '\uFF0C\u5DF2\u5207\u6362\u5230\u300C' + r.switchedTo + '\u300D' : ''));
+              state.page = 0;
+              refresh();
+            }).catch(function (err) { toast('\u5220\u9664\u5931\u8D25\uFF1A' + (err && err.message ? err.message : '\u7F51\u7EDC\u9519\u8BEF')); });
+          }));
+        }
+        card.appendChild(chips);
       }
-      item.addEventListener('click', function () {
+      var name = el('div', null, w.title || w.id);
+      name.style.cssText = 'position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;color:#fff;font-size:12px;' +
+        'background:linear-gradient(transparent,rgba(0,0,0,.78));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      card.appendChild(name);
+      card.addEventListener('click', function () {
         post('/api/apply-source', { sourceId: w.id }).then(function (r) {
           if (!r.error) refresh();
         }).catch(function () {});
       });
-      grid.appendChild(item);
+      grid.appendChild(card);
     });
     ui.libBox.appendChild(grid);
     // Fixed height: remember the natural height of a FULL page and keep it for
-    // short pages too, so the last page never collapses the section.
+    // short pages too, so the last page never collapses the section. Skipped
+    // while the pane is hidden (offsetHeight 0 would poison the memory).
     requestAnimationFrame(function () {
       if (!grid.firstChild) return;
-      // Hidden pane (user is on the other tab): offsetHeight is 0 here, and
-      // measuring would corrupt the remembered page height.
       if (!grid.offsetParent) return;
       if (slice.length === PAGE_SIZE && pages > 1) {
         state.gridH = grid.offsetHeight;
       }
       if (state.gridH) grid.style.minHeight = state.gridH + 'px';
       else {
-        var rows = Math.ceil(PAGE_SIZE / 2);
+        var rows = Math.ceil(PAGE_SIZE / 4);
         grid.style.minHeight = (rows * grid.firstChild.offsetHeight + (rows - 1) * 8) + 'px';
       }
     });
@@ -48944,13 +48964,20 @@ function buildPanelScript(apiPort) {
     var content = el('div', CLS.content);
     content.setAttribute('data-slot', 'card-content');
 
-    // --- segmented tab strip (same look as the option segments) -----------------
+    // --- full-width tab strip (dsh: equal tabs in one bordered container) -------
     ensureSliderStyle();
-    var tabBar = el('div');
-    tabBar.style.cssText = 'padding:12px 16px 8px;';
-    var tabSeg = makeSeg([['lib', '\u58C1\u7EB8\u5E93'], ['play', '\u753B\u9762\u4E0E\u64AD\u653E']], (function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })(), function (v) { showTab(v); }, 'zwtabs');
-    Array.prototype.forEach.call(tabSeg.children, function (b) { b.style.fontSize = '13px'; b.style.paddingLeft = '16px'; b.style.paddingRight = '16px'; });
-    tabBar.appendChild(tabSeg);
+    var tabBar = el('div', 'rounded-lg border border-border');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:3px;margin:12px 16px 2px;';
+    function tabBtn(label) {
+      var b = el('button', 'h-8 rounded-md text-sm outline-none transition-colors cursor-pointer');
+      b.type = 'button';
+      b.style.cssText = 'flex:1 1 0;';
+      b.textContent = label;
+      tabBar.appendChild(b);
+      return b;
+    }
+    var tabLibBtn = tabBtn('\u58C1\u7EB8\u5E93');
+    var tabPlayBtn = tabBtn('\u753B\u9762\u4E0E\u64AD\u653E');
     content.appendChild(tabBar);
     var tabLib = el('div');
     var tabPlay = el('div');
@@ -48961,13 +48988,22 @@ function buildPanelScript(apiPort) {
       var isLib = t !== 'play';
       tabLib.style.display = isLib ? '' : 'none';
       tabPlay.style.display = isLib ? 'none' : '';
-      setSeg(section, 'zwtabs', isLib ? 'lib' : 'play');
+      Array.prototype.forEach.call([tabLibBtn, tabPlayBtn], function (b, idx) {
+        var on = (idx === 0) === isLib;
+        b.style.background = on ? 'var(--color-input,#2b2b2b)' : 'transparent';
+        b.style.color = on ? 'var(--color-foreground,#eee)' : 'var(--color-foreground-subtle,#999)';
+        b.style.fontWeight = on ? '500' : '400';
+        b.style.boxShadow = on ? 'inset 0 0 0 1px var(--color-input-border,#ffffff1a)' : 'none';
+      });
       state.tab = isLib ? 'lib' : 'play';
       try { localStorage.setItem('zw-panel-tab', state.tab); } catch (e) { /* private mode */ }
     }
-    showTab(tabSeg.getAttribute('data-value'));
+    tabLibBtn.addEventListener('click', function () { showTab('lib'); });
+    tabPlayBtn.addEventListener('click', function () { showTab('play'); });
+    showTab((function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })());
 
-    // Current wallpaper strip (dsh's \u5F53\u524D\u58C1\u7EB8 card): poster + title + badge.
+    tabLib.appendChild(groupLabel('\u5F53\u524D\u58C1\u7EB8'));
+    // Current wallpaper strip: poster + title + meta + badge.
     var curCard = el('div', 'border-t border-border');
     curCard.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:14px;';
     ui.curPoster = el('img');
@@ -48984,30 +49020,28 @@ function buildPanelScript(apiPort) {
     curCard.appendChild(ui.curBadge);
     tabLib.appendChild(curCard);
 
+    // \u2500\u2500 picture & playback pane, dsh layout: one full-width row per slider
+    // (label left \xB7 slider middle \xB7 value chip right), segments fill their row \u2500\u2500
     tabPlay.appendChild(groupLabel('\u753B\u9762'));
 
-    // Two-column slider grid: custom zw-range sliders (the accent-* utility
-    // doesn't exist in ZCode's CSS \u2014 native widgets look broken), tabular
-    // value chips like the native px inputs.
-    var knobs = el('div');
-    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 32px;padding:2px 16px 10px;';
-    function sliderCell(k, cfgKey, labelText, min, max, unit, def) {
-      var c = el('div');
-      var head = el('div', 'flex items-center justify-between');
-      head.style.cssText = 'margin-bottom:6px;';
-      head.appendChild(el('span', 'text-xs text-foreground-subtle', labelText));
-      var v = el('span', 'text-xs text-foreground-subtle');
-      v.setAttribute('data-k', k + 'v');
-      v.style.cssText = 'font-variant-numeric:tabular-nums;';
-      v.textContent = def + unit;
-      head.appendChild(v);
+    function sliderRow(k, cfgKey, labelText, min, max, unit, def) {
+      var r = el('div', 'border-t border-border');
+      r.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 16px;';
+      var lab = el('span', 'text-sm text-foreground-subtle', labelText);
+      lab.style.cssText = 'flex:none;width:72px;';
+      r.appendChild(lab);
       var i = el('input');
       i.type = 'range';
       i.className = 'zw-range';
       i.min = String(min);
       i.max = String(max);
       i.value = String(def);
+      i.style.flex = '1 1 0';
       i.setAttribute('data-k', k);
+      var v = el('span', 'text-xs text-foreground-subtle');
+      v.setAttribute('data-k', k + 'v');
+      v.style.cssText = 'flex:none;min-width:52px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 8px;font-variant-numeric:tabular-nums;';
+      v.textContent = def + unit;
       i.addEventListener('input', function () {
         v.textContent = i.value + unit;
         paintRange(i);
@@ -49016,60 +49050,49 @@ function buildPanelScript(apiPort) {
         pushConfig(p);
       });
       paintRange(i);
-      c.appendChild(head);
-      c.appendChild(i);
-      return c;
+      r.appendChild(i);
+      r.appendChild(v);
+      return r;
     }
-    knobs.appendChild(sliderCell('blur', 'blur', '\u6A21\u7CCA', 0, 40, 'px', 0));
-    knobs.appendChild(sliderCell('dim', 'dim', '\u538B\u6697', 0, 100, '%', 0));
-    knobs.appendChild(sliderCell('bright', 'wallBrightness', '\u4EAE\u5EA6', 40, 160, '%', 100));
-    knobs.appendChild(sliderCell('contrast', 'wallContrast', '\u5BF9\u6BD4\u5EA6', 40, 200, '%', 100));
-    knobs.appendChild(sliderCell('saturate', 'wallSaturate', '\u9971\u548C\u5EA6', 0, 200, '%', 100));
-    knobs.appendChild(sliderCell('opacity', 'wallOpacity', '\u900F\u660E\u5EA6', 0, 90, '%', 0));
-    knobs.appendChild(sliderCell('posx', 'posX', '\u6C34\u5E73\u4F4D\u7F6E', 0, 100, '', 50));
-    knobs.appendChild(sliderCell('posy', 'posY', '\u5782\u76F4\u4F4D\u7F6E', 0, 100, '', 50));
-    knobs.appendChild(sliderCell('scale', 'layerScale', '\u7F29\u653E', 50, 150, '%', 100));
-    tabPlay.appendChild(knobs);
+    tabPlay.appendChild(sliderRow('blur', 'blur', '\u6A21\u7CCA', 0, 40, 'px', 0));
+    tabPlay.appendChild(sliderRow('dim', 'dim', '\u538B\u6697', 0, 100, '%', 0));
+    tabPlay.appendChild(sliderRow('bright', 'wallBrightness', '\u4EAE\u5EA6', 40, 160, '%', 100));
+    tabPlay.appendChild(sliderRow('contrast', 'wallContrast', '\u5BF9\u6BD4\u5EA6', 40, 200, '%', 100));
+    tabPlay.appendChild(sliderRow('saturate', 'wallSaturate', '\u9971\u548C\u5EA6', 0, 200, '%', 100));
+    tabPlay.appendChild(sliderRow('opacity', 'wallOpacity', '\u900F\u660E\u5EA6', 0, 90, '%', 0));
+    tabPlay.appendChild(sliderRow('posx', 'posX', '\u6C34\u5E73', 0, 100, '', 50));
+    tabPlay.appendChild(sliderRow('posy', 'posY', '\u5782\u76F4', 0, 100, '', 50));
+    tabPlay.appendChild(sliderRow('scale', 'layerScale', '\u7F29\u653E', 50, 150, '%', 100));
 
-    tabPlay.appendChild(groupLabel('\u9002\u914D\u4E0E\u64AD\u653E'));
-
-    var rFit = prow('\u586B\u5145\u65B9\u5F0F', '\u8986\u76D6 = \u88C1\u5207\u94FA\u6EE1 \xB7 \u7559\u8FB9 = \u5B8C\u6574\u663E\u793A \xB7 \u62C9\u4F38 = \u53D8\u5F62\u586B\u6EE1 \xB7 \u667A\u80FD = \u5206\u6790\u4E3B\u4F53\u81EA\u52A8\u6784\u56FE\u3002');
-    rFit.right.appendChild(makeSeg([['cover', '\u8986\u76D6'], ['contain', '\u7559\u8FB9'], ['stretch', '\u62C9\u4F38'], ['smart', '\u667A\u80FD']], 'cover', function (v) { pushConfig({ fit: v }); }, 'fit'));
+    var rFit = prow('\u9002\u914D', '\u8986\u76D6 = \u88C1\u5207\u94FA\u6EE1 \xB7 \u7559\u8FB9 = \u5B8C\u6574\u663E\u793A \xB7 \u62C9\u4F38 = \u53D8\u5F62\u586B\u6EE1 \xB7 \u667A\u80FD = \u81EA\u52A8\u6784\u56FE\u3002');
+    rFit.right.style.flex = '1 1 0';
+    rFit.right.style.minWidth = '240px';
+    rFit.right.appendChild(makeSeg([['cover', '\u8986\u76D6'], ['contain', '\u7559\u8FB9'], ['stretch', '\u62C9\u4F38'], ['smart', '\u667A\u80FD']], 'cover', function (v) { pushConfig({ fit: v }); }, 'fit', true));
     tabPlay.appendChild(rFit.r);
 
-    var rFlip = prow('\u753B\u9762\u955C\u50CF', '\u6C34\u5E73\u7FFB\u8F6C\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF0C\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\uFF0C\u65E0\u6E32\u67D3\u5F00\u9500\u3002');
-    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '\u6C34\u5E73\u7FFB\u8F6C', 'flip'));
-    tabPlay.appendChild(rFlip.r);
-
-    var rLive = prow('\u5E27\u7387\u4E0E\u58F0\u97F3', '\u573A\u666F\u6E32\u67D3\u5E27\u7387\u4E0A\u9650\uFF1B\u89C6\u9891\u58C1\u7EB8\u6309\u6E90\u5E27\u7387\u64AD\u653E\u3002\u5173\u95ED\u9759\u97F3\u53EF\u64AD\u653E\u58C1\u7EB8\u81EA\u5E26\u97F3\u9891\u3002');
-    rLive.right.appendChild(makeSeg([['15', '15'], ['30', '30'], ['60', '60']], '30', function (v) { pushConfig({ liveFps: Number(v) }); }, 'fps'));
+    var rLive = prow('\u5E27\u7387\u4E0A\u9650', '\u573A\u666F\u6E32\u67D3\u5E27\u7387\uFF1B\u89C6\u9891\u6309\u6E90\u5E27\u7387\u64AD\u653E\u3002');
+    var fpsSeg = makeSeg([['15', '15'], ['30', '30'], ['60', '60']], '30', function (v) { pushConfig({ liveFps: Number(v) }); }, 'fps', true);
+    fpsSeg.style.maxWidth = '200px';
+    rLive.right.appendChild(fpsSeg);
     rLive.right.appendChild(makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '\u9759\u97F3', 'mute'));
     tabPlay.appendChild(rLive.r);
 
-    tabPlay.appendChild(groupLabel('\u5207\u6362\u4E0E\u8F6E\u64AD'));
-
-    var rTrans = prow('\u5207\u6362\u8FC7\u573A', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
-    rTrans.right.appendChild(makeSeg([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
-    tabPlay.appendChild(rTrans.r);
-
-    var rRot = prow('\u81EA\u52A8\u8F6E\u64AD', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\uFF08\u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\uFF09\u4E2D\u81EA\u52A8\u5207\u6362\u3002');
-    rRot.right.appendChild(makeSeg([['sequence', '\u987A\u5E8F'], ['random', '\u968F\u673A']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); }, 'rotord'));
-    rRot.right.appendChild(makeSeg([['5', '5 \u5206'], ['15', '15 \u5206'], ['30', '30 \u5206'], ['60', '1 \u5C0F\u65F6'], ['120', '2 \u5C0F\u65F6']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); }, 'rotmin'));
-    rRot.right.appendChild(makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '\u8F6E\u64AD', 'rot'));
-    tabPlay.appendChild(rRot.r);
+    var rFlip = prow('\u6C34\u5E73\u7FFB\u8F6C', '\u955C\u50CF\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF0C\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\u3002');
+    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '\u7FFB\u8F6C', 'flip'));
+    tabPlay.appendChild(rFlip.r);
 
     tabPlay.appendChild(groupLabel('\u53D6\u8272'));
 
-    var rTheme = prow('Monet \u52A8\u6001\u53D6\u8272', '\u4ECE\u58C1\u7EB8\u771F\u5B9E\u6E32\u67D3\u50CF\u7D20\u63D0\u53D6 Material Design 3 \u914D\u8272\u5E76\u9002\u914D\u754C\u9762\uFF1B\u5173\u95ED\u300C\u663E\u793A\u58C1\u7EB8\u300D\u5219\u53EA\u53D6\u8272\u4E0D\u94FA\u56FE\u3002');
+    var rTheme = prow('Monet \u52A8\u6001\u53D6\u8272', '\u4ECE\u58C1\u7EB8\u771F\u5B9E\u6E32\u67D3\u50CF\u7D20\u63D0\u53D6 Material Design 3 \u914D\u8272\u9002\u914D\u754C\u9762\uFF1B\u5173\u95ED\u300C\u663E\u793A\u58C1\u7EB8\u300D\u5219\u53EA\u53D6\u8272\u4E0D\u94FA\u56FE\u3002');
     rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ monet: v }); }, '\u53D6\u8272', 'monet'));
     rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '\u663E\u793A\u58C1\u7EB8', 'vis'));
     tabPlay.appendChild(rTheme.r);
 
-    // library pane content \u2014 appended into tabLib below the current-wallpaper
-    // strip. The tab bar already labels this pane, so no repeated header.
+    // library pane \u2014 dsh order: actions under the current card, then \u5207\u6362\u8FC7\u573A /
+    // \u81EA\u52A8\u8F6E\u64AD sections, then the picker (filter row + poster grid + pager).
     var libRow = tabLib;
-    var libHead = el('div');
-    libHead.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    var actRow = el('div');
+    actRow.style.cssText = 'padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
     // Instant pause/resume: posted straight into the live renderer iframes in
     // this page \u2014 no server roundtrip, no config change.
     var livePaused = false;
@@ -49082,29 +49105,8 @@ function buildPanelScript(apiPort) {
         }
       });
     }, '\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3');
-    // Search takes the slack in the row; the filter and actions hug the right.
-    var search = el('input', CLS.input);
-    search.type = 'search';
-    search.placeholder = '\u641C\u7D22\u58C1\u7EB8\uFF08\u540D\u79F0 / \u7C7B\u578B / \u6765\u6E90\uFF09';
-    search.value = state.filter || '';
-    search.style.cssText = 'flex:1 1 180px;min-width:160px;';
-    var searchTimer = null;
-    search.addEventListener('input', function () {
-      clearTimeout(searchTimer);
-      var v = search.value;
-      searchTimer = setTimeout(function () {
-        state.filter = v;
-        state.page = 0;
-        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-      }, 200);
-    });
-    ui.search = search;
-    var typeSel = dropdown([['all', '\u5168\u90E8\u7C7B\u578B'], ['scene', '\u573A\u666F'], ['video', '\u89C6\u9891'], ['web', '\u7F51\u9875']], state.typeF || 'all', function (v) {
-      state.typeF = v; state.page = 0;
-      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-    });
-    typeSel.style.width = '128px';
-    typeSel.style.flex = 'none';
+    actRow.appendChild(pauseBtn);
+    actRow.appendChild(button('\u5237\u65B0', function () { refresh(); }));
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos \u2014 dispatched by file type. Same chooser UX as
     // everywhere else in the app; no Wallpaper Engine involved.
@@ -49140,19 +49142,58 @@ function buildPanelScript(apiPort) {
       }
       importFile.value = '';
     });
-    libHead.appendChild(search);
-    libHead.appendChild(typeSel);
-    libHead.appendChild(pauseBtn);
-    libHead.appendChild(button('\u5237\u65B0', function () { refresh(); }));
-    libHead.appendChild(button('\u5BFC\u5165\u58C1\u7EB8\u2026', function () { importFile.click(); }, '\u652F\u6301\uFF1A\u56FE\u7247\u3001.zw.zip \u8D44\u6E90\u5305\u3001.pkg \u573A\u666F\u3001.mp4/.webm \u89C6\u9891\uFF08\u65E0\u9700 Wallpaper Engine\uFF09'));
-    libHead.appendChild(importFile);
-    libRow.appendChild(libHead);
+    actRow.appendChild(button('\u5BFC\u5165\u58C1\u7EB8\u2026', function () { importFile.click(); }, '\u652F\u6301\uFF1A\u56FE\u7247\u3001.zw.zip \u8D44\u6E90\u5305\u3001.pkg \u573A\u666F\u3001.mp4/.webm \u89C6\u9891\uFF08\u65E0\u9700 Wallpaper Engine\uFF09'));
+    actRow.appendChild(importFile);
+    libRow.appendChild(actRow);
+
+    libRow.appendChild(groupLabel('\u5207\u6362\u8FC7\u573A'));
+    var rTrans = prow('\u8FC7\u573A\u52A8\u753B', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
+    rTrans.right.appendChild(makeSeg([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
+    libRow.appendChild(rTrans.r);
+
+    libRow.appendChild(groupLabel('\u81EA\u52A8\u8F6E\u64AD'));
+    var rRot = prow('\u81EA\u52A8\u8F6E\u8F6C', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\uFF08\u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\uFF09\u4E2D\u81EA\u52A8\u5207\u6362\u3002');
+    rRot.right.appendChild(makeSeg([['sequence', '\u987A\u5E8F'], ['random', '\u968F\u673A']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); }, 'rotord'));
+    rRot.right.appendChild(makeSeg([['5', '5 \u5206'], ['15', '15 \u5206'], ['30', '30 \u5206'], ['60', '1 \u5C0F\u65F6'], ['120', '2 \u5C0F\u65F6']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); }, 'rotmin'));
+    rRot.right.appendChild(makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '\u8F6E\u64AD', 'rot'));
+    libRow.appendChild(rRot.r);
+
+    libRow.appendChild(groupLabel('\u58C1\u7EB8\u5E93'));
+
+    // Filter row: search takes the slack, the type filter stays compact.
+    var filterRow = el('div');
+    filterRow.style.cssText = 'padding:2px 16px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    var search = el('input', CLS.input);
+    search.type = 'search';
+    search.placeholder = '\u641C\u7D22\u58C1\u7EB8\uFF08\u540D\u79F0 / \u7C7B\u578B / \u6765\u6E90\uFF09';
+    search.value = state.filter || '';
+    search.style.cssText = 'flex:1 1 180px;min-width:160px;';
+    var searchTimer = null;
+    search.addEventListener('input', function () {
+      clearTimeout(searchTimer);
+      var v = search.value;
+      searchTimer = setTimeout(function () {
+        state.filter = v;
+        state.page = 0;
+        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+      }, 200);
+    });
+    ui.search = search;
+    filterRow.appendChild(search);
+    var typeSel = dropdown([['all', '\u5168\u90E8\u7C7B\u578B'], ['scene', '\u573A\u666F'], ['video', '\u89C6\u9891'], ['web', '\u7F51\u9875']], state.typeF || 'all', function (v) {
+      state.typeF = v; state.page = 0;
+      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+    });
+    typeSel.style.width = '128px';
+    typeSel.style.flex = 'none';
+    filterRow.appendChild(typeSel);
+    libRow.appendChild(filterRow);
 
     ui.libBox = el('div');
     ui.libBox.style.cssText = 'padding:0 16px;';
     libRow.appendChild(ui.libBox);
     ui.pagerBox = el('div');
-    ui.pagerBox.style.cssText = 'padding:0 16px 12px;';
+    ui.pagerBox.style.cssText = 'padding:2px 16px 12px;';
     libRow.appendChild(ui.pagerBox);
 
     // footer actions

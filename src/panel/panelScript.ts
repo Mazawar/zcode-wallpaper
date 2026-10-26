@@ -27,8 +27,8 @@ export function buildPanelScript(apiPort: number): string {
   var MARKER = 'zcode-wallpaper-settings-v6';
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
-  var PAGE_SIZE = 6;
-  var V = 17;
+  var PAGE_SIZE = 12;
+  var V = 18;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -264,9 +264,11 @@ export function buildPanelScript(apiPort: number): string {
   // --- segmented control (dsh's 倍速 / 帧率 / 适配 rows) --------------------------
   // Dropdowns hide the choices; a segment row shows them. Active segment =
   // bg-input pill with a hairline inset border, verified classes + inline only.
-  function makeSeg(options, value, onChange, key) {
+  function makeSeg(options, value, onChange, key, fill) {
     var wrap = el('div', 'inline-flex items-center gap-1 rounded-lg border border-border');
-    wrap.style.cssText = 'padding:3px;flex-wrap:wrap;row-gap:2px;';
+    wrap.style.cssText = fill
+      ? 'padding:3px;display:flex;flex-wrap:nowrap;width:100%;'
+      : 'padding:3px;flex-wrap:wrap;row-gap:2px;';
     wrap.setAttribute('role', 'radiogroup');
     if (key) wrap.setAttribute('data-k', key);
     wrap.setAttribute('data-value', String(value));
@@ -281,8 +283,9 @@ export function buildPanelScript(apiPort: number): string {
       });
     };
     options.forEach(function (o) {
-      var b = el('button', 'h-7 px-3 rounded-md text-xs cursor-pointer outline-none transition-colors');
+      var b = el('button', 'h-7 rounded-md text-xs cursor-pointer outline-none transition-colors');
       b.type = 'button';
+      b.style.cssText = fill ? 'flex:1 1 0;padding:0 8px;' : 'padding:0 12px;';
       b.textContent = o[1];
       b.setAttribute('data-v', String(o[0]));
       b.addEventListener('click', function () {
@@ -317,8 +320,9 @@ export function buildPanelScript(apiPort: number): string {
     return { r: r, right: right };
   }
   function groupLabel(t) {
-    var g = el('div', 'text-xs font-medium text-foreground-subtlest');
-    g.style.cssText = 'padding:14px 16px 6px;letter-spacing:.08em;';
+    // dsh section heading: big, bold, white — the visual anchor of a group.
+    var g = el('div', 'text-sm font-semibold text-foreground');
+    g.style.cssText = 'padding:16px 16px 8px;font-size:15px;';
     g.textContent = t;
     return g;
   }
@@ -365,69 +369,85 @@ export function buildPanelScript(apiPort: number): string {
     if (state.page >= pages) state.page = pages - 1;
     var slice = all.slice(state.page * PAGE_SIZE, state.page * PAGE_SIZE + PAGE_SIZE);
 
-    // With the fixed min-height, a short last page keeps its rows at natural
-    // size instead of stretching them to fill the container. Inline style —
-    // the align-content utility class may not exist in ZCode's compiled CSS.
-    var grid = el('div', 'grid grid-cols-1 gap-2 sm:grid-cols-2');
+    // Poster grid (dsh picker): 16:9 image cards, title overlaid at the
+    // bottom, type tag top-left, export/delete chips top-right. Inline styles
+    // throughout — aspect-ratio & gradient utilities aren't in the app CSS.
+    var grid = el('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;';
     grid.style.alignContent = 'start';
     slice.forEach(function (w) {
-      var item = el('div', 'flex items-center gap-3 border rounded-lg p-2 cursor-pointer transition-colors ' +
-        (w.id === currentId ? 'border-input-border-focused bg-input' : 'border-border bg-background hover:border-input-border-hover'));
-      var img = el('img', 'w-20 h-11 object-cover rounded-md bg-black/20 flex-none');
+      var sel = w.id === currentId;
+      var card = el('div');
+      card.style.cssText = 'position:relative;aspect-ratio:16/9;border-radius:8px;overflow:hidden;cursor:pointer;' +
+        'background:rgba(0,0,0,.3);border:1px solid ' + (sel ? 'var(--color-primary,#fff)' : 'var(--color-border,#ffffff1a)') + ';' +
+        (sel ? 'box-shadow:0 0 0 1px var(--color-primary,#fff);' : '');
+      var img = el('img');
       img.loading = 'lazy';
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
       if (w.previewUrl) img.src = API + w.previewUrl;
-      var info = el('div', 'min-w-0 flex-1');
-      var name = el('div', 'text-ui-base font-medium text-foreground truncate');
-      name.textContent = w.title || w.id;
-      var meta = el('div', 'text-ui-base text-foreground-subtle truncate');
-      var badge = el('span', 'inline-block text-xs px-1.5 py-px rounded-full mr-1 border border-border', TYPE_LABEL[w.type] || w.type);
-      meta.appendChild(badge);
-      meta.appendChild(document.createTextNode(
-        (w.sizeBytes / 1048576).toFixed(1) + 'MB · ' + (ORIGIN_LABEL[w.origin] || w.origin)));
-      info.appendChild(name); info.appendChild(meta);
-      item.appendChild(img); item.appendChild(info);
-      if (w.id === currentId) item.appendChild(el('span', 'text-xs text-foreground-subtle flex-none', '使用中'));
-      item.appendChild(button('导出', function (e) {
-        e.stopPropagation();
-        var a = el('a');
-        a.href = API + '/api/export?id=' + encodeURIComponent(w.id);
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }, '打包为 .zw.zip，可在另一台电脑导入', CLS.btnIcon));
-      if (w.origin === 'custom') {
-        item.appendChild(button('删除', function (e) {
-          e.stopPropagation();
-          post('/api/delete-source', { id: w.id }).then(function (r) {
-            if (r.error) { toast('删除失败：' + r.error); return; }
-            toast('已删除「' + (w.title || w.id) + '」' + (r.switchedTo ? '，已切换到「' + r.switchedTo + '」' : ''));
-            state.page = 0;
-            refresh();
-          }).catch(function (err) { toast('删除失败：' + (err && err.message ? err.message : '网络错误')); });
-        }, '从库中删除（已导入的文件一并清理；若正在使用会自动切换）', CLS.btnIcon));
+      card.appendChild(img);
+      var tag = el('span', null, TYPE_LABEL[w.type] || w.type || '');
+      tag.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;';
+      card.appendChild(tag);
+      if (sel) {
+        var use = el('span', null, '使用中');
+        use.style.cssText = 'position:absolute;top:6px;right:6px;background:var(--color-primary,#fff);color:var(--color-primary-foreground,#000);font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;';
+        card.appendChild(use);
+      } else {
+        var chips = el('div');
+        chips.style.cssText = 'position:absolute;top:6px;right:6px;display:flex;gap:4px;';
+        var mini = function (t, title, fn) {
+          var mb = el('button', null, t);
+          mb.type = 'button';
+          mb.title = title;
+          mb.style.cssText = 'background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;border:0;cursor:pointer;';
+          mb.addEventListener('click', function (e) { e.stopPropagation(); fn(); });
+          return mb;
+        };
+        chips.appendChild(mini('导出', '打包为 .zw.zip，可在另一台电脑导入', function () {
+          var a = el('a');
+          a.href = API + '/api/export?id=' + encodeURIComponent(w.id);
+          a.download = '';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }));
+        if (w.origin === 'custom') {
+          chips.appendChild(mini('删除', '从库中删除（正在使用会自动切换）', function () {
+            post('/api/delete-source', { id: w.id }).then(function (r) {
+              if (r.error) { toast('删除失败：' + r.error); return; }
+              toast('已删除「' + (w.title || w.id) + '」' + (r.switchedTo ? '，已切换到「' + r.switchedTo + '」' : ''));
+              state.page = 0;
+              refresh();
+            }).catch(function (err) { toast('删除失败：' + (err && err.message ? err.message : '网络错误')); });
+          }));
+        }
+        card.appendChild(chips);
       }
-      item.addEventListener('click', function () {
+      var name = el('div', null, w.title || w.id);
+      name.style.cssText = 'position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;color:#fff;font-size:12px;' +
+        'background:linear-gradient(transparent,rgba(0,0,0,.78));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      card.appendChild(name);
+      card.addEventListener('click', function () {
         post('/api/apply-source', { sourceId: w.id }).then(function (r) {
           if (!r.error) refresh();
         }).catch(function () {});
       });
-      grid.appendChild(item);
+      grid.appendChild(card);
     });
     ui.libBox.appendChild(grid);
     // Fixed height: remember the natural height of a FULL page and keep it for
-    // short pages too, so the last page never collapses the section.
+    // short pages too, so the last page never collapses the section. Skipped
+    // while the pane is hidden (offsetHeight 0 would poison the memory).
     requestAnimationFrame(function () {
       if (!grid.firstChild) return;
-      // Hidden pane (user is on the other tab): offsetHeight is 0 here, and
-      // measuring would corrupt the remembered page height.
       if (!grid.offsetParent) return;
       if (slice.length === PAGE_SIZE && pages > 1) {
         state.gridH = grid.offsetHeight;
       }
       if (state.gridH) grid.style.minHeight = state.gridH + 'px';
       else {
-        var rows = Math.ceil(PAGE_SIZE / 2);
+        var rows = Math.ceil(PAGE_SIZE / 4);
         grid.style.minHeight = (rows * grid.firstChild.offsetHeight + (rows - 1) * 8) + 'px';
       }
     });
@@ -526,13 +546,20 @@ export function buildPanelScript(apiPort: number): string {
     var content = el('div', CLS.content);
     content.setAttribute('data-slot', 'card-content');
 
-    // --- segmented tab strip (same look as the option segments) -----------------
+    // --- full-width tab strip (dsh: equal tabs in one bordered container) -------
     ensureSliderStyle();
-    var tabBar = el('div');
-    tabBar.style.cssText = 'padding:12px 16px 8px;';
-    var tabSeg = makeSeg([['lib', '壁纸库'], ['play', '画面与播放']], (function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })(), function (v) { showTab(v); }, 'zwtabs');
-    Array.prototype.forEach.call(tabSeg.children, function (b) { b.style.fontSize = '13px'; b.style.paddingLeft = '16px'; b.style.paddingRight = '16px'; });
-    tabBar.appendChild(tabSeg);
+    var tabBar = el('div', 'rounded-lg border border-border');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:3px;margin:12px 16px 2px;';
+    function tabBtn(label) {
+      var b = el('button', 'h-8 rounded-md text-sm outline-none transition-colors cursor-pointer');
+      b.type = 'button';
+      b.style.cssText = 'flex:1 1 0;';
+      b.textContent = label;
+      tabBar.appendChild(b);
+      return b;
+    }
+    var tabLibBtn = tabBtn('壁纸库');
+    var tabPlayBtn = tabBtn('画面与播放');
     content.appendChild(tabBar);
     var tabLib = el('div');
     var tabPlay = el('div');
@@ -543,13 +570,22 @@ export function buildPanelScript(apiPort: number): string {
       var isLib = t !== 'play';
       tabLib.style.display = isLib ? '' : 'none';
       tabPlay.style.display = isLib ? 'none' : '';
-      setSeg(section, 'zwtabs', isLib ? 'lib' : 'play');
+      Array.prototype.forEach.call([tabLibBtn, tabPlayBtn], function (b, idx) {
+        var on = (idx === 0) === isLib;
+        b.style.background = on ? 'var(--color-input,#2b2b2b)' : 'transparent';
+        b.style.color = on ? 'var(--color-foreground,#eee)' : 'var(--color-foreground-subtle,#999)';
+        b.style.fontWeight = on ? '500' : '400';
+        b.style.boxShadow = on ? 'inset 0 0 0 1px var(--color-input-border,#ffffff1a)' : 'none';
+      });
       state.tab = isLib ? 'lib' : 'play';
       try { localStorage.setItem('zw-panel-tab', state.tab); } catch (e) { /* private mode */ }
     }
-    showTab(tabSeg.getAttribute('data-value'));
+    tabLibBtn.addEventListener('click', function () { showTab('lib'); });
+    tabPlayBtn.addEventListener('click', function () { showTab('play'); });
+    showTab((function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })());
 
-    // Current wallpaper strip (dsh's 当前壁纸 card): poster + title + badge.
+    tabLib.appendChild(groupLabel('当前壁纸'));
+    // Current wallpaper strip: poster + title + meta + badge.
     var curCard = el('div', 'border-t border-border');
     curCard.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:14px;';
     ui.curPoster = el('img');
@@ -566,30 +602,28 @@ export function buildPanelScript(apiPort: number): string {
     curCard.appendChild(ui.curBadge);
     tabLib.appendChild(curCard);
 
+    // ── picture & playback pane, dsh layout: one full-width row per slider
+    // (label left · slider middle · value chip right), segments fill their row ──
     tabPlay.appendChild(groupLabel('画面'));
 
-    // Two-column slider grid: custom zw-range sliders (the accent-* utility
-    // doesn't exist in ZCode's CSS — native widgets look broken), tabular
-    // value chips like the native px inputs.
-    var knobs = el('div');
-    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 32px;padding:2px 16px 10px;';
-    function sliderCell(k, cfgKey, labelText, min, max, unit, def) {
-      var c = el('div');
-      var head = el('div', 'flex items-center justify-between');
-      head.style.cssText = 'margin-bottom:6px;';
-      head.appendChild(el('span', 'text-xs text-foreground-subtle', labelText));
-      var v = el('span', 'text-xs text-foreground-subtle');
-      v.setAttribute('data-k', k + 'v');
-      v.style.cssText = 'font-variant-numeric:tabular-nums;';
-      v.textContent = def + unit;
-      head.appendChild(v);
+    function sliderRow(k, cfgKey, labelText, min, max, unit, def) {
+      var r = el('div', 'border-t border-border');
+      r.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 16px;';
+      var lab = el('span', 'text-sm text-foreground-subtle', labelText);
+      lab.style.cssText = 'flex:none;width:72px;';
+      r.appendChild(lab);
       var i = el('input');
       i.type = 'range';
       i.className = 'zw-range';
       i.min = String(min);
       i.max = String(max);
       i.value = String(def);
+      i.style.flex = '1 1 0';
       i.setAttribute('data-k', k);
+      var v = el('span', 'text-xs text-foreground-subtle');
+      v.setAttribute('data-k', k + 'v');
+      v.style.cssText = 'flex:none;min-width:52px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 8px;font-variant-numeric:tabular-nums;';
+      v.textContent = def + unit;
       i.addEventListener('input', function () {
         v.textContent = i.value + unit;
         paintRange(i);
@@ -598,60 +632,49 @@ export function buildPanelScript(apiPort: number): string {
         pushConfig(p);
       });
       paintRange(i);
-      c.appendChild(head);
-      c.appendChild(i);
-      return c;
+      r.appendChild(i);
+      r.appendChild(v);
+      return r;
     }
-    knobs.appendChild(sliderCell('blur', 'blur', '模糊', 0, 40, 'px', 0));
-    knobs.appendChild(sliderCell('dim', 'dim', '压暗', 0, 100, '%', 0));
-    knobs.appendChild(sliderCell('bright', 'wallBrightness', '亮度', 40, 160, '%', 100));
-    knobs.appendChild(sliderCell('contrast', 'wallContrast', '对比度', 40, 200, '%', 100));
-    knobs.appendChild(sliderCell('saturate', 'wallSaturate', '饱和度', 0, 200, '%', 100));
-    knobs.appendChild(sliderCell('opacity', 'wallOpacity', '透明度', 0, 90, '%', 0));
-    knobs.appendChild(sliderCell('posx', 'posX', '水平位置', 0, 100, '', 50));
-    knobs.appendChild(sliderCell('posy', 'posY', '垂直位置', 0, 100, '', 50));
-    knobs.appendChild(sliderCell('scale', 'layerScale', '缩放', 50, 150, '%', 100));
-    tabPlay.appendChild(knobs);
+    tabPlay.appendChild(sliderRow('blur', 'blur', '模糊', 0, 40, 'px', 0));
+    tabPlay.appendChild(sliderRow('dim', 'dim', '压暗', 0, 100, '%', 0));
+    tabPlay.appendChild(sliderRow('bright', 'wallBrightness', '亮度', 40, 160, '%', 100));
+    tabPlay.appendChild(sliderRow('contrast', 'wallContrast', '对比度', 40, 200, '%', 100));
+    tabPlay.appendChild(sliderRow('saturate', 'wallSaturate', '饱和度', 0, 200, '%', 100));
+    tabPlay.appendChild(sliderRow('opacity', 'wallOpacity', '透明度', 0, 90, '%', 0));
+    tabPlay.appendChild(sliderRow('posx', 'posX', '水平', 0, 100, '', 50));
+    tabPlay.appendChild(sliderRow('posy', 'posY', '垂直', 0, 100, '', 50));
+    tabPlay.appendChild(sliderRow('scale', 'layerScale', '缩放', 50, 150, '%', 100));
 
-    tabPlay.appendChild(groupLabel('适配与播放'));
-
-    var rFit = prow('填充方式', '覆盖 = 裁切铺满 · 留边 = 完整显示 · 拉伸 = 变形填满 · 智能 = 分析主体自动构图。');
-    rFit.right.appendChild(makeSeg([['cover', '覆盖'], ['contain', '留边'], ['stretch', '拉伸'], ['smart', '智能']], 'cover', function (v) { pushConfig({ fit: v }); }, 'fit'));
+    var rFit = prow('适配', '覆盖 = 裁切铺满 · 留边 = 完整显示 · 拉伸 = 变形填满 · 智能 = 自动构图。');
+    rFit.right.style.flex = '1 1 0';
+    rFit.right.style.minWidth = '240px';
+    rFit.right.appendChild(makeSeg([['cover', '覆盖'], ['contain', '留边'], ['stretch', '拉伸'], ['smart', '智能']], 'cover', function (v) { pushConfig({ fit: v }); }, 'fit', true));
     tabPlay.appendChild(rFit.r);
 
-    var rFlip = prow('画面镜像', '水平翻转整个壁纸层，纯合成器操作，无渲染开销。');
-    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '水平翻转', 'flip'));
-    tabPlay.appendChild(rFlip.r);
-
-    var rLive = prow('帧率与声音', '场景渲染帧率上限；视频壁纸按源帧率播放。关闭静音可播放壁纸自带音频。');
-    rLive.right.appendChild(makeSeg([['15', '15'], ['30', '30'], ['60', '60']], '30', function (v) { pushConfig({ liveFps: Number(v) }); }, 'fps'));
+    var rLive = prow('帧率上限', '场景渲染帧率；视频按源帧率播放。');
+    var fpsSeg = makeSeg([['15', '15'], ['30', '30'], ['60', '60']], '30', function (v) { pushConfig({ liveFps: Number(v) }); }, 'fps', true);
+    fpsSeg.style.maxWidth = '200px';
+    rLive.right.appendChild(fpsSeg);
     rLive.right.appendChild(makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '静音', 'mute'));
     tabPlay.appendChild(rLive.r);
 
-    tabPlay.appendChild(groupLabel('切换与轮播'));
-
-    var rTrans = prow('切换过场', '手动点选与自动轮播共用的切换动画。');
-    rTrans.right.appendChild(makeSeg([['fade', '交叉淡入'], ['cut', '直接切换']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
-    tabPlay.appendChild(rTrans.r);
-
-    var rRot = prow('自动轮播', '按间隔在壁纸库（订阅 + 本机导入）中自动切换。');
-    rRot.right.appendChild(makeSeg([['sequence', '顺序'], ['random', '随机']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); }, 'rotord'));
-    rRot.right.appendChild(makeSeg([['5', '5 分'], ['15', '15 分'], ['30', '30 分'], ['60', '1 小时'], ['120', '2 小时']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); }, 'rotmin'));
-    rRot.right.appendChild(makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '轮播', 'rot'));
-    tabPlay.appendChild(rRot.r);
+    var rFlip = prow('水平翻转', '镜像整个壁纸层，纯合成器操作。');
+    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '翻转', 'flip'));
+    tabPlay.appendChild(rFlip.r);
 
     tabPlay.appendChild(groupLabel('取色'));
 
-    var rTheme = prow('Monet 动态取色', '从壁纸真实渲染像素提取 Material Design 3 配色并适配界面；关闭「显示壁纸」则只取色不铺图。');
+    var rTheme = prow('Monet 动态取色', '从壁纸真实渲染像素提取 Material Design 3 配色适配界面；关闭「显示壁纸」则只取色不铺图。');
     rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ monet: v }); }, '取色', 'monet'));
     rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '显示壁纸', 'vis'));
     tabPlay.appendChild(rTheme.r);
 
-    // library pane content — appended into tabLib below the current-wallpaper
-    // strip. The tab bar already labels this pane, so no repeated header.
+    // library pane — dsh order: actions under the current card, then 切换过场 /
+    // 自动轮播 sections, then the picker (filter row + poster grid + pager).
     var libRow = tabLib;
-    var libHead = el('div');
-    libHead.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    var actRow = el('div');
+    actRow.style.cssText = 'padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
     // Instant pause/resume: posted straight into the live renderer iframes in
     // this page — no server roundtrip, no config change.
     var livePaused = false;
@@ -664,29 +687,8 @@ export function buildPanelScript(apiPort: number): string {
         }
       });
     }, '暂停/恢复实时渲染');
-    // Search takes the slack in the row; the filter and actions hug the right.
-    var search = el('input', CLS.input);
-    search.type = 'search';
-    search.placeholder = '搜索壁纸（名称 / 类型 / 来源）';
-    search.value = state.filter || '';
-    search.style.cssText = 'flex:1 1 180px;min-width:160px;';
-    var searchTimer = null;
-    search.addEventListener('input', function () {
-      clearTimeout(searchTimer);
-      var v = search.value;
-      searchTimer = setTimeout(function () {
-        state.filter = v;
-        state.page = 0;
-        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-      }, 200);
-    });
-    ui.search = search;
-    var typeSel = dropdown([['all', '全部类型'], ['scene', '场景'], ['video', '视频'], ['web', '网页']], state.typeF || 'all', function (v) {
-      state.typeF = v; state.page = 0;
-      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-    });
-    typeSel.style.width = '128px';
-    typeSel.style.flex = 'none';
+    actRow.appendChild(pauseBtn);
+    actRow.appendChild(button('刷新', function () { refresh(); }));
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos — dispatched by file type. Same chooser UX as
     // everywhere else in the app; no Wallpaper Engine involved.
@@ -722,19 +724,58 @@ export function buildPanelScript(apiPort: number): string {
       }
       importFile.value = '';
     });
-    libHead.appendChild(search);
-    libHead.appendChild(typeSel);
-    libHead.appendChild(pauseBtn);
-    libHead.appendChild(button('刷新', function () { refresh(); }));
-    libHead.appendChild(button('导入壁纸…', function () { importFile.click(); }, '支持：图片、.zw.zip 资源包、.pkg 场景、.mp4/.webm 视频（无需 Wallpaper Engine）'));
-    libHead.appendChild(importFile);
-    libRow.appendChild(libHead);
+    actRow.appendChild(button('导入壁纸…', function () { importFile.click(); }, '支持：图片、.zw.zip 资源包、.pkg 场景、.mp4/.webm 视频（无需 Wallpaper Engine）'));
+    actRow.appendChild(importFile);
+    libRow.appendChild(actRow);
+
+    libRow.appendChild(groupLabel('切换过场'));
+    var rTrans = prow('过场动画', '手动点选与自动轮播共用的切换动画。');
+    rTrans.right.appendChild(makeSeg([['fade', '交叉淡入'], ['cut', '直接切换']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
+    libRow.appendChild(rTrans.r);
+
+    libRow.appendChild(groupLabel('自动轮播'));
+    var rRot = prow('自动轮转', '按间隔在壁纸库（订阅 + 本机导入）中自动切换。');
+    rRot.right.appendChild(makeSeg([['sequence', '顺序'], ['random', '随机']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); }, 'rotord'));
+    rRot.right.appendChild(makeSeg([['5', '5 分'], ['15', '15 分'], ['30', '30 分'], ['60', '1 小时'], ['120', '2 小时']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); }, 'rotmin'));
+    rRot.right.appendChild(makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '轮播', 'rot'));
+    libRow.appendChild(rRot.r);
+
+    libRow.appendChild(groupLabel('壁纸库'));
+
+    // Filter row: search takes the slack, the type filter stays compact.
+    var filterRow = el('div');
+    filterRow.style.cssText = 'padding:2px 16px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    var search = el('input', CLS.input);
+    search.type = 'search';
+    search.placeholder = '搜索壁纸（名称 / 类型 / 来源）';
+    search.value = state.filter || '';
+    search.style.cssText = 'flex:1 1 180px;min-width:160px;';
+    var searchTimer = null;
+    search.addEventListener('input', function () {
+      clearTimeout(searchTimer);
+      var v = search.value;
+      searchTimer = setTimeout(function () {
+        state.filter = v;
+        state.page = 0;
+        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+      }, 200);
+    });
+    ui.search = search;
+    filterRow.appendChild(search);
+    var typeSel = dropdown([['all', '全部类型'], ['scene', '场景'], ['video', '视频'], ['web', '网页']], state.typeF || 'all', function (v) {
+      state.typeF = v; state.page = 0;
+      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+    });
+    typeSel.style.width = '128px';
+    typeSel.style.flex = 'none';
+    filterRow.appendChild(typeSel);
+    libRow.appendChild(filterRow);
 
     ui.libBox = el('div');
     ui.libBox.style.cssText = 'padding:0 16px;';
     libRow.appendChild(ui.libBox);
     ui.pagerBox = el('div');
-    ui.pagerBox.style.cssText = 'padding:0 16px 12px;';
+    ui.pagerBox.style.cssText = 'padding:2px 16px 12px;';
     libRow.appendChild(ui.pagerBox);
 
     // footer actions
