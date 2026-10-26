@@ -309,7 +309,15 @@ function buildBootstrapScript(payload) {
       vid.muted = VMUTED; // hot-update: same video, muted/fit tweak
       vid.style.objectFit = VFIT;
       vid.play().catch(function() {});
+    } else if (S.videoPrepSrc === VIDEO_SRC) {
+      // A preplay for this exact video is already in flight \u2014 boot pushes
+      // (hold + boot wave) overlap inside the 3s preplay window. Starting a
+      // second one tears the first mount down the moment it commits: the
+      // exact "mounted, suddenly unloaded, remounted" boot artifact.
     } else {
+      S.videoPrepSrc = VIDEO_SRC;
+      S.videoPrepToken = (S.videoPrepToken || 0) + 1;
+      var myToken = S.videoPrepToken;
       var nv = document.createElement('video');
       nv.setAttribute('autoplay', '');
       nv.setAttribute('loop', '');
@@ -320,7 +328,9 @@ function buildBootstrapScript(payload) {
       var committed = false;
       var commit = function () {
         if (committed) return;
+        if (S.videoPrepToken !== myToken) return; // superseded by a newer pick
         committed = true;
+        S.videoPrepSrc = null;
         // The outgoing video FADES OUT while the preplayed one fades in \u2014
         // removing it up front leaves a hard black gap under the fade.
         var old = document.getElementById(MARKER + '-video');
