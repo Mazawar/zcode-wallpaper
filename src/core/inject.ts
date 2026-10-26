@@ -124,7 +124,18 @@ export function buildLiveUrl(config: BeautifyConfig): string | undefined {
     fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1",
   });
-  if (config.live.file) q.set("file", config.live.file);
+  // live.file is stored pre-encoded (applySource composes it via
+  // encodeURIComponent). URLSearchParams encodes again on set(), so decode
+  // first — otherwise the renderer receives %25-encoded names and 404s.
+  if (config.live.file) {
+    let raw = config.live.file;
+    try {
+      raw = decodeURIComponent(config.live.file);
+    } catch {
+      /* not encoded — use as stored */
+    }
+    q.set("file", raw);
+  }
   if (config.live.poster) {
     q.set("poster", `/files/${config.live.sourceId}/${config.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}`);
   }

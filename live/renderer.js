@@ -17,7 +17,7 @@
  */
 
 if (!globalThis.WebWallGL) throw new Error("WebWallGL engine not loaded (/engine/webwallgl.global.min.js)");
-const { createScene, httpSource } = globalThis.WebWallGL;
+const { createScene, httpSource, mediaSource } = globalThis.WebWallGL;
 
 const params = new URLSearchParams(location.search);
 const pageType = (params.get("type") || "scene").toLowerCase();
@@ -67,12 +67,15 @@ function webSource(sourceId) {
 function sourceOf(cfg) {
   if (cfg.type === "web") return cfg.src ? webSource(cfg.src) : null;
   if (!cfg.src) return null;
-  // Videos ride the same engine pipeline as scenes (dsh-style): httpSource
-  // sniffs the file's content type and the engine plays it in WebGL — one
-  // renderer for every kind, so switches cross-fade and Monet colors come
-  // from real rendered frames.
-  const file = cfg.type === "video" && cfg.file ? `/${cfg.file}` : "";
-  return httpSource(`${location.origin}/files/${cfg.src}${file}`);
+  const base = `${location.origin}/files/${cfg.src}`;
+  // Videos ride the engine's media pipeline via mediaSource — httpSource
+  // always assembles a scene project (project.json/scene.pkg) and 404s on
+  // media URLs, so the same renderer plays every kind and switches
+  // cross-fade; Monet colors come from real rendered frames.
+  if (cfg.type === "video" && cfg.file) {
+    return mediaSource(`${base}/${cfg.file}`, { type: "video" });
+  }
+  return httpSource(base);
 }
 
 const inst = createScene(host, {

@@ -47712,7 +47712,14 @@ function buildLiveUrl(config) {
     fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1"
   });
-  if (config.live.file) q.set("file", config.live.file);
+  if (config.live.file) {
+    let raw = config.live.file;
+    try {
+      raw = decodeURIComponent(config.live.file);
+    } catch {
+    }
+    q.set("file", raw);
+  }
   if (config.live.poster) {
     q.set("poster", `/files/${config.live.sourceId}/${config.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}`);
   }
