@@ -354,27 +354,31 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       doLoad('');
       return;
     }
+    // Poster fallback: even when the snapshot times out (jpeg-encoding a
+    // 1080p canvas can take >250ms), the NEW wallpaper's poster covers the
+    // assembly — a switch must never show a bare clearing canvas.
+    var posterAbs = b.poster ? ('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + b.poster) : '';
     var snapped = false;
     var onSnap = function (ev) {
       if (snapped || !ev.data || ev.data.zwEvent !== 'snap' || !cur.contentWindow || ev.source !== cur.contentWindow) return;
       snapped = true;
       window.removeEventListener('message', onSnap);
       clearTimeout(snapTimer);
-      doLoad(ev.data.dataUrl || '');
+      doLoad(ev.data.dataUrl || posterAbs);
     };
     var snapTimer = setTimeout(function () {
       if (snapped) return;
       snapped = true;
       window.removeEventListener('message', onSnap);
-      doLoad(''); // no snapshot in time — load without a still (poster covers)
-    }, 250);
+      doLoad(posterAbs); // no snapshot in time — the poster still covers
+    }, 700);
     window.addEventListener('message', onSnap);
     try {
       cur.contentWindow.postMessage({ zw: 'snapshot' }, '*');
     } catch (e) {
       clearTimeout(snapTimer);
       window.removeEventListener('message', onSnap);
-      doLoad('');
+      doLoad(posterAbs);
     }
   }
   applyLive(LIVE_SRC);
