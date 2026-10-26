@@ -335,14 +335,17 @@ function buildBootstrapScript(payload) {
       if (v) { if (document.hidden) { v.pause(); } else { v.play().catch(function() {}); } }
       postAllFrames({ zw: document.hidden ? 'pause' : 'resume' });
     });
-    window.addEventListener('focus', function() {
+    var wake = function () {
       var v = document.getElementById(MARKER + '-video');
-      if (v) v.play().catch(function() {});
-    });
-    window.addEventListener('pageshow', function() {
-      var v = document.getElementById(MARKER + '-video');
-      if (v) v.play().catch(function() {});
-    });
+      if (v) v.play().catch(function () {});
+      // Any real window interaction also wakes an auto-paused renderer
+      // (boot can leave it paused under a hidden page; the renderer ignores
+      // this when the user paused it manually).
+      postAllFrames({ zw: 'resume' });
+    };
+    window.addEventListener('focus', wake);
+    document.addEventListener('pointerdown', wake, true);
+    window.addEventListener('pageshow', wake);
   }
   if (!S.watchdog) {
     S.stallCount = 0;
@@ -48492,7 +48495,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 24;
+  var V = 25;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -49166,7 +49169,7 @@ function buildPanelScript(apiPort) {
       pauseBtn.textContent = livePaused ? '\u7EE7\u7EED' : '\u6682\u505C';
       Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
         if ((f.getAttribute('src') || '').indexOf('/live/index.html') !== -1) {
-          try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume' }, '*'); } catch (e) { /* mid-swap */ }
+          try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume', user: true }, '*'); } catch (e) { /* mid-swap */ }
         }
       });
     }, '\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3');

@@ -167,6 +167,8 @@ const statsTimer = setInterval(() => {
 // reads as "the wallpaper vanished". Snapshot the last frame into the host
 // background so a pause FREEZES on the current picture instead of blanking.
 var frozen = false;
+var userPaused = false;
+var unfreezeTimer = null;
 function freezeFrame() {
   if (frozen || framesSeen < 1) return;
   frozen = true;
@@ -183,6 +185,33 @@ function unfreezeFrame() {
   frozen = false;
   host.style.background = "";
 }
+function doPause(user) {
+  if (user) userPaused = true;
+  freezeFrame();
+  inst.pause();
+}
+function doResume(user) {
+  if (user) {
+    userPaused = false;
+    unfreezeFrame();
+    inst.resume();
+    return;
+  }
+  if (userPaused) return; // an automatic wake must not override the user's pause
+  inst.resume();
+  // The engine's WebCodecs scheduler flushes its decode backlog on wake,
+  // which reads as a fast-forward burst. Keep the frozen still covering the
+  // canvas while that backlog drains, then uncover.
+  if (frozen) {
+    clearTimeout(unfreezeTimer);
+    unfreezeTimer = setTimeout(unfreezeFrame, 800);
+  }
+}
+// Waking with the page: an auto-paused renderer resumes by itself when the
+// host page becomes visible (the bridge may have missed the transition).
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) doResume(false);
+});
 
 // --- input bridge from the ZCode host page ------------------------------------
 window.addEventListener("message", (ev) => {
@@ -193,8 +222,8 @@ window.addEventListener("message", (ev) => {
     else if (d.zw === "ptrleave") inst.pointerLeave();
     else if (d.zw === "ptrup") inst.pushPointer(Number(d.u ?? 0.5), Number(d.v ?? 0.5), 0, 0);
     else if (d.zw === "wheel") inst.pushWheel(Number(d.dx) || 0, Number(d.dy) || 0, Number(d.mode) || 0, Number(d.mods) || 0);
-    else if (d.zw === "pause") { freezeFrame(); inst.pause(); }
-    else if (d.zw === "resume") { unfreezeFrame(); inst.resume(); }
+    else if (d.zw === "pause") doPause(d.user === true);
+    else if (d.zw === "resume") doResume(d.user === true);
     // Snapshot for the host's transition overlay: the host cannot read this
     // cross-origin canvas, so it asks and we reply with a JPEG data URL.
     else if (d.zw === "snapshot") {

@@ -407,14 +407,17 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       if (v) { if (document.hidden) { v.pause(); } else { v.play().catch(function() {}); } }
       postAllFrames({ zw: document.hidden ? 'pause' : 'resume' });
     });
-    window.addEventListener('focus', function() {
+    var wake = function () {
       var v = document.getElementById(MARKER + '-video');
-      if (v) v.play().catch(function() {});
-    });
-    window.addEventListener('pageshow', function() {
-      var v = document.getElementById(MARKER + '-video');
-      if (v) v.play().catch(function() {});
-    });
+      if (v) v.play().catch(function () {});
+      // Any real window interaction also wakes an auto-paused renderer
+      // (boot can leave it paused under a hidden page; the renderer ignores
+      // this when the user paused it manually).
+      postAllFrames({ zw: 'resume' });
+    };
+    window.addEventListener('focus', wake);
+    document.addEventListener('pointerdown', wake, true);
+    window.addEventListener('pageshow', wake);
   }
   if (!S.watchdog) {
     S.stallCount = 0;
