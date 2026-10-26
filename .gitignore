@@ -1,9 +1,7 @@
 node_modules/
-dist/
-vendor/
 *.log
 *.zip
 zcode-shot*.jpg
 reference/
-.DS_Store
 .zcode/
+.DS_Store

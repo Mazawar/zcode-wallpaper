@@ -52,7 +52,20 @@ const POLL_MS = 1500;
 const MAX_WALLPAPER_BYTES = 20 * 1024 * 1024;
 const MAX_BODY_BYTES = MAX_WALLPAPER_BYTES + 1024 * 1024;
 
-const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+// Plugin root: the directory holding live/ and .zcode-plugin/. Located by
+// probing upward because the module's own depth differs between the tsc
+// layout (dist/core/server.js -> 2 up) and the bundled layout (dist/cli.js ->
+// 1 up).
+const pluginRoot = (() => {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 4; i++) {
+    if (fs.existsSync(path.join(dir, ".zcode-plugin")) || fs.existsSync(path.join(dir, "live"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+})();
 
 function liveDir(): string {
   return path.join(pluginRoot, "live");
