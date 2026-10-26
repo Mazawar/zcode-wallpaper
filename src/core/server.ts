@@ -794,11 +794,19 @@ export async function startServe(opts: ServeOptions): Promise<void> {
             });
           }
         }
+        // The active source id across all wallpaper kinds: live scenes carry
+        // it in config.live; video wallpapers only in sceneVideoUrl's path.
+        const curCfg = runtimeConfig();
+        const current =
+          curCfg.live?.sourceId ??
+          (curCfg.mediaType === "video" && curCfg.sceneVideoUrl
+            ? (/\/files\/([^/]+)\//.exec(curCfg.sceneVideoUrl)?.[1] ?? null)
+            : null);
         sendJson(res, 200, {
           we: lib.we ? { root: lib.we.root } : null,
           steamRoots: lib.steamRoots,
           wallpapers: [...customs, ...entries],
-          current: runtimeConfig().live?.sourceId ?? null,
+          current,
         });
         return;
       }
@@ -1100,9 +1108,41 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
 
   await poll(runtimeConfig(), apiPort);
+  // Self-heal: every ~30s compare each held page against the expected
+  // injection (wallpaper layer / live iframe / css present when configured).
+  // Any mismatch — heartbeat misfire, page-side race, manual DOM tampering —
+  // re-evaluates the bootstrap, which rebuilds exactly what is missing.
+  let healTick = 0;
   for (;;) {
     await new Promise((r) => setTimeout(r, POLL_MS));
     await poll(runtimeConfig(), apiPort);
+    if (++healTick % 20 !== 0) continue;
+    const config = runtimeConfig();
+    const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
+    const wantLive = config.wallpaperVisible && config.mediaType === "live";
+    const bootstrap = await buildBootstrapFor(config).catch(() => null);
+    if (!bootstrap) continue;
+    for (const [id, session] of held) {
+      try {
+        const r = (await session.conn.send("Runtime.evaluate", {
+          expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
+          returnByValue: true,
+        })) as { result?: { value?: string } };
+        const st = JSON.parse(r?.result?.value ?? "{}");
+        const broken =
+          (wantLayer && !st.layer) ||
+          (wantLive && !st.live) ||
+          (!wantLayer && st.layer) ||
+          !st.css ||
+          !st.stale; // page never received an injection (fresh reload race)
+        if (broken) {
+          await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+          console.log(`serve: self-heal re-injected window ${id}`);
+        }
+      } catch {
+        /* session dropped; poll() cleans up */
+      }
+    }
   }
 }
 

@@ -351,14 +351,21 @@ function buildBootstrapScript(payload) {
   // itself within ~10s, so the wallpaper follows the plugin's lifecycle.
   if (!S.hb) {
     S.hb = true;
-    var hbMiss = 0;
+    var hbHard = 0, hbSoft = 0;
     setInterval(function () {
-      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(2500) })
+      var t0 = Date.now();
+      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(8000) })
         .then(function (r) { return r.json(); })
-        .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+        .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbHard = 0; hbSoft = 0; })
         .catch(function () {
-          if (++hbMiss < 2) return;
-          hbMiss = 0;
+          // "hard" = connection refused within milliseconds: the serve process
+          // is gone (plugin disabled / app closed) -> clean up after 2 ticks.
+          // "soft" = slow/timeout: the serve is busy (zip/decode work blocks
+          // its loop for a while) -> tolerate 6 ticks (~50s) before cleaning.
+          var hard = (Date.now() - t0) < 150;
+          if (hard) { hbHard++; hbSoft = 0; } else { hbSoft++; hbHard = 0; }
+          if (hbHard < 2 && hbSoft < 6) return;
+          hbHard = 0; hbSoft = 0;
           document.getElementById(MARKER + '-style')?.remove();
           document.getElementById(MARKER + '-wallpaper')?.remove();
           document.getElementById(MARKER + '-backdrop')?.remove();
@@ -52434,11 +52441,13 @@ async function startServe(opts) {
             });
           }
         }
+        const curCfg = runtimeConfig();
+        const current = curCfg.live?.sourceId ?? (curCfg.mediaType === "video" && curCfg.sceneVideoUrl ? /\/files\/([^/]+)\//.exec(curCfg.sceneVideoUrl)?.[1] ?? null : null);
         sendJson(res, 200, {
           we: lib.we ? { root: lib.we.root } : null,
           steamRoots: lib.steamRoots,
           wallpapers: [...customs, ...entries],
-          current: runtimeConfig().live?.sourceId ?? null
+          current
         });
         return;
       }
@@ -52690,9 +52699,31 @@ async function startServe(opts) {
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
   await poll(runtimeConfig(), apiPort);
+  let healTick = 0;
   for (; ; ) {
     await new Promise((r2) => setTimeout(r2, POLL_MS));
     await poll(runtimeConfig(), apiPort);
+    if (++healTick % 20 !== 0) continue;
+    const config = runtimeConfig();
+    const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
+    const wantLive = config.wallpaperVisible && config.mediaType === "live";
+    const bootstrap = await buildBootstrapFor(config).catch(() => null);
+    if (!bootstrap) continue;
+    for (const [id, session] of held) {
+      try {
+        const r2 = await session.conn.send("Runtime.evaluate", {
+          expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
+          returnByValue: true
+        });
+        const st = JSON.parse(r2?.result?.value ?? "{}");
+        const broken = wantLayer && !st.layer || wantLive && !st.live || !wantLayer && st.layer || !st.css || !st.stale;
+        if (broken) {
+          await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+          console.log(`serve: self-heal re-injected window ${id}`);
+        }
+      } catch {
+      }
+    }
   }
 }
 var POLL_MS, MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, pluginRoot, cachedAssets, held, IMAGE_EXT, activeServer;

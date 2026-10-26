@@ -421,14 +421,21 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   // itself within ~10s, so the wallpaper follows the plugin's lifecycle.
   if (!S.hb) {
     S.hb = true;
-    var hbMiss = 0;
+    var hbHard = 0, hbSoft = 0;
     setInterval(function () {
-      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(2500) })
+      var t0 = Date.now();
+      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(8000) })
         .then(function (r) { return r.json(); })
-        .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+        .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbHard = 0; hbSoft = 0; })
         .catch(function () {
-          if (++hbMiss < 2) return;
-          hbMiss = 0;
+          // "hard" = connection refused within milliseconds: the serve process
+          // is gone (plugin disabled / app closed) -> clean up after 2 ticks.
+          // "soft" = slow/timeout: the serve is busy (zip/decode work blocks
+          // its loop for a while) -> tolerate 6 ticks (~50s) before cleaning.
+          var hard = (Date.now() - t0) < 150;
+          if (hard) { hbHard++; hbSoft = 0; } else { hbSoft++; hbHard = 0; }
+          if (hbHard < 2 && hbSoft < 6) return;
+          hbHard = 0; hbSoft = 0;
           document.getElementById(MARKER + '-style')?.remove();
           document.getElementById(MARKER + '-wallpaper')?.remove();
           document.getElementById(MARKER + '-backdrop')?.remove();
