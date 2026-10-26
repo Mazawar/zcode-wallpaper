@@ -101,12 +101,19 @@ inst.on("error", (err) => {
   }
 });
 
+// Mutable current source — an in-place load (dsh's setWallpaper) swaps it
+// without remounting the iframe, so the WebGL context is REUSED across
+// switches. Destroy/create context churn was losing contexts (rapid
+// switching + 4K decode) and blanking the canvas.
+let current = { type: pageType, src: pageSrc, file: params.get("file") || "" };
+
 function loadCurrent() {
-  const source = sourceOf({ type: pageType, src: pageSrc, file: params.get("file") || "" });
+  const source = sourceOf(current);
   if (!source) {
-    diag(`missing src for ${pageType}`, "error");
+    diag(`missing src for ${current.type}`, "error");
     return;
   }
+  armPosterWatch();
   inst
     .load(source)
     .then(() => inst.setVolume(volume))
@@ -153,15 +160,24 @@ async function captureOnce() {
 }
 
 let framesSeen = 0;
-const statsTimer = setInterval(() => {
-  const fps = Math.round(inst.stats?.fps ?? 0);
-  if (fps > 0) framesSeen++;
-  if (framesSeen >= 3) {
-    clearInterval(statsTimer);
-    host.style.background = ""; // real frames are flowing; drop the poster
-    captureOnce();
-  }
-}, 1000);
+let posterTimer = null;
+// Re-armable poster watch: each load starts with the poster covering the
+// canvas; three seconds of flowing frames drops it and captures Monet's
+// first frame. (Was a one-shot interval — in-place reloads need it again.)
+function armPosterWatch() {
+  framesSeen = 0;
+  if (posterTimer) clearInterval(posterTimer);
+  posterTimer = setInterval(() => {
+    const fps = Math.round(inst.stats?.fps ?? 0);
+    if (fps > 0) framesSeen++;
+    if (framesSeen >= 3) {
+      clearInterval(posterTimer);
+      posterTimer = null;
+      host.style.background = ""; // real frames are flowing; drop the poster
+      captureOnce();
+    }
+  }, 1000);
+}
 
 // Pausing the engine clears the WebCodecs video canvas to transparent, which
 // reads as "the wallpaper vanished". Snapshot the last frame into the host
@@ -222,6 +238,21 @@ window.addEventListener("message", (ev) => {
     else if (d.zw === "ptrleave") inst.pointerLeave();
     else if (d.zw === "ptrup") inst.pushPointer(Number(d.u ?? 0.5), Number(d.v ?? 0.5), 0, 0);
     else if (d.zw === "wheel") inst.pushWheel(Number(d.dx) || 0, Number(d.dy) || 0, Number(d.mode) || 0, Number(d.mods) || 0);
+    // In-place source switch (dsh's setWallpaper): same iframe, same WebGL
+    // context — no destroy/create churn.
+    else if (d.zw === "load") {
+      current = { type: String(d.type || "scene"), src: String(d.src || ""), file: String(d.file || "") };
+      host.style.background = d.poster
+        ? `#000 url("${d.poster}") center / cover no-repeat`
+        : "";
+      if (d.fit) inst.setFit(fitOf(d.fit));
+      if (typeof d.fps === "number") inst.setFps(d.fps);
+      if (d.muted !== undefined) {
+        volume = Number(d.muted) === 0 ? 1 : 0;
+        inst.setVolume(volume);
+      }
+      loadCurrent();
+    }
     else if (d.zw === "pause") doPause(d.user === true);
     else if (d.zw === "resume") doResume(d.user === true);
     // Snapshot for the host's transition overlay: the host cannot read this

@@ -1,16 +1,10 @@
-// Re-parses the bootstrap template exactly as buildBootstrapScript would
-// (escapes + payload.* interpolations), then node --check the result.
 import fs from "node:fs";
 const ts = fs.readFileSync(new URL("../src/core/cdp.ts", import.meta.url), "utf8");
-const fn = ts.indexOf("return `(function(){");
-const a = fn + "return `".length;
-const b = ts.indexOf("`;", ts.indexOf("applyLive(LIVE_SRC)", a));
+const a = ts.indexOf("return `(function(){") + "return `".length;
+const endAnchor = ts.indexOf("export function buildResetScript");
+const b = ts.lastIndexOf("`;", endAnchor);
 const body = ts.slice(a, b);
-const fakePayload = {
-  css: "/*css*/", wallpaperDataUri: "", videoSrc: "http://x/v.mp4", videoMuted: true,
-  liveSrc: "", livePoster: "", fit: "cover", transition: "fade", marker: "zcode-wallpaper",
-  apiPort: 28257, focusX: 0.5, focusY: 0.5,
-};
-const script = new Function("payload", "return `" + body + "`")(fakePayload);
+const payload = { css: "/*c*/", wallpaperDataUri: "", videoMuted: true, livePoster: "http://x/p.jpg", fit: "cover", transition: "fade", marker: "zcode-wallpaper", apiPort: 28257, focusX: 0.5, focusY: 0.5 };
+const script = new Function("payload", "marker", "videoSrc", "liveSrc", "apiPort", "return `" + body + "`")(payload, "zcode-wallpaper", "http://x/v.mp4", "http://x/live?type=scene&src=ws-1&fit=cover&fps=30&muted=1&poster=p.jpg", 28257);
 fs.writeFileSync(new URL("./_boot-check.js", import.meta.url), script);
 console.log("extracted", script.length, "chars");

@@ -210,7 +210,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     var out = {};
     try {
       var q = new URL(u, location.href).searchParams;
-      ['type', 'src', 'file', 'fit', 'fps', 'muted'].forEach(function (k) { out[k] = q.get(k) || ''; });
+      ['type', 'src', 'file', 'fit', 'fps', 'muted', 'poster'].forEach(function (k) { out[k] = q.get(k) || ''; });
     } catch (e) { /* bad url */ }
     return out;
   }
@@ -309,45 +309,49 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       bindLiveBridge();
       return;
     }
-    // Different wallpaper: SNAPSHOT transition. Two WebGL engines at once
-    // saturate the GPU (a 4K video switch freezes the whole UI), and pausing
-    // the old engine blanks its canvas — so instead: snapshot the old frame
-    // into a plain <img> overlay, destroy the old engine immediately, let the
-    // new one assemble behind the still image, then fade the still out.
-    // Exactly one engine runs at any moment and the screen never goes empty.
+    // Same-kind switch: IN-PLACE LOAD on the existing frame (dsh's
+    // setWallpaper). The engine reuses its WebGL context — remounting for
+    // every switch churned destroy/create cycles that lost contexts under
+    // GPU pressure (rapid switching + 4K decode) and blanked the canvas.
+    // A snapshot of the old frame covers the assembly gap; it fades out on
+    // the renderer's ready signal.
     var oldOverlay = document.getElementById(MARKER + '-fade');
     if (oldOverlay) oldOverlay.remove();
-    var doSwap = function (overlaySrc) {
-      cur.remove();
-      var frame = makeFrame(MARKER + '-live', src, 'opacity:1;');
-      wp.appendChild(frame);
+    var doLoad = function (overlaySrc) {
+      var overlay = null;
+      if (overlaySrc) {
+        overlay = document.createElement('img');
+        overlay.id = MARKER + '-fade';
+        overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;';
+        overlay.src = overlaySrc;
+        wp.appendChild(overlay);
+        var faded = false;
+        var fadeOut = function () {
+          if (faded) return;
+          faded = true;
+          overlay.style.transition = 'opacity .6s ease';
+          overlay.style.opacity = '0';
+          setTimeout(function () { overlay.remove(); }, 660);
+        };
+        var onReady = function (ev) {
+          if (ev.data && ev.data.zwEvent === 'ready' && cur.contentWindow === ev.source) {
+            fadeOut();
+            window.removeEventListener('message', onReady);
+          }
+        };
+        window.addEventListener('message', onReady);
+        setTimeout(fadeOut, 10000); // engine never signaled: uncover anyway
+      }
+      try {
+        cur.contentWindow.postMessage({ zw: 'load', type: b.type, src: b.src, file: b.file || '', fit: b.fit, fps: Number(b.fps) || 30, muted: b.muted, poster: b.poster || '' }, '*');
+      } catch (e) {
+        /* frame gone — the watchdogs remount */
+      }
       S.appliedLive = src;
       bindLiveBridge();
-      if (!overlaySrc) return;
-      var overlay = document.createElement('img');
-      overlay.id = MARKER + '-fade';
-      overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;';
-      overlay.src = overlaySrc;
-      wp.appendChild(overlay);
-      var faded = false;
-      var fadeOut = function () {
-        if (faded) return;
-        faded = true;
-        overlay.style.transition = 'opacity .6s ease';
-        overlay.style.opacity = '0';
-        setTimeout(function () { overlay.remove(); }, 660);
-      };
-      var onReady = function (ev) {
-        if (ev.data && ev.data.zwEvent === 'ready' && frame.contentWindow === ev.source) {
-          fadeOut();
-          window.removeEventListener('message', onReady);
-        }
-      };
-      window.addEventListener('message', onReady);
-      setTimeout(fadeOut, 10000); // engine never signaled: uncover anyway
     };
     if (TRANS === 'cut') {
-      doSwap('');
+      doLoad('');
       return;
     }
     var snapped = false;
@@ -356,13 +360,13 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       snapped = true;
       window.removeEventListener('message', onSnap);
       clearTimeout(snapTimer);
-      doSwap(ev.data.dataUrl || '');
+      doLoad(ev.data.dataUrl || '');
     };
     var snapTimer = setTimeout(function () {
       if (snapped) return;
       snapped = true;
       window.removeEventListener('message', onSnap);
-      doSwap(''); // no snapshot in time — swap without a still (brief poster)
+      doLoad(''); // no snapshot in time — load without a still (poster covers)
     }, 250);
     window.addEventListener('message', onSnap);
     try {
@@ -370,7 +374,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     } catch (e) {
       clearTimeout(snapTimer);
       window.removeEventListener('message', onSnap);
-      doSwap('');
+      doLoad('');
     }
   }
   applyLive(LIVE_SRC);
