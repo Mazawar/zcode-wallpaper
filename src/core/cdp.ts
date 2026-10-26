@@ -132,6 +132,8 @@ export interface InjectionPayload {
   marker?: string;
   /** "contain" additionally drives a blurred backdrop layer behind the image. */
   fit?: "cover" | "contain" | "stretch";
+  /** Poster URL painted UNDER the live layer — dsh's persistent underlay. */
+  livePoster?: string;
   /** Mute state for the native loop-video layer. */
   videoMuted?: boolean;
   /** Wallpaper switch animation: "cut" swaps instantly, default cross-fades. */
@@ -355,6 +357,12 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       doSwap('');
     }
   }
+  // dsh's underlay: the wallpaper's poster sits under the live layer — a
+  // blank/reloading/stalled engine then shows a still of the wallpaper
+  // instead of nothing. Never cleared while a live layer is configured.
+  if (LIVE_SRC && ${JSON.stringify(payload.livePoster ?? "")}) {
+    wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.livePoster ?? "")} + ')';
+  }
   applyLive(LIVE_SRC);
 
   // --- loop video layer (dsh's model: a native <video> in the host page) ----
@@ -402,7 +410,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     if (vid) vid.remove();
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
       wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
-    } else if (wp) {
+    } else if (wp && !LIVE_SRC) {
       wp.style.backgroundImage = 'none';
     }
   }

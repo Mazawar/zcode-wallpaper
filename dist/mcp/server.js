@@ -11610,6 +11610,12 @@ function buildBootstrapScript(payload) {
       doSwap('');
     }
   }
+  // dsh's underlay: the wallpaper's poster sits under the live layer \u2014 a
+  // blank/reloading/stalled engine then shows a still of the wallpaper
+  // instead of nothing. Never cleared while a live layer is configured.
+  if (LIVE_SRC && ${JSON.stringify(payload.livePoster ?? "")}) {
+    wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.livePoster ?? "")} + ')';
+  }
   applyLive(LIVE_SRC);
 
   // --- loop video layer (dsh's model: a native <video> in the host page) ----
@@ -11657,7 +11663,7 @@ function buildBootstrapScript(payload) {
     if (vid) vid.remove();
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
       wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
-    } else if (wp) {
+    } else if (wp && !LIVE_SRC) {
       wp.style.backgroundImage = 'none';
     }
   }
@@ -54971,6 +54977,9 @@ html, body { background: transparent !important; }
     videoSrc,
     videoMuted: config2.liveMuted !== false,
     liveSrc,
+    // dsh's persistent underlay: the poster under the live layer, so a
+    // blank/reloading/stalled engine shows a still instead of nothing.
+    livePoster: visible && config2.live?.poster ? `http://127.0.0.1:${config2.apiPort}/files/${config2.live.sourceId}/${config2.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}` : void 0,
     fit: visible ? resolved : "cover",
     transition: config2.switchTransition === "cut" ? "cut" : "fade",
     focusX,
@@ -59560,7 +59569,7 @@ async function holdSession(target, config2, apiPort) {
   await conn.send("Page.enable");
   await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => void 0);
   const session = { conn };
-  const bootstrap = await buildBootstrapFor(config2);
+  const bootstrap = await buildBootstrapFor(config2, true);
   session.themeScriptId = await registerScript(session, bootstrap);
   await conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
   const panelScript = buildPanelScript(apiPort);

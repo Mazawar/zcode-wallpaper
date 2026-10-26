@@ -241,6 +241,15 @@ html, body { background: transparent !important; }
     videoSrc,
     videoMuted: config.liveMuted !== false,
     liveSrc,
+    // dsh's persistent underlay: the poster under the live layer, so a
+    // blank/reloading/stalled engine shows a still instead of nothing.
+    livePoster:
+      visible && config.live?.poster
+        ? `http://127.0.0.1:${config.apiPort}/files/${config.live.sourceId}/${config.live.poster
+            .split(/[\\/]/)
+            .map(encodeURIComponent)
+            .join("/")}`
+        : undefined,
     fit: visible ? resolved : "cover",
     transition: config.switchTransition === "cut" ? "cut" : "fade",
     focusX,

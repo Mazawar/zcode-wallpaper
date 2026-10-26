@@ -447,7 +447,13 @@ async function holdSession(
   await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => undefined);
   const session: HeldSession = { conn };
 
-  const bootstrap = await buildBootstrapFor(config);
+  // The FIRST push on a fresh page must include the Monet/transparency
+  // overrides or the app's opaque surfaces cover the wallpaper. Cache-only
+  // pushes can't guarantee that: every live-frame capture bumps the source
+  // file's mtime and invalidates the cache, so the next page's initial push
+  // would be bare again. Boot correctness beats boot latency — decode on
+  // demand here (cached across holds, so it costs one decode per capture).
+  const bootstrap = await buildBootstrapFor(config, true);
   session.themeScriptId = await registerScript(session, bootstrap);
   await conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
 
