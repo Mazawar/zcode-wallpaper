@@ -1070,6 +1070,34 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
 
+  // Lifecycle: the serve exists to serve a running ZCode (it is normally
+  // spawned by the plugin's MCP server at app start). Once both the CDP
+  // endpoint AND the ZCode process have been gone for ~5 minutes (covering
+  // app restarts), exit instead of lingering after the app was closed.
+  const LIFECHECK_MS = 30_000;
+  const LIFECHECK_LIMIT = 10;
+  let missingTicks = 0;
+  const { isZcodeProcessRunning } = await import("./launch.js");
+  setInterval(() => {
+    void (async () => {
+      let alive = false;
+      try {
+        await listTargets(cdpPort);
+        alive = true;
+      } catch {
+        alive = await isZcodeProcessRunning().catch(() => false);
+      }
+      if (alive) {
+        missingTicks = 0;
+        return;
+      }
+      if (++missingTicks >= LIFECHECK_LIMIT) {
+        console.log("serve: ZCode has been down for ~5 minutes — exiting.");
+        process.exit(0);
+      }
+    })();
+  }, LIFECHECK_MS);
+
   await poll(runtimeConfig(), apiPort);
   for (;;) {
     await new Promise((r) => setTimeout(r, POLL_MS));

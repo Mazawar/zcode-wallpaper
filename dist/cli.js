@@ -423,6 +423,16 @@ var init_cdp = __esm({
 });
 
 // src/core/launch.ts
+var launch_exports = {};
+__export(launch_exports, {
+  configFile: () => configFile,
+  dataDir: () => dataDir,
+  findZcodeExecutable: () => findZcodeExecutable,
+  isZcodeProcessRunning: () => isZcodeProcessRunning,
+  launchZcode: () => launchZcode,
+  loadConfig: () => loadConfig,
+  saveConfig: () => saveConfig
+});
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
@@ -52607,6 +52617,29 @@ async function startServe(opts) {
   console.log(`serve: control API on http://127.0.0.1:${apiPort} \u2014 Ctrl+C to stop`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
+  const LIFECHECK_MS = 3e4;
+  const LIFECHECK_LIMIT = 10;
+  let missingTicks = 0;
+  const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
+  setInterval(() => {
+    void (async () => {
+      let alive = false;
+      try {
+        await listTargets(cdpPort);
+        alive = true;
+      } catch {
+        alive = await isZcodeProcessRunning2().catch(() => false);
+      }
+      if (alive) {
+        missingTicks = 0;
+        return;
+      }
+      if (++missingTicks >= LIFECHECK_LIMIT) {
+        console.log("serve: ZCode has been down for ~5 minutes \u2014 exiting.");
+        process.exit(0);
+      }
+    })();
+  }, LIFECHECK_MS);
   await poll(runtimeConfig(), apiPort);
   for (; ; ) {
     await new Promise((r2) => setTimeout(r2, POLL_MS));
