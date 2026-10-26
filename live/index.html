@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>ZWall Live Renderer</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #wp {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+    }
+  </style>
+  <!--
+    The engine ships as the self-contained global build (mediabunny inlined):
+    classic scripts run before module scripts, so window.WebWallGL is ready
+    when renderer.js starts. Served from node_modules/webwallgl at runtime.
+  -->
+  <script src="/engine/webwallgl.global.min.js"></script>
+  <script type="module" src="/renderer.js"></script>
+</head>
+<body>
+  <div id="wp"></div>
+</body>
+</html>

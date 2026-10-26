@@ -1,0 +1,23 @@
+{
+  "name": "zcode-wallpaper",
+  "version": "1.0.0",
+  "description": "Live Wallpaper Engine wallpapers (subscribed workshop scenes rendered in real time, no recording) with Monet dynamic theming for the ZCode desktop client.",
+  "author": {
+    "name": "zcode-wallpaper contributors"
+  },
+  "license": "MIT",
+  "commands": "commands",
+  "skills": "skills",
+  "mcpServers": {
+    "zcode-wallpaper": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/dist/mcp/server.js"
+      ],
+      "env": {
+        "ZW_DATA_DIR": "${ZCODE_PLUGIN_DATA}"
+      }
+    }
+  },
+  "category": "themes"
+}
