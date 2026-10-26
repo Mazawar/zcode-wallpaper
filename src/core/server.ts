@@ -1270,6 +1270,16 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   await withTimeout(poll(runtimeConfig(), apiPort), 20_000).catch((err) =>
     console.error(`serve: initial poll failed — ${(err as Error).message}`),
   );
+  // Cold-cache boot wave: the initial injection is cache-only and lacks the
+  // Monet/transparency overrides when the asset cache is cold — without them
+  // the app's opaque surfaces cover the wallpaper once fully painted (the
+  // "saw it at boot, then it vanished" effect). Decode and push the complete
+  // payload on two beats: the first wave can race the initial holdSession's
+  // CDP traffic, the second lands it. pushConfigToSessions(_, true) decodes
+  // on first call and is cached thereafter.
+  const bootWave = () => void pushConfigToSessions(runtimeConfig(), true).catch(() => undefined);
+  setTimeout(bootWave, 1200);
+  setTimeout(bootWave, 4000);
   // Self-heal: every ~30s compare each held page against the expected
   // injection (wallpaper layer / live iframe / css present when configured).
   // Any mismatch — heartbeat misfire, page-side race, manual DOM tampering —

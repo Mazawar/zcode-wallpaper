@@ -60220,6 +60220,9 @@ async function startServe(opts) {
   await withTimeout(poll(runtimeConfig(), apiPort), 2e4).catch(
     (err) => console.error(`serve: initial poll failed \u2014 ${err.message}`)
   );
+  const bootWave = () => void pushConfigToSessions(runtimeConfig(), true).catch(() => void 0);
+  setTimeout(bootWave, 1200);
+  setTimeout(bootWave, 4e3);
   let healTick = 0;
   for (; ; ) {
     await new Promise((r2) => setTimeout(r2, POLL_MS));
