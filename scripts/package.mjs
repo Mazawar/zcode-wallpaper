@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const out = path.join(root, `${pkg.name}-${pkg.version}.zip`);
 
-const include = ["dist", "live", "vendor", "commands", "skills", ".zcode-plugin", "README.md", "LICENSE"];
+const include = ["dist", "live", "vendor", "commands", "skills", ".zcode-plugin", "marketplace.json", "README.md", "LICENSE"];
 const staged = include.filter((p) => fs.existsSync(path.join(root, p)));
 if (!fs.existsSync(path.join(root, "dist", "mcp", "server.js"))) {
   console.error("package: dist/mcp/server.js missing — run `npm run build` first");
