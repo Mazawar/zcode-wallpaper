@@ -48344,7 +48344,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 11;
+  var V = 12;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
