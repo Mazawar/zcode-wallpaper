@@ -342,15 +342,30 @@ setInterval(function () {
   }
 }, 2000);
 
-// Vitals beacon: every 2s the engine reports fps/pause/poster to the host
-// page's flight recorder — silent frame stalls (no DOM change, no reload)
-// leave no other trace.
+// Vitals beacon + stall cover: every 2s the engine reports fps/pause/poster
+// to the host page's flight recorder. Black-box evidence: after boot the
+// engine can drop to fps=0 for a few seconds while NOT paused (a warm-up
+// stall) — the canvas goes transparent and the screen reads as dead until
+// frames resume. Two consecutive zero-fps beacons FREEZE the last rendered
+// frame over the stall; resumed frames uncover it. Stalls become invisible.
+let zeroFpsTicks = 0;
 setInterval(() => {
   try {
+    const fps = Math.round(inst.stats?.fps ?? 0);
     parent.postMessage(
-      { zwEvent: "hb2", fps: Math.round(inst.stats?.fps ?? 0), paused: !!inst.paused, poster: (host.style.background || "") !== "" },
+      { zwEvent: "hb2", fps, paused: !!inst.paused, poster: (host.style.background || "") !== "" },
       "*"
     );
+    if (inst.paused) {
+      zeroFpsTicks = 0;
+      return;
+    }
+    if (fps > 0) {
+      zeroFpsTicks = 0;
+      if (frozen) doResume(false);
+      return;
+    }
+    if (++zeroFpsTicks >= 2 && framesSeen >= 3) freezeFrame();
   } catch {
     /* parent gone */
   }
