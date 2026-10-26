@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 19;
+  var V = 20;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -844,12 +844,24 @@ export function buildPanelScript(apiPort: number): string {
   // Lifecycle heartbeat (mirrors the bootstrap's): when the serve is gone
   // (plugin disabled / app closed / hard kill), disconnect and remove this
   // section within ~10s so the panel follows the plugin's lifecycle.
+  // Latch: at ZCode cold start the page can load before the in-process serve
+  // is listening (the MCP needs seconds to boot) — misses before the FIRST
+  // success must not retire the panel, or it never mounts (the exact bug
+  // where a restart left the section gone while the serve was healthy).
   var hbMiss = 0;
+  var hbSeen = false;
   setInterval(function () {
     fetch(API + '/api/health', { signal: AbortSignal.timeout(2500) })
       .then(function (r) { return r.json(); })
-      .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+      .then(function (b) {
+        if (!b || b.service !== 'zcode-wallpaper') throw 0;
+        var first = !hbSeen;
+        hbSeen = true;
+        hbMiss = 0;
+        if (first) schedule(); // serve just came up — maybe settings opened during the gap
+      })
       .catch(function () {
+        if (!hbSeen) return; // cold-start race: keep waiting for the serve
         if (++hbMiss < 2) return;
         if (mountObserver) mountObserver.disconnect();
         neutralize.disconnect();
