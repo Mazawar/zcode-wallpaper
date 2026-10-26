@@ -247,13 +247,18 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     if (document.getElementById(MARKER + '-live-next')) promoteNext();
     var cur = document.getElementById(MARKER + '-live');
     if (!src) {
-      // No live layer wanted (switched to video/image): fade the engine out
-      // instead of dropping it on the spot — the incoming layer fades in
-      // underneath, so cross-kind switches never flash black.
+      // No live layer wanted (switching to a video/image): fade the engine
+      // out instead of dropping it on the spot. When a VIDEO is incoming,
+      // hold the old visual until the preplay has committed (3s cap) —
+      // fading out early leaves a dark gap while the video assembles.
+      var holdMs = VIDEO_SRC ? 3000 : 0;
       liveFrames().forEach(function (f) {
-        f.style.transition = 'opacity .6s ease';
-        f.style.opacity = '0';
-        setTimeout(function () { f.remove(); }, 660);
+        var fo = f;
+        setTimeout(function () {
+          fo.style.transition = 'opacity .6s ease';
+          fo.style.opacity = '0';
+          setTimeout(function () { fo.remove(); }, 660);
+        }, holdMs);
       });
       S.appliedLive = null;
       return;
@@ -439,11 +444,37 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     }
   } else {
     if (vid) {
-      // Switching away from a video: fade it out over the incoming layer.
+      // Switching away from a video: hold it until the incoming layer is
+      // actually on screen — for a live source that's the engine's 'ready'
+      // signal (4s cap), otherwise fade at once.
       var vOut = vid;
-      vOut.style.transition = 'opacity .6s ease';
-      vOut.style.opacity = '0';
-      setTimeout(function () { vOut.remove(); }, 660);
+      var startFade = function () {
+        vOut.style.transition = 'opacity .6s ease';
+        vOut.style.opacity = '0';
+        setTimeout(function () { vOut.remove(); }, 660);
+      };
+      if (LIVE_SRC) {
+        var heardR = false;
+        var onR = function (ev) {
+          if (heardR) return;
+          if (ev.data && ev.data.zwEvent === 'ready') {
+            heardR = true;
+            window.removeEventListener('message', onR);
+            clearTimeout(rT);
+            startFade();
+          }
+        };
+        window.addEventListener('message', onR);
+        var rT = setTimeout(function () {
+          if (!heardR) {
+            heardR = true;
+            window.removeEventListener('message', onR);
+            startFade();
+          }
+        }, 4000);
+      } else {
+        startFade();
+      }
     }
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
       wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
