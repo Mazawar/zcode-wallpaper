@@ -71,6 +71,13 @@ function liveDir(): string {
   return path.join(pluginRoot, "live");
 }
 
+/** Entry script for the detached daemon (spawned by any plugin MCP): the
+ *  bundled CLI next to this module. null when the layout doesn't match. */
+export function daemonEntry(): string | null {
+  const entry = path.join(pluginRoot, "dist", "cli.js");
+  return fs.existsSync(entry) ? entry : null;
+}
+
 /** The WebWallGL engine build: explicit override, vendored copy, then node_modules. */
 function engineFile(): string | undefined {
   const candidates = [
@@ -404,6 +411,12 @@ async function importPackageFromFile(
 
 // --- injection session management -------------------------------------------
 
+/** Races a promise against a timeout — a half-dead socket can otherwise leave
+ *  an await pending forever (no close event), wedging the heal loop. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))]);
+}
+
 const held = new Map<string, HeldSession>();
 
 async function registerScript(session: HeldSession, source: string): Promise<string> {
@@ -661,6 +674,31 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     );
   }
 
+  // Daemon liveness (ZW_DAEMON=1, spawned by a plugin MCP): MCP instances are
+  // per-conversation and come and go, so the daemon must NOT die with any one
+  // of them — but it must follow the PLUGIN's lifecycle. Contract: every MCP
+  // heartbeats /api/mcp-alive (30s) and posts /api/mcp-gone on shutdown. When
+  // no MCP has been heard from for 120s (hard kill), or 15s after the last
+  // goodbye with no hello in between (clean disable), restore ZCode's default
+  // appearance and exit — a re-enabled plugin respawns the daemon and its
+  // stored config re-applies automatically.
+  let lastMcpAt = Date.now();
+  let lastGoneAt = 0;
+  let daemonClosed = false;
+  if (process.env.ZW_DAEMON === "1") {
+    setInterval(() => {
+      if (daemonClosed) return;
+      const silentFor = Date.now() - lastMcpAt;
+      const disabled = lastGoneAt > lastMcpAt && silentFor > 15_000;
+      if (silentFor < 120_000 && !disabled) return;
+      daemonClosed = true;
+      console.log("serve: no MCP instances left — restoring default appearance and exiting");
+      void shutdownServe()
+        .catch(() => undefined)
+        .finally(() => process.exit(0));
+    }, 5_000);
+  }
+
   // A request handler that rejects would otherwise take the whole process down
   // (unhandled rejection), killing every held injection session with it.
   const server = http.createServer((req, res) => {
@@ -732,7 +770,18 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       // --- control API -------------------------------------------------------
 
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
+        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, daemon: process.env.ZW_DAEMON === "1" });
+        return;
+      }
+
+      if (req.method === "POST" && (url.pathname === "/api/mcp-alive" || url.pathname === "/api/mcp-gone")) {
+        if (url.pathname === "/api/mcp-alive") {
+          lastMcpAt = Date.now();
+          lastGoneAt = 0;
+        } else {
+          lastGoneAt = Date.now();
+        }
+        sendJson(res, 200, { ok: true });
         return;
       }
 
@@ -1217,15 +1266,23 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   }, 30_000);
 
   await migrateLegacyVideo();
-  await poll(runtimeConfig(), apiPort);
+  await withTimeout(poll(runtimeConfig(), apiPort), 20_000).catch((err) =>
+    console.error(`serve: initial poll failed — ${(err as Error).message}`),
+  );
   // Self-heal: every ~30s compare each held page against the expected
   // injection (wallpaper layer / live iframe / css present when configured).
   // Any mismatch — heartbeat misfire, page-side race, manual DOM tampering —
   // re-evaluates the bootstrap, which rebuilds exactly what is missing.
+  // Every tick races a timeout: a half-dead CDP socket can leave an await
+  // pending FOREVER (no close event ever fires), which wedges this loop while
+  // /api/health stays green — a "healthy but braindead" serve that also blocks
+  // the plugin MCP's takeover. One bad tick must never kill or wedge the loop.
   let healTick = 0;
   for (;;) {
     await new Promise((r) => setTimeout(r, POLL_MS));
-    await poll(runtimeConfig(), apiPort);
+    await withTimeout(poll(runtimeConfig(), apiPort), 20_000).catch((err) =>
+      console.error(`serve: poll tick failed — ${(err as Error).message}`),
+    );
     if (++healTick % 20 !== 0) continue;
     const config = runtimeConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
@@ -1234,10 +1291,13 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     if (!bootstrap) continue;
     for (const [id, session] of held) {
       try {
-        const r = (await session.conn.send("Runtime.evaluate", {
-          expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
-          returnByValue: true,
-        })) as { result?: { value?: string } };
+        const r = (await withTimeout(
+          session.conn.send("Runtime.evaluate", {
+            expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
+            returnByValue: true,
+          }),
+          8_000,
+        )) as { result?: { value?: string } };
         const st = JSON.parse(r?.result?.value ?? "{}");
         const broken =
           (wantLayer && !st.layer) ||
@@ -1246,11 +1306,21 @@ export async function startServe(opts: ServeOptions): Promise<void> {
           !st.css ||
           !st.stale; // page never received an injection (fresh reload race)
         if (broken) {
-          await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+          await withTimeout(
+            session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true }),
+            8_000,
+          );
           console.log(`serve: self-heal re-injected window ${id}`);
         }
-      } catch {
-        /* session dropped; poll() cleans up */
+      } catch (err) {
+        // timeout or dead socket — drop the stale session so poll() re-holds it
+        console.error(`serve: heal tick dropped session ${id} — ${(err as Error).message}`);
+        held.delete(id);
+        try {
+          session.conn.close();
+        } catch {
+          /* already gone */
+        }
       }
     }
   }

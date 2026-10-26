@@ -217,41 +217,69 @@ function buildBootstrapScript(payload) {
       bindLiveBridge();
       return;
     }
-    // "cut" transitions replace the frame outright \u2014 no fade machinery.
-    if (TRANS === 'cut') {
+    // Different wallpaper: SNAPSHOT transition. Two WebGL engines at once
+    // saturate the GPU (a 4K video switch freezes the whole UI), and pausing
+    // the old engine blanks its canvas \u2014 so instead: snapshot the old frame
+    // into a plain <img> overlay, destroy the old engine immediately, let the
+    // new one assemble behind the still image, then fade the still out.
+    // Exactly one engine runs at any moment and the screen never goes empty.
+    var oldOverlay = document.getElementById(MARKER + '-fade');
+    if (oldOverlay) oldOverlay.remove();
+    var doSwap = function (overlaySrc) {
       cur.remove();
-      var swap = makeFrame(MARKER + '-live', src, 'opacity:1;');
-      wp.appendChild(swap);
+      var frame = makeFrame(MARKER + '-live', src, 'opacity:1;');
+      wp.appendChild(frame);
       S.appliedLive = src;
       bindLiveBridge();
+      if (!overlaySrc) return;
+      var overlay = document.createElement('img');
+      overlay.id = MARKER + '-fade';
+      overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;';
+      overlay.src = overlaySrc;
+      wp.appendChild(overlay);
+      var faded = false;
+      var fadeOut = function () {
+        if (faded) return;
+        faded = true;
+        overlay.style.transition = 'opacity .6s ease';
+        overlay.style.opacity = '0';
+        setTimeout(function () { overlay.remove(); }, 660);
+      };
+      var onReady = function (ev) {
+        if (ev.data && ev.data.zwEvent === 'ready' && frame.contentWindow === ev.source) {
+          fadeOut();
+          window.removeEventListener('message', onReady);
+        }
+      };
+      window.addEventListener('message', onReady);
+      setTimeout(fadeOut, 10000); // engine never signaled: uncover anyway
+    };
+    if (TRANS === 'cut') {
+      doSwap('');
       return;
     }
-    // Different wallpaper: cross-fade. The new frame mounts transparent, fades
-    // in when its renderer signals readiness (poster covers it until then),
-    // and the old frame is removed after the transition. The old frame keeps
-    // RENDERING until then: pausing it up front blanks the WebCodecs video
-    // canvas (pause clears it), which turned the "cross-fade" into
-    // blank-then-fade-in. The 600ms overlap of two live contexts is the
-    // price of an actual fade.
-    var next = makeFrame(MARKER + '-live-next', src, 'opacity:0;transition:opacity .6s ease;');
-    wp.appendChild(next);
-    S.appliedLive = src;
-    bindLiveBridge();
-    var done = false;
-    var finalize = function () {
-      if (done) return;
-      done = true;
-      next.style.opacity = '1';
-      setTimeout(function () {
-        if (document.getElementById(MARKER + '-live-next') === next) promoteNext();
-      }, 660);
+    var snapped = false;
+    var onSnap = function (ev) {
+      if (snapped || !ev.data || ev.data.zwEvent !== 'snap' || !cur.contentWindow || ev.source !== cur.contentWindow) return;
+      snapped = true;
+      window.removeEventListener('message', onSnap);
+      clearTimeout(snapTimer);
+      doSwap(ev.data.dataUrl || '');
     };
-    var onMsg = function (ev) {
-      if (ev.data && ev.data.zwEvent === 'ready' && next.contentWindow === ev.source) finalize();
-    };
-    window.addEventListener('message', onMsg);
-    var timer = setTimeout(finalize, 10000); // renderer never signaled: swap anyway
-    S.tr = { timer: timer, onMsg: onMsg };
+    var snapTimer = setTimeout(function () {
+      if (snapped) return;
+      snapped = true;
+      window.removeEventListener('message', onSnap);
+      doSwap(''); // no snapshot in time \u2014 swap without a still (brief poster)
+    }, 250);
+    window.addEventListener('message', onSnap);
+    try {
+      cur.contentWindow.postMessage({ zw: 'snapshot' }, '*');
+    } catch (e) {
+      clearTimeout(snapTimer);
+      window.removeEventListener('message', onSnap);
+      doSwap('');
+    }
   }
   applyLive(LIVE_SRC);
 
@@ -52305,6 +52333,7 @@ var require_adm_zip = __commonJS({
 var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
+  daemonEntry: () => daemonEntry,
   existingServePid: () => existingServePid,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
@@ -52319,6 +52348,10 @@ import { promisify as promisify4 } from "node:util";
 import { fileURLToPath } from "node:url";
 function liveDir() {
   return path7.join(pluginRoot, "live");
+}
+function daemonEntry() {
+  const entry = path7.join(pluginRoot, "dist", "cli.js");
+  return fs10.existsSync(entry) ? entry : null;
 }
 function engineFile() {
   const candidates = [
@@ -52552,6 +52585,9 @@ async function importPackageFromFile(zipPath, config, apply) {
   const result = await applySource(id, config, apply);
   return { id, ...result };
 }
+function withTimeout(p2, ms) {
+  return Promise.race([p2, new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))]);
+}
 async function registerScript(session, source) {
   const { identifier } = await session.conn.send("Page.addScriptToEvaluateOnNewDocument", { source });
   return identifier;
@@ -52741,6 +52777,20 @@ async function startServe(opts) {
       `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) \u2014 open its panel, or stop that process first`
     );
   }
+  let lastMcpAt = Date.now();
+  let lastGoneAt = 0;
+  let daemonClosed = false;
+  if (process.env.ZW_DAEMON === "1") {
+    setInterval(() => {
+      if (daemonClosed) return;
+      const silentFor = Date.now() - lastMcpAt;
+      const disabled = lastGoneAt > lastMcpAt && silentFor > 15e3;
+      if (silentFor < 12e4 && !disabled) return;
+      daemonClosed = true;
+      console.log("serve: no MCP instances left \u2014 restoring default appearance and exiting");
+      void shutdownServe().catch(() => void 0).finally(() => process.exit(0));
+    }, 5e3);
+  }
   const server = http.createServer((req, res) => {
     activeServer = server;
     handleRequest(req, res).catch(() => {
@@ -52795,7 +52845,17 @@ async function startServe(opts) {
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
+        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, daemon: process.env.ZW_DAEMON === "1" });
+        return;
+      }
+      if (req.method === "POST" && (url.pathname === "/api/mcp-alive" || url.pathname === "/api/mcp-gone")) {
+        if (url.pathname === "/api/mcp-alive") {
+          lastMcpAt = Date.now();
+          lastGoneAt = 0;
+        } else {
+          lastGoneAt = Date.now();
+        }
+        sendJson(res, 200, { ok: true });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/config") {
@@ -53203,11 +53263,15 @@ async function startServe(opts) {
     })();
   }, 3e4);
   await migrateLegacyVideo();
-  await poll(runtimeConfig(), apiPort);
+  await withTimeout(poll(runtimeConfig(), apiPort), 2e4).catch(
+    (err) => console.error(`serve: initial poll failed \u2014 ${err.message}`)
+  );
   let healTick = 0;
   for (; ; ) {
     await new Promise((r2) => setTimeout(r2, POLL_MS));
-    await poll(runtimeConfig(), apiPort);
+    await withTimeout(poll(runtimeConfig(), apiPort), 2e4).catch(
+      (err) => console.error(`serve: poll tick failed \u2014 ${err.message}`)
+    );
     if (++healTick % 20 !== 0) continue;
     const config = runtimeConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
@@ -53216,17 +53280,29 @@ async function startServe(opts) {
     if (!bootstrap) continue;
     for (const [id, session] of held) {
       try {
-        const r2 = await session.conn.send("Runtime.evaluate", {
-          expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
-          returnByValue: true
-        });
+        const r2 = await withTimeout(
+          session.conn.send("Runtime.evaluate", {
+            expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
+            returnByValue: true
+          }),
+          8e3
+        );
         const st = JSON.parse(r2?.result?.value ?? "{}");
         const broken = wantLayer && !st.layer || wantLive && !st.live || !wantLayer && st.layer || !st.css || !st.stale;
         if (broken) {
-          await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+          await withTimeout(
+            session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true }),
+            8e3
+          );
           console.log(`serve: self-heal re-injected window ${id}`);
         }
-      } catch {
+      } catch (err) {
+        console.error(`serve: heal tick dropped session ${id} \u2014 ${err.message}`);
+        held.delete(id);
+        try {
+          session.conn.close();
+        } catch {
+        }
       }
     }
   }

@@ -289,41 +289,69 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       bindLiveBridge();
       return;
     }
-    // "cut" transitions replace the frame outright — no fade machinery.
-    if (TRANS === 'cut') {
+    // Different wallpaper: SNAPSHOT transition. Two WebGL engines at once
+    // saturate the GPU (a 4K video switch freezes the whole UI), and pausing
+    // the old engine blanks its canvas — so instead: snapshot the old frame
+    // into a plain <img> overlay, destroy the old engine immediately, let the
+    // new one assemble behind the still image, then fade the still out.
+    // Exactly one engine runs at any moment and the screen never goes empty.
+    var oldOverlay = document.getElementById(MARKER + '-fade');
+    if (oldOverlay) oldOverlay.remove();
+    var doSwap = function (overlaySrc) {
       cur.remove();
-      var swap = makeFrame(MARKER + '-live', src, 'opacity:1;');
-      wp.appendChild(swap);
+      var frame = makeFrame(MARKER + '-live', src, 'opacity:1;');
+      wp.appendChild(frame);
       S.appliedLive = src;
       bindLiveBridge();
+      if (!overlaySrc) return;
+      var overlay = document.createElement('img');
+      overlay.id = MARKER + '-fade';
+      overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;';
+      overlay.src = overlaySrc;
+      wp.appendChild(overlay);
+      var faded = false;
+      var fadeOut = function () {
+        if (faded) return;
+        faded = true;
+        overlay.style.transition = 'opacity .6s ease';
+        overlay.style.opacity = '0';
+        setTimeout(function () { overlay.remove(); }, 660);
+      };
+      var onReady = function (ev) {
+        if (ev.data && ev.data.zwEvent === 'ready' && frame.contentWindow === ev.source) {
+          fadeOut();
+          window.removeEventListener('message', onReady);
+        }
+      };
+      window.addEventListener('message', onReady);
+      setTimeout(fadeOut, 10000); // engine never signaled: uncover anyway
+    };
+    if (TRANS === 'cut') {
+      doSwap('');
       return;
     }
-    // Different wallpaper: cross-fade. The new frame mounts transparent, fades
-    // in when its renderer signals readiness (poster covers it until then),
-    // and the old frame is removed after the transition. The old frame keeps
-    // RENDERING until then: pausing it up front blanks the WebCodecs video
-    // canvas (pause clears it), which turned the "cross-fade" into
-    // blank-then-fade-in. The 600ms overlap of two live contexts is the
-    // price of an actual fade.
-    var next = makeFrame(MARKER + '-live-next', src, 'opacity:0;transition:opacity .6s ease;');
-    wp.appendChild(next);
-    S.appliedLive = src;
-    bindLiveBridge();
-    var done = false;
-    var finalize = function () {
-      if (done) return;
-      done = true;
-      next.style.opacity = '1';
-      setTimeout(function () {
-        if (document.getElementById(MARKER + '-live-next') === next) promoteNext();
-      }, 660);
+    var snapped = false;
+    var onSnap = function (ev) {
+      if (snapped || !ev.data || ev.data.zwEvent !== 'snap' || !cur.contentWindow || ev.source !== cur.contentWindow) return;
+      snapped = true;
+      window.removeEventListener('message', onSnap);
+      clearTimeout(snapTimer);
+      doSwap(ev.data.dataUrl || '');
     };
-    var onMsg = function (ev) {
-      if (ev.data && ev.data.zwEvent === 'ready' && next.contentWindow === ev.source) finalize();
-    };
-    window.addEventListener('message', onMsg);
-    var timer = setTimeout(finalize, 10000); // renderer never signaled: swap anyway
-    S.tr = { timer: timer, onMsg: onMsg };
+    var snapTimer = setTimeout(function () {
+      if (snapped) return;
+      snapped = true;
+      window.removeEventListener('message', onSnap);
+      doSwap(''); // no snapshot in time — swap without a still (brief poster)
+    }, 250);
+    window.addEventListener('message', onSnap);
+    try {
+      cur.contentWindow.postMessage({ zw: 'snapshot' }, '*');
+    } catch (e) {
+      clearTimeout(snapTimer);
+      window.removeEventListener('message', onSnap);
+      doSwap('');
+    }
   }
   applyLive(LIVE_SRC);
 

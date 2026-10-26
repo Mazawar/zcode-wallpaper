@@ -195,6 +195,22 @@ window.addEventListener("message", (ev) => {
     else if (d.zw === "wheel") inst.pushWheel(Number(d.dx) || 0, Number(d.dy) || 0, Number(d.mode) || 0, Number(d.mods) || 0);
     else if (d.zw === "pause") { freezeFrame(); inst.pause(); }
     else if (d.zw === "resume") { unfreezeFrame(); inst.resume(); }
+    // Snapshot for the host's transition overlay: the host cannot read this
+    // cross-origin canvas, so it asks and we reply with a JPEG data URL.
+    else if (d.zw === "snapshot") {
+      let dataUrl = "";
+      try {
+        const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
+        if (c && c.width) dataUrl = c.toDataURL("image/jpeg", 0.85);
+      } catch {
+        // tainted canvas — reply empty, host falls back to a bare swap
+      }
+      try {
+        parent.postMessage({ zwEvent: "snap", dataUrl }, "*");
+      } catch {
+        // parent gone — mid-swap
+      }
+    }
     // Hot config update (same wallpaper, changed fit/fps/volume) — avoids a
     // full reload (and the reload flash) for tweaks the engine applies live.
     else if (d.zw === "cfg") {
