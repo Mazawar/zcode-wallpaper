@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 15;
+  var V = 16;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -324,6 +324,9 @@ export function buildPanelScript(apiPort: number): string {
     // short pages too, so the last page never collapses the section.
     requestAnimationFrame(function () {
       if (!grid.firstChild) return;
+      // Hidden pane (user is on the other tab): offsetHeight is 0 here, and
+      // measuring would corrupt the remembered page height.
+      if (!grid.offsetParent) return;
       if (slice.length === PAGE_SIZE && pages > 1) {
         state.gridH = grid.offsetHeight;
       }
@@ -343,6 +346,34 @@ export function buildPanelScript(apiPort: number): string {
     if (state.page >= pages - 1) { next.disabled = true; next.classList.add('opacity-50', 'cursor-not-allowed'); }
     pager.appendChild(next);
     ui.pagerBox.appendChild(pager);
+  }
+
+  // Current-wallpaper strip on the library tab: poster + title + badge.
+  function renderCurrent(d) {
+    if (!ui.curTitle) return;
+    var cur = null;
+    if (d && d.current && d.wallpapers) {
+      for (var i = 0; i < d.wallpapers.length; i++) if (d.wallpapers[i].id === d.current) { cur = d.wallpapers[i]; break; }
+    }
+    if (cur) {
+      ui.curTitle.textContent = cur.title || cur.id;
+      ui.curMeta.textContent = (TYPE_LABEL[cur.type] || cur.type || '') + ' · ' + (ORIGIN_LABEL[cur.origin] || cur.origin || '');
+      ui.curBadge.textContent = '使用中';
+      ui.curBadge.style.display = '';
+      if (cur.previewUrl) { ui.curPoster.src = API + cur.previewUrl; ui.curPoster.style.display = ''; }
+      else ui.curPoster.style.display = 'none';
+    } else if (state.cfg && state.cfg.wallpaperSet) {
+      ui.curTitle.textContent = '图片壁纸';
+      ui.curMeta.textContent = '通过「导入壁纸…」设置的静态图片';
+      ui.curBadge.textContent = '使用中';
+      ui.curBadge.style.display = '';
+      ui.curPoster.style.display = 'none';
+    } else {
+      ui.curTitle.textContent = '未设置壁纸';
+      ui.curMeta.textContent = '从下方壁纸库选择，或点「导入壁纸…」';
+      ui.curBadge.style.display = 'none';
+      ui.curPoster.style.display = 'none';
+    }
   }
 
   function refresh() {
@@ -381,6 +412,7 @@ export function buildPanelScript(apiPort: number): string {
     }).catch(function () {});
     fetchJson('/api/wallpapers').then(function (d) {
       state.lib = d;
+      renderCurrent(d);
       if (ui.libBox) renderLibrary(d.wallpapers, d.current);
     }).catch(function () {});
   }
@@ -404,67 +436,133 @@ export function buildPanelScript(apiPort: number): string {
     var content = el('div', CLS.content);
     content.setAttribute('data-slot', 'card-content');
 
-    var rBlur = row('背景模糊', null);
-    var blurBox = el('div', 'flex items-center gap-2 w-full');
-    var blur = el('input'); blur.type = 'range'; blur.min = 0; blur.max = 40; blur.className = 'w-full accent-[var(--color-primary,#7aa2f7)]'; blur.setAttribute('data-k', 'blur');
-    var blurv = el('span', 'text-sm text-foreground-subtle w-10 text-right'); blurv.setAttribute('data-k', 'blurv');
-    blur.addEventListener('input', function () { blurv.textContent = blur.value + 'px'; pushConfig({ blur: Number(blur.value) }); });
-    blurBox.appendChild(blur); blurBox.appendChild(blurv);
-    rBlur.right.appendChild(blurBox);
-    content.appendChild(rBlur.r);
+    // --- tabbed panes (dsh's structure: 壁纸库 / 画面与播放) --------------------
+    // Active pill colors go through CSS vars with inline styles — the plain
+    // bg-menu-hover utility may only exist in the app CSS as a data-attr
+    // variant, and arbitrary Tailwind classes are not guaranteed compiled.
+    var tabBar = el('div', 'flex items-center gap-1 px-4 pt-3');
+    function tabBtn(label) {
+      var b = el('button', 'h-7 px-3 rounded-md text-sm outline-none transition-colors cursor-pointer');
+      b.type = 'button';
+      b.textContent = label;
+      tabBar.appendChild(b);
+      return b;
+    }
+    var tabLibBtn = tabBtn('壁纸库');
+    var tabPlayBtn = tabBtn('画面与播放');
+    var tabLib = el('div');
+    var tabPlay = el('div');
+    tabPlay.style.display = 'none';
+    content.appendChild(tabBar);
+    content.appendChild(tabLib);
+    content.appendChild(tabPlay);
+    function showTab(t) {
+      var isLib = t !== 'play';
+      tabLib.style.display = isLib ? '' : 'none';
+      tabPlay.style.display = isLib ? 'none' : '';
+      [tabLibBtn, tabPlayBtn].forEach(function (b, idx) {
+        var on = isLib ? idx === 0 : idx === 1;
+        b.style.background = on ? 'var(--color-menu-hover, rgba(127,127,127,0.16))' : 'transparent';
+        b.style.color = on ? 'var(--color-foreground, inherit)' : 'var(--color-foreground-subtle, inherit)';
+        b.style.fontWeight = on ? '500' : '400';
+      });
+      state.tab = t;
+      try { localStorage.setItem('zw-panel-tab', t); } catch (e) { /* private mode */ }
+    }
+    tabLibBtn.addEventListener('click', function () { showTab('lib'); });
+    tabPlayBtn.addEventListener('click', function () { showTab('play'); });
+    showTab((function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })());
 
-    var rDim = row('背景压暗', null);
-    var dimBox = el('div', 'flex items-center gap-2 w-full');
-    var dim = el('input'); dim.type = 'range'; dim.min = 0; dim.max = 100; dim.className = 'w-full accent-[var(--color-primary,#7aa2f7)]'; dim.setAttribute('data-k', 'dim');
-    var dimv = el('span', 'text-sm text-foreground-subtle w-10 text-right'); dimv.setAttribute('data-k', 'dimv');
-    dim.addEventListener('input', function () { dimv.textContent = dim.value + '%'; pushConfig({ dim: Number(dim.value) }); });
-    dimBox.appendChild(dim); dimBox.appendChild(dimv);
-    rDim.right.appendChild(dimBox);
-    content.appendChild(rDim.r);
+    // Current wallpaper strip (dsh's 当前壁纸 card): poster + title + badge.
+    var curCard = el('div', 'flex items-center gap-3 px-4 py-3 border-b border-border');
+    ui.curPoster = el('img');
+    ui.curPoster.loading = 'lazy';
+    ui.curPoster.style.cssText = 'width:96px;height:54px;border-radius:8px;object-fit:cover;background:rgba(0,0,0,.25);flex:none;';
+    var curInfo = el('div', 'min-w-0 flex-1');
+    ui.curTitle = el('div', 'text-ui-base font-medium text-foreground truncate', '…');
+    ui.curMeta = el('div', 'text-ui-base text-foreground-subtle truncate');
+    curInfo.appendChild(ui.curTitle);
+    curInfo.appendChild(ui.curMeta);
+    ui.curBadge = el('span', CLS.badge, '…');
+    curCard.appendChild(ui.curPoster);
+    curCard.appendChild(curInfo);
+    curCard.appendChild(ui.curBadge);
+    tabLib.appendChild(curCard);
 
-    var rFit = row('填充方式', 'cover 裁切铺满；contain 留边；smart 本地分析主体后自动构图。');
+    // ── picture & playback pane ────────────────────────────────────────────────
+    function groupLabel(t) {
+      return el('div', 'text-ui-base font-medium text-foreground-subtle px-4 pt-3', t);
+    }
+    tabPlay.appendChild(groupLabel('画面'));
+
+    // Two-column slider grid (inline styles: arbitrary grid utilities may not
+    // exist in the app's compiled stylesheet).
+    var knobs = el('div');
+    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px;padding:8px 16px 4px;';
+    function sliderCell(k, cfgKey, labelText, min, max, unit, def) {
+      var c = el('div');
+      var head = el('div', 'flex items-center justify-between');
+      head.appendChild(el('span', 'text-sm text-foreground-subtle', labelText));
+      var v = el('span', 'text-sm text-foreground-subtle');
+      v.setAttribute('data-k', k + 'v');
+      v.textContent = def + unit;
+      head.appendChild(v);
+      var i = el('input');
+      i.type = 'range';
+      i.min = String(min);
+      i.max = String(max);
+      i.value = String(def);
+      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
+      i.setAttribute('data-k', k);
+      i.addEventListener('input', function () {
+        v.textContent = i.value + unit;
+        var p = {};
+        p[cfgKey] = Number(i.value);
+        pushConfig(p);
+      });
+      c.appendChild(head);
+      c.appendChild(i);
+      return c;
+    }
+    knobs.appendChild(sliderCell('blur', 'blur', '模糊', 0, 40, 'px', 0));
+    knobs.appendChild(sliderCell('dim', 'dim', '压暗', 0, 100, '%', 0));
+    knobs.appendChild(sliderCell('bright', 'wallBrightness', '亮度', 40, 160, '%', 100));
+    knobs.appendChild(sliderCell('contrast', 'wallContrast', '对比度', 40, 200, '%', 100));
+    knobs.appendChild(sliderCell('saturate', 'wallSaturate', '饱和度', 0, 200, '%', 100));
+    knobs.appendChild(sliderCell('opacity', 'wallOpacity', '透明度', 0, 90, '%', 0));
+    knobs.appendChild(sliderCell('posx', 'posX', '水平位置', 0, 100, '', 50));
+    knobs.appendChild(sliderCell('posy', 'posY', '垂直位置', 0, 100, '', 50));
+    knobs.appendChild(sliderCell('scale', 'layerScale', '缩放', 50, 150, '%', 100));
+    tabPlay.appendChild(knobs);
+
+    tabPlay.appendChild(groupLabel('适配与播放'));
+
+    var rFit = row('填充方式', 'cover 裁切铺满；contain 留边；stretch 拉伸；smart 分析主体后自动构图。');
     var fit = dropdown([['cover', 'cover 裁切铺满'], ['contain', 'contain 留边'], ['stretch', 'stretch 拉伸'], ['smart', 'smart 智能构图']], 'cover', function (v) { pushConfig({ fit: v }); });
     fit.setAttribute('data-k', 'fit');
     rFit.right.appendChild(fit);
-    content.appendChild(rFit.r);
-
-    // dsh-style picture knobs: media filter + framing sliders on the wallpaper
-    // layer. Same shape as the blur/dim rows above (drag = live push).
-    function knobRow(labelText, k, cfgKey, min, max, unit, def) {
-      var r = row(labelText, null);
-      var box = el('div', 'flex items-center gap-2 w-full');
-      var i = el('input');
-      i.type = 'range'; i.min = String(min); i.max = String(max); i.value = String(def);
-      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
-      i.setAttribute('data-k', k);
-      var v = el('span', 'text-sm text-foreground-subtle w-10 text-right');
-      v.setAttribute('data-k', k + 'v'); v.textContent = def + unit;
-      i.addEventListener('input', function () {
-        v.textContent = i.value + unit;
-        var patch = {}; patch[cfgKey] = Number(i.value);
-        pushConfig(patch);
-      });
-      box.appendChild(i); box.appendChild(v);
-      r.right.appendChild(box);
-      content.appendChild(r.r);
-    }
-    knobRow('画面亮度', 'bright', 'wallBrightness', 40, 160, '%', 100);
-    knobRow('画面对比度', 'contrast', 'wallContrast', 40, 200, '%', 100);
-    knobRow('画面饱和度', 'saturate', 'wallSaturate', 0, 200, '%', 100);
-    knobRow('壁纸透明度', 'opacity', 'wallOpacity', 0, 90, '%', 0);
-    knobRow('水平位置', 'posx', 'posX', 0, 100, '', 50);
-    knobRow('垂直位置', 'posy', 'posY', 0, 100, '', 50);
-    knobRow('画面缩放', 'scale', 'layerScale', 50, 150, '%', 100);
+    tabPlay.appendChild(rFit.r);
 
     var rFlip = row('画面镜像', '水平翻转整个壁纸层（纯合成器操作，无渲染开销）。');
     rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '水平翻转', 'flip'));
-    content.appendChild(rFlip.r);
+    tabPlay.appendChild(rFlip.r);
+
+    var rLive = row('实时渲染', '场景壁纸的渲染帧率上限与自带音频。');
+    var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
+    var fps = dropdown([['15', '15 fps'], ['30', '30 fps'], ['60', '60 fps']], '30', function (v) { pushConfig({ liveFps: Number(v) }); });
+    fps.setAttribute('data-k', 'fps');
+    var mute = makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '静音', 'mute');
+    liveBox.appendChild(fps); liveBox.appendChild(mute);
+    rLive.right.appendChild(liveBox);
+    tabPlay.appendChild(rLive.r);
+
+    tabPlay.appendChild(groupLabel('切换与轮播'));
 
     var rTrans = row('切换过场', '手动点选与自动轮播共用的切换动画。');
     var trans = dropdown([['fade', '交叉淡入'], ['cut', '直接切换']], 'fade', function (v) { pushConfig({ switchTransition: v }); });
     trans.setAttribute('data-k', 'trans');
     rTrans.right.appendChild(trans);
-    content.appendChild(rTrans.r);
+    tabPlay.appendChild(rTrans.r);
 
     var rRot = row('自动轮播', '按间隔在壁纸库中自动切换（顺序或随机），轮播库 = 订阅 + 本机导入。');
     var rotBox = el('div', 'flex items-center gap-3 justify-end flex-wrap w-full');
@@ -475,16 +573,9 @@ export function buildPanelScript(apiPort: number): string {
     rotord.setAttribute('data-k', 'rotord');
     rotBox.appendChild(rot); rotBox.appendChild(rotmin); rotBox.appendChild(rotord);
     rRot.right.appendChild(rotBox);
-    content.appendChild(rRot.r);
+    tabPlay.appendChild(rRot.r);
 
-    var rLive = row('实时渲染', '场景壁纸的渲染帧率上限与自带音频。');
-    var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
-    var fps = dropdown([['15', '15 fps'], ['30', '30 fps'], ['60', '60 fps']], '30', function (v) { pushConfig({ liveFps: Number(v) }); });
-    fps.setAttribute('data-k', 'fps');
-    var mute = makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '静音', 'mute');
-    liveBox.appendChild(fps); liveBox.appendChild(mute);
-    rLive.right.appendChild(liveBox);
-    content.appendChild(rLive.r);
+    tabPlay.appendChild(groupLabel('取色'));
 
     var rTheme = row('Monet 动态取色', '从壁纸真实渲染像素提取 Material Design 3 配色并适配界面。');
     var themeBox = el('div', 'flex items-center gap-4');
@@ -492,12 +583,13 @@ export function buildPanelScript(apiPort: number): string {
     var vis = makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '显示壁纸', 'vis');
     themeBox.appendChild(monet); themeBox.appendChild(vis);
     rTheme.right.appendChild(themeBox);
-    content.appendChild(rTheme.r);
+    tabPlay.appendChild(rTheme.r);
 
-    // library block
-    var libRow = el('div', 'px-4 py-3');
-    var libHead = el('div', 'flex items-center justify-between gap-2 mb-2');
-    libHead.appendChild(el('div', CLS.label, '壁纸库'));
+    // library pane content — appended into tabLib below the current-wallpaper
+    // strip. The tab bar already labels this pane, so no repeated header.
+    var libRow = tabLib;
+    var libHead = el('div', 'flex items-center justify-end gap-2 flex-wrap');
+    libHead.style.cssText = 'padding:0 16px;margin-bottom:8px;';
     var acts = el('div', 'flex items-center gap-2 flex-wrap justify-end');
     // Instant pause/resume: posted straight into the live renderer iframes in
     // this page — no server roundtrip, no config change.
@@ -574,13 +666,15 @@ export function buildPanelScript(apiPort: number): string {
       }, 200);
     });
     ui.search = search;
+    search.style.cssText += 'margin:0 16px;width:calc(100% - 32px);';
     libRow.appendChild(search);
 
     ui.libBox = el('div');
+    ui.libBox.style.cssText = 'padding:0 16px;';
     libRow.appendChild(ui.libBox);
     ui.pagerBox = el('div');
+    ui.pagerBox.style.cssText = 'padding:0 16px 12px;';
     libRow.appendChild(ui.pagerBox);
-    content.appendChild(libRow);
 
     // footer actions
     var footRow = el('div', 'px-4 py-3 flex items-center gap-2 justify-end');

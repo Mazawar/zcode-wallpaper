@@ -48446,7 +48446,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 15;
+  var V = 16;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -48742,6 +48742,9 @@ function buildPanelScript(apiPort) {
     // short pages too, so the last page never collapses the section.
     requestAnimationFrame(function () {
       if (!grid.firstChild) return;
+      // Hidden pane (user is on the other tab): offsetHeight is 0 here, and
+      // measuring would corrupt the remembered page height.
+      if (!grid.offsetParent) return;
       if (slice.length === PAGE_SIZE && pages > 1) {
         state.gridH = grid.offsetHeight;
       }
@@ -48761,6 +48764,34 @@ function buildPanelScript(apiPort) {
     if (state.page >= pages - 1) { next.disabled = true; next.classList.add('opacity-50', 'cursor-not-allowed'); }
     pager.appendChild(next);
     ui.pagerBox.appendChild(pager);
+  }
+
+  // Current-wallpaper strip on the library tab: poster + title + badge.
+  function renderCurrent(d) {
+    if (!ui.curTitle) return;
+    var cur = null;
+    if (d && d.current && d.wallpapers) {
+      for (var i = 0; i < d.wallpapers.length; i++) if (d.wallpapers[i].id === d.current) { cur = d.wallpapers[i]; break; }
+    }
+    if (cur) {
+      ui.curTitle.textContent = cur.title || cur.id;
+      ui.curMeta.textContent = (TYPE_LABEL[cur.type] || cur.type || '') + ' \xB7 ' + (ORIGIN_LABEL[cur.origin] || cur.origin || '');
+      ui.curBadge.textContent = '\u4F7F\u7528\u4E2D';
+      ui.curBadge.style.display = '';
+      if (cur.previewUrl) { ui.curPoster.src = API + cur.previewUrl; ui.curPoster.style.display = ''; }
+      else ui.curPoster.style.display = 'none';
+    } else if (state.cfg && state.cfg.wallpaperSet) {
+      ui.curTitle.textContent = '\u56FE\u7247\u58C1\u7EB8';
+      ui.curMeta.textContent = '\u901A\u8FC7\u300C\u5BFC\u5165\u58C1\u7EB8\u2026\u300D\u8BBE\u7F6E\u7684\u9759\u6001\u56FE\u7247';
+      ui.curBadge.textContent = '\u4F7F\u7528\u4E2D';
+      ui.curBadge.style.display = '';
+      ui.curPoster.style.display = 'none';
+    } else {
+      ui.curTitle.textContent = '\u672A\u8BBE\u7F6E\u58C1\u7EB8';
+      ui.curMeta.textContent = '\u4ECE\u4E0B\u65B9\u58C1\u7EB8\u5E93\u9009\u62E9\uFF0C\u6216\u70B9\u300C\u5BFC\u5165\u58C1\u7EB8\u2026\u300D';
+      ui.curBadge.style.display = 'none';
+      ui.curPoster.style.display = 'none';
+    }
   }
 
   function refresh() {
@@ -48799,6 +48830,7 @@ function buildPanelScript(apiPort) {
     }).catch(function () {});
     fetchJson('/api/wallpapers').then(function (d) {
       state.lib = d;
+      renderCurrent(d);
       if (ui.libBox) renderLibrary(d.wallpapers, d.current);
     }).catch(function () {});
   }
@@ -48822,67 +48854,133 @@ function buildPanelScript(apiPort) {
     var content = el('div', CLS.content);
     content.setAttribute('data-slot', 'card-content');
 
-    var rBlur = row('\u80CC\u666F\u6A21\u7CCA', null);
-    var blurBox = el('div', 'flex items-center gap-2 w-full');
-    var blur = el('input'); blur.type = 'range'; blur.min = 0; blur.max = 40; blur.className = 'w-full accent-[var(--color-primary,#7aa2f7)]'; blur.setAttribute('data-k', 'blur');
-    var blurv = el('span', 'text-sm text-foreground-subtle w-10 text-right'); blurv.setAttribute('data-k', 'blurv');
-    blur.addEventListener('input', function () { blurv.textContent = blur.value + 'px'; pushConfig({ blur: Number(blur.value) }); });
-    blurBox.appendChild(blur); blurBox.appendChild(blurv);
-    rBlur.right.appendChild(blurBox);
-    content.appendChild(rBlur.r);
+    // --- tabbed panes (dsh's structure: \u58C1\u7EB8\u5E93 / \u753B\u9762\u4E0E\u64AD\u653E) --------------------
+    // Active pill colors go through CSS vars with inline styles \u2014 the plain
+    // bg-menu-hover utility may only exist in the app CSS as a data-attr
+    // variant, and arbitrary Tailwind classes are not guaranteed compiled.
+    var tabBar = el('div', 'flex items-center gap-1 px-4 pt-3');
+    function tabBtn(label) {
+      var b = el('button', 'h-7 px-3 rounded-md text-sm outline-none transition-colors cursor-pointer');
+      b.type = 'button';
+      b.textContent = label;
+      tabBar.appendChild(b);
+      return b;
+    }
+    var tabLibBtn = tabBtn('\u58C1\u7EB8\u5E93');
+    var tabPlayBtn = tabBtn('\u753B\u9762\u4E0E\u64AD\u653E');
+    var tabLib = el('div');
+    var tabPlay = el('div');
+    tabPlay.style.display = 'none';
+    content.appendChild(tabBar);
+    content.appendChild(tabLib);
+    content.appendChild(tabPlay);
+    function showTab(t) {
+      var isLib = t !== 'play';
+      tabLib.style.display = isLib ? '' : 'none';
+      tabPlay.style.display = isLib ? 'none' : '';
+      [tabLibBtn, tabPlayBtn].forEach(function (b, idx) {
+        var on = isLib ? idx === 0 : idx === 1;
+        b.style.background = on ? 'var(--color-menu-hover, rgba(127,127,127,0.16))' : 'transparent';
+        b.style.color = on ? 'var(--color-foreground, inherit)' : 'var(--color-foreground-subtle, inherit)';
+        b.style.fontWeight = on ? '500' : '400';
+      });
+      state.tab = t;
+      try { localStorage.setItem('zw-panel-tab', t); } catch (e) { /* private mode */ }
+    }
+    tabLibBtn.addEventListener('click', function () { showTab('lib'); });
+    tabPlayBtn.addEventListener('click', function () { showTab('play'); });
+    showTab((function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })());
 
-    var rDim = row('\u80CC\u666F\u538B\u6697', null);
-    var dimBox = el('div', 'flex items-center gap-2 w-full');
-    var dim = el('input'); dim.type = 'range'; dim.min = 0; dim.max = 100; dim.className = 'w-full accent-[var(--color-primary,#7aa2f7)]'; dim.setAttribute('data-k', 'dim');
-    var dimv = el('span', 'text-sm text-foreground-subtle w-10 text-right'); dimv.setAttribute('data-k', 'dimv');
-    dim.addEventListener('input', function () { dimv.textContent = dim.value + '%'; pushConfig({ dim: Number(dim.value) }); });
-    dimBox.appendChild(dim); dimBox.appendChild(dimv);
-    rDim.right.appendChild(dimBox);
-    content.appendChild(rDim.r);
+    // Current wallpaper strip (dsh's \u5F53\u524D\u58C1\u7EB8 card): poster + title + badge.
+    var curCard = el('div', 'flex items-center gap-3 px-4 py-3 border-b border-border');
+    ui.curPoster = el('img');
+    ui.curPoster.loading = 'lazy';
+    ui.curPoster.style.cssText = 'width:96px;height:54px;border-radius:8px;object-fit:cover;background:rgba(0,0,0,.25);flex:none;';
+    var curInfo = el('div', 'min-w-0 flex-1');
+    ui.curTitle = el('div', 'text-ui-base font-medium text-foreground truncate', '\u2026');
+    ui.curMeta = el('div', 'text-ui-base text-foreground-subtle truncate');
+    curInfo.appendChild(ui.curTitle);
+    curInfo.appendChild(ui.curMeta);
+    ui.curBadge = el('span', CLS.badge, '\u2026');
+    curCard.appendChild(ui.curPoster);
+    curCard.appendChild(curInfo);
+    curCard.appendChild(ui.curBadge);
+    tabLib.appendChild(curCard);
 
-    var rFit = row('\u586B\u5145\u65B9\u5F0F', 'cover \u88C1\u5207\u94FA\u6EE1\uFF1Bcontain \u7559\u8FB9\uFF1Bsmart \u672C\u5730\u5206\u6790\u4E3B\u4F53\u540E\u81EA\u52A8\u6784\u56FE\u3002');
+    // \u2500\u2500 picture & playback pane \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    function groupLabel(t) {
+      return el('div', 'text-ui-base font-medium text-foreground-subtle px-4 pt-3', t);
+    }
+    tabPlay.appendChild(groupLabel('\u753B\u9762'));
+
+    // Two-column slider grid (inline styles: arbitrary grid utilities may not
+    // exist in the app's compiled stylesheet).
+    var knobs = el('div');
+    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px;padding:8px 16px 4px;';
+    function sliderCell(k, cfgKey, labelText, min, max, unit, def) {
+      var c = el('div');
+      var head = el('div', 'flex items-center justify-between');
+      head.appendChild(el('span', 'text-sm text-foreground-subtle', labelText));
+      var v = el('span', 'text-sm text-foreground-subtle');
+      v.setAttribute('data-k', k + 'v');
+      v.textContent = def + unit;
+      head.appendChild(v);
+      var i = el('input');
+      i.type = 'range';
+      i.min = String(min);
+      i.max = String(max);
+      i.value = String(def);
+      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
+      i.setAttribute('data-k', k);
+      i.addEventListener('input', function () {
+        v.textContent = i.value + unit;
+        var p = {};
+        p[cfgKey] = Number(i.value);
+        pushConfig(p);
+      });
+      c.appendChild(head);
+      c.appendChild(i);
+      return c;
+    }
+    knobs.appendChild(sliderCell('blur', 'blur', '\u6A21\u7CCA', 0, 40, 'px', 0));
+    knobs.appendChild(sliderCell('dim', 'dim', '\u538B\u6697', 0, 100, '%', 0));
+    knobs.appendChild(sliderCell('bright', 'wallBrightness', '\u4EAE\u5EA6', 40, 160, '%', 100));
+    knobs.appendChild(sliderCell('contrast', 'wallContrast', '\u5BF9\u6BD4\u5EA6', 40, 200, '%', 100));
+    knobs.appendChild(sliderCell('saturate', 'wallSaturate', '\u9971\u548C\u5EA6', 0, 200, '%', 100));
+    knobs.appendChild(sliderCell('opacity', 'wallOpacity', '\u900F\u660E\u5EA6', 0, 90, '%', 0));
+    knobs.appendChild(sliderCell('posx', 'posX', '\u6C34\u5E73\u4F4D\u7F6E', 0, 100, '', 50));
+    knobs.appendChild(sliderCell('posy', 'posY', '\u5782\u76F4\u4F4D\u7F6E', 0, 100, '', 50));
+    knobs.appendChild(sliderCell('scale', 'layerScale', '\u7F29\u653E', 50, 150, '%', 100));
+    tabPlay.appendChild(knobs);
+
+    tabPlay.appendChild(groupLabel('\u9002\u914D\u4E0E\u64AD\u653E'));
+
+    var rFit = row('\u586B\u5145\u65B9\u5F0F', 'cover \u88C1\u5207\u94FA\u6EE1\uFF1Bcontain \u7559\u8FB9\uFF1Bstretch \u62C9\u4F38\uFF1Bsmart \u5206\u6790\u4E3B\u4F53\u540E\u81EA\u52A8\u6784\u56FE\u3002');
     var fit = dropdown([['cover', 'cover \u88C1\u5207\u94FA\u6EE1'], ['contain', 'contain \u7559\u8FB9'], ['stretch', 'stretch \u62C9\u4F38'], ['smart', 'smart \u667A\u80FD\u6784\u56FE']], 'cover', function (v) { pushConfig({ fit: v }); });
     fit.setAttribute('data-k', 'fit');
     rFit.right.appendChild(fit);
-    content.appendChild(rFit.r);
-
-    // dsh-style picture knobs: media filter + framing sliders on the wallpaper
-    // layer. Same shape as the blur/dim rows above (drag = live push).
-    function knobRow(labelText, k, cfgKey, min, max, unit, def) {
-      var r = row(labelText, null);
-      var box = el('div', 'flex items-center gap-2 w-full');
-      var i = el('input');
-      i.type = 'range'; i.min = String(min); i.max = String(max); i.value = String(def);
-      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
-      i.setAttribute('data-k', k);
-      var v = el('span', 'text-sm text-foreground-subtle w-10 text-right');
-      v.setAttribute('data-k', k + 'v'); v.textContent = def + unit;
-      i.addEventListener('input', function () {
-        v.textContent = i.value + unit;
-        var patch = {}; patch[cfgKey] = Number(i.value);
-        pushConfig(patch);
-      });
-      box.appendChild(i); box.appendChild(v);
-      r.right.appendChild(box);
-      content.appendChild(r.r);
-    }
-    knobRow('\u753B\u9762\u4EAE\u5EA6', 'bright', 'wallBrightness', 40, 160, '%', 100);
-    knobRow('\u753B\u9762\u5BF9\u6BD4\u5EA6', 'contrast', 'wallContrast', 40, 200, '%', 100);
-    knobRow('\u753B\u9762\u9971\u548C\u5EA6', 'saturate', 'wallSaturate', 0, 200, '%', 100);
-    knobRow('\u58C1\u7EB8\u900F\u660E\u5EA6', 'opacity', 'wallOpacity', 0, 90, '%', 0);
-    knobRow('\u6C34\u5E73\u4F4D\u7F6E', 'posx', 'posX', 0, 100, '', 50);
-    knobRow('\u5782\u76F4\u4F4D\u7F6E', 'posy', 'posY', 0, 100, '', 50);
-    knobRow('\u753B\u9762\u7F29\u653E', 'scale', 'layerScale', 50, 150, '%', 100);
+    tabPlay.appendChild(rFit.r);
 
     var rFlip = row('\u753B\u9762\u955C\u50CF', '\u6C34\u5E73\u7FFB\u8F6C\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF08\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\uFF0C\u65E0\u6E32\u67D3\u5F00\u9500\uFF09\u3002');
     rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '\u6C34\u5E73\u7FFB\u8F6C', 'flip'));
-    content.appendChild(rFlip.r);
+    tabPlay.appendChild(rFlip.r);
+
+    var rLive = row('\u5B9E\u65F6\u6E32\u67D3', '\u573A\u666F\u58C1\u7EB8\u7684\u6E32\u67D3\u5E27\u7387\u4E0A\u9650\u4E0E\u81EA\u5E26\u97F3\u9891\u3002');
+    var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
+    var fps = dropdown([['15', '15 fps'], ['30', '30 fps'], ['60', '60 fps']], '30', function (v) { pushConfig({ liveFps: Number(v) }); });
+    fps.setAttribute('data-k', 'fps');
+    var mute = makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '\u9759\u97F3', 'mute');
+    liveBox.appendChild(fps); liveBox.appendChild(mute);
+    rLive.right.appendChild(liveBox);
+    tabPlay.appendChild(rLive.r);
+
+    tabPlay.appendChild(groupLabel('\u5207\u6362\u4E0E\u8F6E\u64AD'));
 
     var rTrans = row('\u5207\u6362\u8FC7\u573A', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
     var trans = dropdown([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); });
     trans.setAttribute('data-k', 'trans');
     rTrans.right.appendChild(trans);
-    content.appendChild(rTrans.r);
+    tabPlay.appendChild(rTrans.r);
 
     var rRot = row('\u81EA\u52A8\u8F6E\u64AD', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\u4E2D\u81EA\u52A8\u5207\u6362\uFF08\u987A\u5E8F\u6216\u968F\u673A\uFF09\uFF0C\u8F6E\u64AD\u5E93 = \u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\u3002');
     var rotBox = el('div', 'flex items-center gap-3 justify-end flex-wrap w-full');
@@ -48893,16 +48991,9 @@ function buildPanelScript(apiPort) {
     rotord.setAttribute('data-k', 'rotord');
     rotBox.appendChild(rot); rotBox.appendChild(rotmin); rotBox.appendChild(rotord);
     rRot.right.appendChild(rotBox);
-    content.appendChild(rRot.r);
+    tabPlay.appendChild(rRot.r);
 
-    var rLive = row('\u5B9E\u65F6\u6E32\u67D3', '\u573A\u666F\u58C1\u7EB8\u7684\u6E32\u67D3\u5E27\u7387\u4E0A\u9650\u4E0E\u81EA\u5E26\u97F3\u9891\u3002');
-    var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
-    var fps = dropdown([['15', '15 fps'], ['30', '30 fps'], ['60', '60 fps']], '30', function (v) { pushConfig({ liveFps: Number(v) }); });
-    fps.setAttribute('data-k', 'fps');
-    var mute = makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '\u9759\u97F3', 'mute');
-    liveBox.appendChild(fps); liveBox.appendChild(mute);
-    rLive.right.appendChild(liveBox);
-    content.appendChild(rLive.r);
+    tabPlay.appendChild(groupLabel('\u53D6\u8272'));
 
     var rTheme = row('Monet \u52A8\u6001\u53D6\u8272', '\u4ECE\u58C1\u7EB8\u771F\u5B9E\u6E32\u67D3\u50CF\u7D20\u63D0\u53D6 Material Design 3 \u914D\u8272\u5E76\u9002\u914D\u754C\u9762\u3002');
     var themeBox = el('div', 'flex items-center gap-4');
@@ -48910,12 +49001,13 @@ function buildPanelScript(apiPort) {
     var vis = makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '\u663E\u793A\u58C1\u7EB8', 'vis');
     themeBox.appendChild(monet); themeBox.appendChild(vis);
     rTheme.right.appendChild(themeBox);
-    content.appendChild(rTheme.r);
+    tabPlay.appendChild(rTheme.r);
 
-    // library block
-    var libRow = el('div', 'px-4 py-3');
-    var libHead = el('div', 'flex items-center justify-between gap-2 mb-2');
-    libHead.appendChild(el('div', CLS.label, '\u58C1\u7EB8\u5E93'));
+    // library pane content \u2014 appended into tabLib below the current-wallpaper
+    // strip. The tab bar already labels this pane, so no repeated header.
+    var libRow = tabLib;
+    var libHead = el('div', 'flex items-center justify-end gap-2 flex-wrap');
+    libHead.style.cssText = 'padding:0 16px;margin-bottom:8px;';
     var acts = el('div', 'flex items-center gap-2 flex-wrap justify-end');
     // Instant pause/resume: posted straight into the live renderer iframes in
     // this page \u2014 no server roundtrip, no config change.
@@ -48992,13 +49084,15 @@ function buildPanelScript(apiPort) {
       }, 200);
     });
     ui.search = search;
+    search.style.cssText += 'margin:0 16px;width:calc(100% - 32px);';
     libRow.appendChild(search);
 
     ui.libBox = el('div');
+    ui.libBox.style.cssText = 'padding:0 16px;';
     libRow.appendChild(ui.libBox);
     ui.pagerBox = el('div');
+    ui.pagerBox.style.cssText = 'padding:0 16px 12px;';
     libRow.appendChild(ui.pagerBox);
-    content.appendChild(libRow);
 
     // footer actions
     var footRow = el('div', 'px-4 py-3 flex items-center gap-2 justify-end');
