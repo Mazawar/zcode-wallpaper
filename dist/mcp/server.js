@@ -70835,6 +70835,9 @@ init_inject();
 function bootstrapServe() {
   try {
     delete process.env.ZW_DATA_DIR;
+    console.log = ((...args) => {
+      console.error("[serve]", ...args);
+    });
     let hosting = false;
     const ensure = () => {
       if (hosting) return;

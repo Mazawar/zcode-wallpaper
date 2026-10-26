@@ -37,6 +37,15 @@ function bootstrapServe(): void {
     // it early so every module uses the shared default data dir.
     delete process.env.ZW_DATA_DIR;
 
+    // CRITICAL: in THIS process stdout is the MCP JSON-RPC channel. The
+    // serve logs through console.log — any stray write corrupts the framing
+    // and ZCode kills the host (the crash-loop where the wallpaper appeared,
+    // got cleared, reappeared and died). Route every log to stderr before
+    // any serve code can run.
+    console.log = ((...args: unknown[]) => {
+      console.error("[serve]", ...args);
+    }) as typeof console.log;
+
     let hosting = false;
     const ensure = () => {
       if (hosting) return;
