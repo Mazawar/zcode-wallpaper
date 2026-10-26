@@ -11620,22 +11620,33 @@ function buildBootstrapScript(payload) {
   if (!S.watchdog) {
     S.stallCount = 0;
     S.lastClock = -1;
-    S.watchdog = setInterval(function() {
+    // Kick a frozen video: Chromium can mis-detect transparent Electron
+    // windows as occluded and freeze the media pipeline (paused stays false,
+    // the clock stops, the last frame disappears). Page code cannot lift the
+    // occlusion itself \u2014 only real window interaction can \u2014 but once the
+    // window wakes (any click / focus / visible) we thaw immediately.
+    var kickVideo = function () {
       var v = document.getElementById(MARKER + '-video');
-      if (!v) return;
-      if (document.hidden) { S.lastClock = -1; return; }
+      if (!v || document.hidden) return;
       if (v.ended || (v.paused && v.autoplay)) {
         S.stallCount = 0;
-        v.play().catch(function() {});
+        v.play().catch(function () {});
       } else if (!v.paused && v.readyState >= 2 && S.lastClock === v.currentTime) {
         S.stallCount++;
-        if (S.stallCount >= 2) { v.load(); }
-        v.play().catch(function() {});
+        if (S.stallCount >= 1) { v.load(); }
+        v.play().catch(function () {});
       } else {
         S.stallCount = 0;
       }
       S.lastClock = v.currentTime;
-    }, 2000);
+    };
+    S.kickVideo = kickVideo;
+    S.watchdog = setInterval(kickVideo, 2000);
+    document.addEventListener('pointerdown', function () { requestAnimationFrame(function(){ kickVideo(); }); }, { capture: true, passive: true });
+    window.addEventListener('focus', function () { requestAnimationFrame(function(){ kickVideo(); }); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) requestAnimationFrame(function(){ kickVideo(); });
+    });
   }
 
   // --- pointer/wheel bridge into the live iframe(s) ----------------------------
@@ -70296,7 +70307,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "1.2.1"
+  version: "1.2.2"
 });
 var TOOL_NAMES = [
   "set_background",
