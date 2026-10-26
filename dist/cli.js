@@ -306,6 +306,9 @@ function buildBootstrapScript(payload) {
   if (VIDEO_SRC) {
     wp.style.backgroundImage = 'none';
     if (vid && vid.getAttribute('src') === VIDEO_SRC) {
+      // Self-heal: an element that errored once (e.g. its fetch hit a serve
+      // restart mid-boot) stays dead forever unless load() restarts it.
+      if (vid.error) { vid.load(); }
       vid.muted = VMUTED; // hot-update: same video, muted/fit tweak
       vid.style.objectFit = VFIT;
       vid.play().catch(function() {});
@@ -348,8 +351,14 @@ function buildBootstrapScript(payload) {
         setTimeout(function () { if (nv.style) nv.style.transition = 'none'; }, 660);
       };
       nv.addEventListener('canplay', commit, { once: true });
-      nv.addEventListener('error', commit, { once: true });
-      setTimeout(commit, 3000); // slow disk: commit anyway, element keeps loading
+      // A load error (e.g. the fetch hit a serve restart mid-boot) must NOT
+      // commit a dead element \u2014 error 4 never self-heals. Restart the load
+      // once; the 3s timeout commits whatever state remains by then.
+      nv.addEventListener('error', function onErr() {
+        nv.removeEventListener('error', onErr);
+        if (S.videoPrepToken === myToken) setTimeout(function () { nv.load(); }, 800);
+      }, { once: true });
+      setTimeout(commit, 3000);
       nv.play().catch(function() {});
     }
   } else {
