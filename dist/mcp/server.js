@@ -70985,6 +70985,38 @@ function bootstrapServe() {
   } catch {
   }
 }
+{
+  const path8 = (() => {
+    try {
+      return __require("node:path").join(
+        process.env.USERPROFILE || process.env.HOME || ".",
+        ".zcode",
+        "cli",
+        "plugins",
+        "data",
+        "zcode-wallpaper",
+        "host-crash.log"
+      );
+    } catch {
+      return "";
+    }
+  })();
+  const journal = (kind, detail) => {
+    if (!path8) return;
+    try {
+      __require("node:fs").appendFileSync(
+        path8,
+        `${(/* @__PURE__ */ new Date()).toISOString()} pid=${process.pid} ${kind} ${String(detail).slice(0, 800)}
+`
+      );
+    } catch {
+    }
+  };
+  process.on("uncaughtException", (err) => journal("uncaughtException", err?.stack ?? err));
+  process.on("unhandledRejection", (err) => journal("unhandledRejection", err?.stack ?? err));
+  process.on("SIGTERM", () => journal("SIGTERM", "external"));
+  process.on("beforeExit", (code) => journal("beforeExit", `code=${code}`));
+}
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",

@@ -81,6 +81,38 @@ function bootstrapServe(): void {
     /* best effort */
   }
 }
+// Last words: the host process crashed ~30s after boot once (caught by the
+// page flight recorder timeline) and left no corpse — ZCode does not persist
+// plugin-host stderr. Append every fatal signal to a crash journal before
+// dying so the next crash names its killer (JS exception, OOM, external kill).
+{
+  const path = (() => {
+    try {
+      return require("node:path").join(
+        process.env.USERPROFILE || process.env.HOME || ".",
+        ".zcode", "cli", "plugins", "data", "zcode-wallpaper", "host-crash.log"
+      );
+    } catch {
+      return "";
+    }
+  })();
+  const journal = (kind: string, detail: unknown) => {
+    if (!path) return;
+    try {
+      require("node:fs").appendFileSync(
+        path,
+        `${new Date().toISOString()} pid=${process.pid} ${kind} ${String(detail).slice(0, 800)}\n`
+      );
+    } catch {
+      /* nothing more we can do */
+    }
+  };
+  process.on("uncaughtException", (err) => journal("uncaughtException", err?.stack ?? err));
+  process.on("unhandledRejection", (err) => journal("unhandledRejection", (err as Error)?.stack ?? err));
+  process.on("SIGTERM", () => journal("SIGTERM", "external"));
+  process.on("beforeExit", (code) => journal("beforeExit", `code=${code}`));
+}
+
 bootstrapServe();
 
 const server = new McpServer({
