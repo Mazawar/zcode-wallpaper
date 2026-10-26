@@ -47687,13 +47687,15 @@ var init_tokens = __esm({
 // src/core/inject.ts
 function buildLiveUrl(config) {
   if (!config.live) return void 0;
+  const fps = config.live.kind === "video" ? 60 : config.liveFps ?? 30;
   const q = new URLSearchParams({
     type: config.live.kind,
     src: config.live.sourceId,
     fit: config.fit === "contain" ? "contain" : "cover",
-    fps: String(config.liveFps ?? 30),
+    fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1"
   });
+  if (config.live.file) q.set("file", config.live.file);
   if (config.live.poster) {
     q.set("poster", `/files/${config.live.sourceId}/${config.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}`);
   }
@@ -52030,11 +52032,16 @@ async function applySource(id, config, apply = true) {
   } else if (type === "video") {
     const video = findVideoInDir(entry.dir);
     if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
+    const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
     next = {
       ...config,
-      mediaType: "video",
-      sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/")}`,
-      live: void 0,
+      // Videos render through the same WebWallGL iframe as scenes (dsh-style):
+      // one pipeline, cross-fade on switch, Monet colors from real frames.
+      mediaType: "live",
+      live: { sourceId: id, kind: "video", title: entry.title, poster: entry.preview, file },
+      // sceneVideoUrl stays so the legacy <video> bootstrap still registered
+      // in long-lived pages keeps rendering until the live payload lands.
+      sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${file}`,
       wallpaperPath: void 0,
       monetSourcePath: entry.preview ? path7.join(entry.dir, entry.preview) : config.monetSourcePath
     };
@@ -52050,7 +52057,18 @@ async function applySource(id, config, apply = true) {
       await pushConfigToSessions(next, true).catch(() => 0);
     })();
   }
-  return { entry, mediaType: next.mediaType === "video" ? "video" : "live", windows };
+  return { entry, mediaType: next.mediaType === "video" ? "video" : "live", config: next, windows };
+}
+async function migrateLegacyVideo() {
+  const stored = loadConfig();
+  if (stored.mediaType !== "video" || !stored.sceneVideoUrl) return;
+  const id = /\/files\/([^/]+)\//.exec(stored.sceneVideoUrl)?.[1];
+  if (!id) return;
+  const result = await applySource(id, { ...DEFAULT_CONFIG, ...stored }, false).catch(() => void 0);
+  if (result?.config.mediaType === "live") {
+    saveConfig(persisted(result.config));
+    console.log(`serve: migrated video wallpaper to the live renderer (${id})`);
+  }
 }
 function resolveSceneInput(input) {
   let stat;
@@ -52734,6 +52752,7 @@ async function startServe(opts) {
       })();
     }, 3e4);
   }
+  await migrateLegacyVideo();
   await poll(runtimeConfig(), apiPort);
   let healTick = 0;
   for (; ; ) {
