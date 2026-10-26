@@ -1,6 +1,6 @@
 {
   "name": "zcode-wallpaper",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Live Wallpaper Engine wallpapers (subscribed workshop scenes rendered in real time, no recording) with Monet dynamic theming for the ZCode desktop client.",
   "author": {
     "name": "zcode-wallpaper contributors"

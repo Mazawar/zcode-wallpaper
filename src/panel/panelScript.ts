@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 12;
+  var V = 14;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -555,6 +555,23 @@ export function buildPanelScript(apiPort: number): string {
     scheduled = true;
     setTimeout(scan, 80);
   }
+  // Lifecycle heartbeat (mirrors the bootstrap's): when the serve is gone
+  // (plugin disabled / app closed / hard kill), disconnect and remove this
+  // section within ~10s so the panel follows the plugin's lifecycle.
+  var hbMiss = 0;
+  setInterval(function () {
+    fetch(API + '/api/health', { signal: AbortSignal.timeout(2500) })
+      .then(function (r) { return r.json(); })
+      .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+      .catch(function () {
+        if (++hbMiss < 2) return;
+        if (mountObserver) mountObserver.disconnect();
+        neutralize.disconnect();
+        var mine = document.getElementById(MARKER);
+        if (mine) mine.remove();
+      });
+  }, 5000);
+
   mountObserver = new MutationObserver(onMutations);
   mountObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
   neutralize.observe(document.body || document.documentElement, { childList: true, subtree: true });

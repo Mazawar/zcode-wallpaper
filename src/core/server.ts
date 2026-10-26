@@ -366,6 +366,7 @@ async function buildBootstrapFor(config: BeautifyConfig, allowDecode = false): P
   const payload: BuiltPayload = buildPayload(config, assets, {
     liveUrl: buildLiveUrl(config),
   });
+  payload.apiPort = config.apiPort;
   return buildBootstrapScript(payload);
 }
 
@@ -565,6 +566,33 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
   }
 }
 
+let activeServer: http.Server | undefined;
+
+/**
+ * Graceful shutdown: restore ZCode's default appearance (reset injection,
+ * unregister page scripts), close held CDP sessions and the HTTP server.
+ * Called by the hosting MCP process when ZCode closes its stdio pipe
+ * (plugin disabled / app closing) — the event-driven lifecycle exit.
+ */
+export async function shutdownServe(): Promise<void> {
+  for (const [, session] of held) {
+    try {
+      await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
+      if (session.themeScriptId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {});
+      }
+      if (session.panelScriptId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId }).catch(() => {});
+      }
+      session.conn.close();
+    } catch {
+      /* already gone */
+    }
+  }
+  held.clear();
+  await new Promise<void>((r) => (activeServer ? activeServer.close(() => r()) : r()));
+}
+
 export async function startServe(opts: ServeOptions): Promise<void> {
   const { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
@@ -580,6 +608,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   // A request handler that rejects would otherwise take the whole process down
   // (unhandled rejection), killing every held injection session with it.
   const server = http.createServer((req, res) => {
+    activeServer = server;
     handleRequest(req, res).catch(() => {
       try {
         res.destroy();
@@ -1069,85 +1098,6 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   console.log(`serve: control API on http://127.0.0.1:${apiPort} — Ctrl+C to stop`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
-
-  // Lifecycle. A serve spawned by the plugin MCP (ZW_SPAWNED_BY_MCP=1) stays
-  // alive only while at least one of this plugin's MCP server processes is
-  // running — MCP processes are owned by ZCode, so "no MCP alive" means the
-  // plugin was disabled or the app was closed; either way the serve cleans up
-  // (restore default appearance) and exits. A manually started serve
-  // (`zcode-wallpaper serve`) falls back to the ZCode-process check so it can
-  // bridge app restarts. ~5 minutes of grace covers restart gaps and slow
-  // app startup; ticks are env-tunable for testing.
-  const LIFECHECK_MS = Number(process.env.ZW_LIFECHECK_MS) || 30_000;
-  const LIFECHECK_LIMIT = Number(process.env.ZW_LIFECHECK_LIMIT) || 10;
-  const spawnedByMcp = process.env.ZW_SPAWNED_BY_MCP === "1";
-  let missingTicks = 0;
-  const { isZcodeProcessRunning } = await import("./launch.js");
-
-  async function anyOwnerAlive(): Promise<boolean> {
-    if (!spawnedByMcp) {
-      // manual serve: alive while ZCode runs
-      try {
-        await listTargets(cdpPort);
-        return true;
-      } catch {
-        return isZcodeProcessRunning().catch(() => false);
-      }
-    }
-    // MCP-spawned serve: alive while any zcode-wallpaper MCP process runs
-    try {
-      const { promisify } = await import("node:util");
-      const { execFile } = await import("node:child_process");
-      const execFileAsync = promisify(execFile);
-      if (process.platform === "win32") {
-        const { stdout } = await execFileAsync(
-          "powershell",
-          [
-            "-NoProfile", "-Command",
-            "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object {$_.CommandLine -like '*zcode-wallpaper*mcp*server.js*'} | Select-Object -First 1 ProcessId | ForEach-Object { $_.ProcessId }",
-          ],
-          { timeout: 10_000, windowsHide: true }
-        );
-        return /\d/.test(stdout);
-      }
-      const { stdout } = await execFileAsync("pgrep", ["-f", "zcode-wallpaper.*mcp/server.js"]);
-      return stdout.trim().length > 0;
-    } catch {
-      return false;
-    }
-  }
-
-  setInterval(() => {
-    void (async () => {
-      const alive = await anyOwnerAlive().catch(() => false);
-      if (alive) {
-        missingTicks = 0;
-        return;
-      }
-      if (++missingTicks < LIFECHECK_LIMIT) return;
-      console.log("serve: no plugin MCP owner alive for a while — restoring default appearance and exiting.");
-      // Leave the UI as we found it, then go.
-      for (const [, session] of held) {
-        try {
-          await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
-          if (session.themeScriptId) {
-            await session.conn
-              .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId })
-              .catch(() => {});
-          }
-          if (session.panelScriptId) {
-            await session.conn
-              .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId })
-              .catch(() => {});
-          }
-          session.conn.close();
-        } catch {
-          /* already gone */
-        }
-      }
-      process.exit(0);
-    })();
-  }, LIFECHECK_MS);
 
   await poll(runtimeConfig(), apiPort);
   for (;;) {

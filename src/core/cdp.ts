@@ -132,6 +132,8 @@ export interface InjectionPayload {
   marker?: string;
   /** "contain" additionally drives a blurred backdrop layer behind the image. */
   fit?: "cover" | "contain";
+  /** Serve API port for the injected heartbeat (lifecycle self-clean). */
+  apiPort?: number;
 }
 
 /**
@@ -164,6 +166,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   const marker = payload.marker ?? "zcode-wallpaper";
   const videoSrc = payload.videoSrc ?? "";
   const liveSrc = payload.liveSrc ?? "";
+  const apiPort = payload.apiPort ?? 28257;
   return `(function(){
   var MARKER = ${JSON.stringify(marker)};
   if (!window.__zw) window.__zw = {};
@@ -237,8 +240,24 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     var cur = document.getElementById(MARKER + '-live');
     if (!src) { liveFrames().forEach(function (f) { f.remove(); }); return; }
     if (!cur) {
-      wp.appendChild(makeFrame(MARKER + '-live', src));
+      // First mount (page load, heartbeat self-clean, plugin re-enable):
+      // fade in from the app's own background instead of popping in.
+      var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
+      wp.appendChild(first);
       bindLiveBridge();
+      var settled = false;
+      var onFirstReady = function (ev) {
+        if (ev.data && ev.data.zwEvent === 'ready' && first.contentWindow === ev.source) {
+          settled = true;
+          first.style.opacity = '1';
+          window.removeEventListener('message', onFirstReady);
+          clearTimeout(firstTimer);
+        }
+      };
+      window.addEventListener('message', onFirstReady);
+      var firstTimer = setTimeout(function () {
+        if (!settled) { first.style.opacity = '1'; window.removeEventListener('message', onFirstReady); }
+      }, 10000);
       return;
     }
     if (cur.getAttribute('src') === src) { bindLiveBridge(); return; }
@@ -394,6 +413,32 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     window.addEventListener('blur', function() {
       postAllFrames({ zw: 'ptrleave' });
     });
+  }
+
+  // --- lifecycle heartbeat ------------------------------------------------
+  // The serve lives inside the plugin's MCP process. If it disappears
+  // (plugin disabled, app closed, hard kill) this page removes the injection
+  // itself within ~10s, so the wallpaper follows the plugin's lifecycle.
+  if (!S.hb) {
+    S.hb = true;
+    var hbMiss = 0;
+    setInterval(function () {
+      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(2500) })
+        .then(function (r) { return r.json(); })
+        .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+        .catch(function () {
+          if (++hbMiss < 2) return;
+          hbMiss = 0;
+          document.getElementById(MARKER + '-style')?.remove();
+          document.getElementById(MARKER + '-wallpaper')?.remove();
+          document.getElementById(MARKER + '-backdrop')?.remove();
+          document.getElementById('zcode-wallpaper-settings-v6')?.remove();
+          document.getElementById('zcode-wallpaper-settings-2')?.remove();
+          try { localStorage.removeItem(MARKER + ':css'); localStorage.removeItem(MARKER + ':wallpaper'); } catch (e) {}
+          // allow a clean re-injection if the serve comes back (app restart)
+          S.cssText = null; S.videoSrc = null; S.liveSrc = null;
+        });
+    }, 5000);
   }
 
   // Persist for the panel's self-heal path (best effort; large wallpapers may

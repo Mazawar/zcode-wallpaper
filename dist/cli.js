@@ -96,6 +96,7 @@ function buildBootstrapScript(payload) {
   const marker = payload.marker ?? "zcode-wallpaper";
   const videoSrc = payload.videoSrc ?? "";
   const liveSrc = payload.liveSrc ?? "";
+  const apiPort = payload.apiPort ?? 28257;
   return `(function(){
   var MARKER = ${JSON.stringify(marker)};
   if (!window.__zw) window.__zw = {};
@@ -169,8 +170,24 @@ function buildBootstrapScript(payload) {
     var cur = document.getElementById(MARKER + '-live');
     if (!src) { liveFrames().forEach(function (f) { f.remove(); }); return; }
     if (!cur) {
-      wp.appendChild(makeFrame(MARKER + '-live', src));
+      // First mount (page load, heartbeat self-clean, plugin re-enable):
+      // fade in from the app's own background instead of popping in.
+      var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
+      wp.appendChild(first);
       bindLiveBridge();
+      var settled = false;
+      var onFirstReady = function (ev) {
+        if (ev.data && ev.data.zwEvent === 'ready' && first.contentWindow === ev.source) {
+          settled = true;
+          first.style.opacity = '1';
+          window.removeEventListener('message', onFirstReady);
+          clearTimeout(firstTimer);
+        }
+      };
+      window.addEventListener('message', onFirstReady);
+      var firstTimer = setTimeout(function () {
+        if (!settled) { first.style.opacity = '1'; window.removeEventListener('message', onFirstReady); }
+      }, 10000);
       return;
     }
     if (cur.getAttribute('src') === src) { bindLiveBridge(); return; }
@@ -328,6 +345,32 @@ function buildBootstrapScript(payload) {
     });
   }
 
+  // --- lifecycle heartbeat ------------------------------------------------
+  // The serve lives inside the plugin's MCP process. If it disappears
+  // (plugin disabled, app closed, hard kill) this page removes the injection
+  // itself within ~10s, so the wallpaper follows the plugin's lifecycle.
+  if (!S.hb) {
+    S.hb = true;
+    var hbMiss = 0;
+    setInterval(function () {
+      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(2500) })
+        .then(function (r) { return r.json(); })
+        .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+        .catch(function () {
+          if (++hbMiss < 2) return;
+          hbMiss = 0;
+          document.getElementById(MARKER + '-style')?.remove();
+          document.getElementById(MARKER + '-wallpaper')?.remove();
+          document.getElementById(MARKER + '-backdrop')?.remove();
+          document.getElementById('zcode-wallpaper-settings-v6')?.remove();
+          document.getElementById('zcode-wallpaper-settings-2')?.remove();
+          try { localStorage.removeItem(MARKER + ':css'); localStorage.removeItem(MARKER + ':wallpaper'); } catch (e) {}
+          // allow a clean re-injection if the serve comes back (app restart)
+          S.cssText = null; S.videoSrc = null; S.liveSrc = null;
+        });
+    }, 5000);
+  }
+
   // Persist for the panel's self-heal path (best effort; large wallpapers may
   // exceed the localStorage quota, in which case only the CSS is saved).
   try {
@@ -423,16 +466,6 @@ var init_cdp = __esm({
 });
 
 // src/core/launch.ts
-var launch_exports = {};
-__export(launch_exports, {
-  configFile: () => configFile,
-  dataDir: () => dataDir,
-  findZcodeExecutable: () => findZcodeExecutable,
-  isZcodeProcessRunning: () => isZcodeProcessRunning,
-  launchZcode: () => launchZcode,
-  loadConfig: () => loadConfig,
-  saveConfig: () => saveConfig
-});
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
@@ -48344,7 +48377,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 12;
+  var V = 14;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -48871,6 +48904,23 @@ function buildPanelScript(apiPort) {
     scheduled = true;
     setTimeout(scan, 80);
   }
+  // Lifecycle heartbeat (mirrors the bootstrap's): when the serve is gone
+  // (plugin disabled / app closed / hard kill), disconnect and remove this
+  // section within ~10s so the panel follows the plugin's lifecycle.
+  var hbMiss = 0;
+  setInterval(function () {
+    fetch(API + '/api/health', { signal: AbortSignal.timeout(2500) })
+      .then(function (r) { return r.json(); })
+      .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbMiss = 0; })
+      .catch(function () {
+        if (++hbMiss < 2) return;
+        if (mountObserver) mountObserver.disconnect();
+        neutralize.disconnect();
+        var mine = document.getElementById(MARKER);
+        if (mine) mine.remove();
+      });
+  }, 5000);
+
   mountObserver = new MutationObserver(onMutations);
   mountObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
   neutralize.observe(document.body || document.documentElement, { childList: true, subtree: true });
@@ -51824,6 +51874,7 @@ var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
   existingServePid: () => existingServePid,
+  shutdownServe: () => shutdownServe,
   startServe: () => startServe
 });
 import http from "node:http";
@@ -52038,6 +52089,7 @@ async function buildBootstrapFor(config, allowDecode = false) {
   const payload = buildPayload(config, assets, {
     liveUrl: buildLiveUrl(config)
   });
+  payload.apiPort = config.apiPort;
   return buildBootstrapScript(payload);
 }
 async function holdSession(target, config, apiPort) {
@@ -52187,6 +52239,25 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
     return "";
   }
 }
+async function shutdownServe() {
+  for (const [, session] of held) {
+    try {
+      await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
+      if (session.themeScriptId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
+        });
+      }
+      if (session.panelScriptId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId }).catch(() => {
+        });
+      }
+      session.conn.close();
+    } catch {
+    }
+  }
+  held.clear();
+  await new Promise((r2) => activeServer ? activeServer.close(() => r2()) : r2());
+}
 async function startServe(opts) {
   const { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
@@ -52197,6 +52268,7 @@ async function startServe(opts) {
     );
   }
   const server = http.createServer((req, res) => {
+    activeServer = server;
     handleRequest(req, res).catch(() => {
       try {
         res.destroy();
@@ -52617,76 +52689,13 @@ async function startServe(opts) {
   console.log(`serve: control API on http://127.0.0.1:${apiPort} \u2014 Ctrl+C to stop`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
-  const LIFECHECK_MS = Number(process.env.ZW_LIFECHECK_MS) || 3e4;
-  const LIFECHECK_LIMIT = Number(process.env.ZW_LIFECHECK_LIMIT) || 10;
-  const spawnedByMcp = process.env.ZW_SPAWNED_BY_MCP === "1";
-  let missingTicks = 0;
-  const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
-  async function anyOwnerAlive() {
-    if (!spawnedByMcp) {
-      try {
-        await listTargets(cdpPort);
-        return true;
-      } catch {
-        return isZcodeProcessRunning2().catch(() => false);
-      }
-    }
-    try {
-      const { promisify: promisify5 } = await import("node:util");
-      const { execFile: execFile5 } = await import("node:child_process");
-      const execFileAsync3 = promisify5(execFile5);
-      if (process.platform === "win32") {
-        const { stdout: stdout2 } = await execFileAsync3(
-          "powershell",
-          [
-            "-NoProfile",
-            "-Command",
-            `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {$_.CommandLine -like '*zcode-wallpaper*mcp*server.js*'} | Select-Object -First 1 ProcessId | ForEach-Object { $_.ProcessId }`
-          ],
-          { timeout: 1e4, windowsHide: true }
-        );
-        return /\d/.test(stdout2);
-      }
-      const { stdout } = await execFileAsync3("pgrep", ["-f", "zcode-wallpaper.*mcp/server.js"]);
-      return stdout.trim().length > 0;
-    } catch {
-      return false;
-    }
-  }
-  setInterval(() => {
-    void (async () => {
-      const alive = await anyOwnerAlive().catch(() => false);
-      if (alive) {
-        missingTicks = 0;
-        return;
-      }
-      if (++missingTicks < LIFECHECK_LIMIT) return;
-      console.log("serve: no plugin MCP owner alive for a while \u2014 restoring default appearance and exiting.");
-      for (const [, session] of held) {
-        try {
-          await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
-          if (session.themeScriptId) {
-            await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
-            });
-          }
-          if (session.panelScriptId) {
-            await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId }).catch(() => {
-            });
-          }
-          session.conn.close();
-        } catch {
-        }
-      }
-      process.exit(0);
-    })();
-  }, LIFECHECK_MS);
   await poll(runtimeConfig(), apiPort);
   for (; ; ) {
     await new Promise((r2) => setTimeout(r2, POLL_MS));
     await poll(runtimeConfig(), apiPort);
   }
 }
-var POLL_MS, MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, pluginRoot, cachedAssets, held, IMAGE_EXT;
+var POLL_MS, MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, pluginRoot, cachedAssets, held, IMAGE_EXT, activeServer;
 var init_server = __esm({
   "src/core/server.ts"() {
     "use strict";

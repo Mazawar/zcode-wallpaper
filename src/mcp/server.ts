@@ -9,7 +9,6 @@
  * fire-and-forget: a slow or failed bootstrap must never delay MCP startup.
  */
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -29,64 +28,47 @@ import { DEFAULT_API_PORT } from "../core/inject.js";
 
 function bootstrapServe(): void {
   try {
-    const serverFile = path.resolve(process.argv[1] ?? "");
-    // Only from the built layout (dist/mcp/server.js -> dist/cli.js); under
-    // tsx from src/ there is nothing to point at, so skip quietly.
-    const cliJs = path.join(path.dirname(serverFile), "..", "cli.js");
-    if (path.basename(serverFile) !== "server.js" || !existsSync(cliJs)) return;
-    fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) })
-      .then((r) => r.json())
-      .then((body) => {
-        if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign service");
-      })
-      .catch(() => {
-        try {
-          // ZCode launches MCP servers with ZW_DATA_DIR pointed at a
-          // plugin-scoped directory; letting the serve inherit it splits the
-          // store from manually-started serves. Strip it so every serve uses
-          // the default data dir.
-          const childEnv = { ...process.env };
-          delete childEnv.ZW_DATA_DIR;
-          childEnv.ZW_SPAWNED_BY_MCP = "1"; // serve tracks MCP processes as its owner
-          spawn(process.execPath, [cliJs, "serve", "--detach"], {
-            detached: true,
-            stdio: "ignore",
-            windowsHide: true,
-            env: childEnv,
-          }).unref();
-        } catch {
-          /* best effort */
-        }
-      });
+    // The serve lives INSIDE this MCP process — no detached child process.
+    // The MCP server is owned by ZCode (started per session/window), so the
+    // serve's lifecycle is exactly the plugin's: ZCode starts -> serve runs,
+    // plugin disabled / ZCode closed -> MCP dies -> serve dies with it. When
+    // several windows run, the first healthy serve wins and the others skip;
+    // if the hosting MCP dies, one of the survivors takes over within 60s.
+    // ZW_DATA_DIR points at a plugin-scoped dir when ZCode spawns us — strip
+    // it early so every module uses the shared default data dir.
+    delete process.env.ZW_DATA_DIR;
+
+    let hosting = false;
+    const ensure = () => {
+      if (hosting) return;
+      fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) })
+        .then((r) => r.json())
+        .then((body) => {
+          if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign service");
+        })
+        .catch(() => {
+          import("../core/server.js")
+            .then((m) => {
+              hosting = true;
+              return m.startServe({ cdpPort: 28256, apiPort: DEFAULT_API_PORT }).catch((err: Error) => {
+                // EADDRINUSE-style: another MCP process won the race — fine.
+                hosting = false;
+                if (!String(err?.message ?? err).includes("already running")) throw err;
+              });
+            })
+            .catch(() => {
+              /* best effort */
+            });
+        });
+    };
+    ensure();
+    setInterval(ensure, 60_000).unref();
+
     // Self-heal launch shortcuts: without the CDP flag a start-menu launch
     // gets no injection for the whole session. Fire-and-forget, silent.
     import("../core/shortcuts.js")
       .then((m) => m.ensureShortcutsHaveCdpFlag(28256))
       .catch(() => undefined);
-    // Keep the serve alive for as long as this MCP process lives (it may exit
-    // on its own when its owner checks fail — e.g. transient failures).
-    setInterval(() => {
-      fetch("http://127.0.0.1:28257/api/health", { signal: AbortSignal.timeout(1500) })
-        .then((r) => r.json())
-        .then((body) => {
-          if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign");
-        })
-        .catch(() => {
-          try {
-            const childEnv2 = { ...process.env };
-            delete childEnv2.ZW_DATA_DIR;
-            childEnv2.ZW_SPAWNED_BY_MCP = "1";
-            spawn(process.execPath, [cliJs, "serve", "--detach"], {
-              detached: true,
-              stdio: "ignore",
-              windowsHide: true,
-              env: childEnv2,
-            }).unref();
-          } catch {
-            /* best effort */
-          }
-        });
-    }, 60_000).unref();
   } catch {
     /* best effort */
   }
@@ -95,7 +77,7 @@ bootstrapServe();
 
 const server = new McpServer({
   name: "zcode-wallpaper",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 /** Registry of the tools this server exposes (used by tests / docs). */
@@ -279,3 +261,21 @@ server.registerTool(
 );
 
 await server.connect(new StdioServerTransport());
+
+// Lifecycle, event-driven first: ZCode closes our stdio pipe when the plugin
+// is disabled or the app is closing. At that moment restore ZCode's default
+// appearance and stop the in-process serve — no polling involved. (If ZCode
+// hard-kills the process instead, nothing here runs; the injected page
+// scripts self-clean via their heartbeat fallback.)
+async function gracefulShutdown(): Promise<void> {
+  try {
+    const { shutdownServe } = await import("../core/server.js");
+    await shutdownServe();
+  } catch {
+    /* best effort */
+  }
+  process.exit(0);
+}
+process.stdin.on("close", () => void gracefulShutdown());
+process.stdin.on("end", () => void gracefulShutdown());
+process.on("SIGTERM", () => void gracefulShutdown());
