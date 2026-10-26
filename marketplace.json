@@ -8,7 +8,15 @@
       "version": "1.2.2",
       "author": "Mazawar",
       "license": "MIT",
-      "source": "./"
+      "source": "./",
+      "category": "themes",
+      "tags": [
+        "wallpaper",
+        "wallpaper-engine",
+        "theme",
+        "appearance",
+        "dynamic-color"
+      ]
     }
   ],
   "version": "1.2.2"
