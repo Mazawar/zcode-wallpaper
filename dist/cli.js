@@ -170,12 +170,13 @@ function buildBootstrapScript(payload) {
     // A rapid switch during an in-flight transition: jump to its end first.
     if (document.getElementById(MARKER + '-live-next')) promoteNext();
     var cur = document.getElementById(MARKER + '-live');
-    if (!src) { liveFrames().forEach(function (f) { f.remove(); }); return; }
+    if (!src) { liveFrames().forEach(function (f) { f.remove(); }); S.appliedLive = null; return; }
     if (!cur) {
       // "cut" transitions swap with no animation at all.
       if (TRANS === 'cut') {
         var c0 = makeFrame(MARKER + '-live', src, 'opacity:1;');
         wp.appendChild(c0);
+        S.appliedLive = src;
         bindLiveBridge();
         return;
       }
@@ -183,6 +184,7 @@ function buildBootstrapScript(payload) {
       // fade in from the app's own background instead of popping in.
       var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
       wp.appendChild(first);
+      S.appliedLive = src;
       bindLiveBridge();
       var settled = false;
       var onFirstReady = function (ev) {
@@ -199,13 +201,19 @@ function buildBootstrapScript(payload) {
       }, 10000);
       return;
     }
-    if (cur.getAttribute('src') === src) { bindLiveBridge(); return; }
-    var a = queryOf(cur.getAttribute('src') || '');
+    // Compare against the LAST APPLIED url, not the frame's src attribute:
+    // hot-updates never rewrite the attribute (that would navigate/reload),
+    // so attribute comparison makes the second toggle of a param (e.g. mute
+    // -> unmute -> mute) a silent no-op \u2014 the volume command never ships.
+    var applied = S.appliedLive || cur.getAttribute('src') || '';
+    if (applied === src) { bindLiveBridge(); return; }
+    var a = queryOf(applied);
     var b = queryOf(src);
     if (a.src && a.src === b.src && a.type === b.type) {
       // Same wallpaper, only fit/fps/muted changed: hot-update via postMessage.
       // (Setting src would reload the iframe and flash.)
       postAllFrames({ zw: 'cfg', fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === '0' ? 1 : 0 });
+      S.appliedLive = src;
       bindLiveBridge();
       return;
     }
@@ -214,17 +222,20 @@ function buildBootstrapScript(payload) {
       cur.remove();
       var swap = makeFrame(MARKER + '-live', src, 'opacity:1;');
       wp.appendChild(swap);
+      S.appliedLive = src;
       bindLiveBridge();
       return;
     }
     // Different wallpaper: cross-fade. The new frame mounts transparent, fades
     // in when its renderer signals readiness (poster covers it until then),
-    // and the old frame is removed after the transition. The old frame's
-    // render loop is paused right away \u2014 two WebGL contexts rendering at full
-    // tilt during assembly starves the GPU and makes the UI jank.
-    try { cur.contentWindow.postMessage({ zw: 'pause' }, '*'); } catch (e) { /* mid-swap */ }
+    // and the old frame is removed after the transition. The old frame keeps
+    // RENDERING until then: pausing it up front blanks the WebCodecs video
+    // canvas (pause clears it), which turned the "cross-fade" into
+    // blank-then-fade-in. The 600ms overlap of two live contexts is the
+    // price of an actual fade.
     var next = makeFrame(MARKER + '-live-next', src, 'opacity:0;transition:opacity .6s ease;');
     wp.appendChild(next);
+    S.appliedLive = src;
     bindLiveBridge();
     var done = false;
     var finalize = function () {
@@ -401,7 +412,7 @@ function buildBootstrapScript(payload) {
           document.getElementById('zcode-wallpaper-settings-2')?.remove();
           try { localStorage.removeItem(MARKER + ':css'); localStorage.removeItem(MARKER + ':wallpaper'); } catch (e) {}
           // allow a clean re-injection if the serve comes back (app restart)
-          S.cssText = null; S.videoSrc = null; S.liveSrc = null;
+          S.cssText = null; S.videoSrc = null; S.liveSrc = null; S.appliedLive = null;
         });
     }, 5000);
   }
@@ -48453,7 +48464,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 20;
+  var V = 24;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -48624,6 +48635,21 @@ function buildPanelScript(apiPort) {
   function setSwitch(btn, checked) {
     btn.setAttribute('data-state', checked ? 'checked' : 'unchecked');
     btn.setAttribute('aria-checked', checked ? 'true' : 'false');
+    // ZCode's switch CSS keys on data-checked / data-unchecked ATTRIBUTES on
+    // BOTH the track (group) and the thumb \u2014 without them the track never
+    // recolors and the thumb never slides.
+    var parts = [btn, btn.firstElementChild];
+    for (var i = 0; i < parts.length; i++) {
+      var n = parts[i];
+      if (!n) continue;
+      if (checked) {
+        n.setAttribute('data-checked', 'true');
+        n.removeAttribute('data-unchecked');
+      } else {
+        n.setAttribute('data-unchecked', 'true');
+        n.removeAttribute('data-checked');
+      }
+    }
   }
   function makeSwitch(checked, onChange, labelText, key) {
     var wrap = el('label', 'inline-flex items-center gap-2 cursor-pointer');
@@ -49238,6 +49264,7 @@ function buildPanelScript(apiPort) {
   }
   function scan() {
     scheduled = false;
+    if (hbRetired) return; // serve is gone \u2014 no stale panel without data
     // Retire when a newer build has taken over the page.
     if (typeof window.__zwSettingsBoot === 'number' && window.__zwSettingsBoot > V) {
       if (mountObserver) mountObserver.disconnect();
@@ -49266,30 +49293,39 @@ function buildPanelScript(apiPort) {
     scheduled = true;
     setTimeout(scan, 80);
   }
-  // Lifecycle heartbeat (mirrors the bootstrap's): when the serve is gone
-  // (plugin disabled / app closed / hard kill), disconnect and remove this
-  // section within ~10s so the panel follows the plugin's lifecycle.
-  // Latch: at ZCode cold start the page can load before the in-process serve
-  // is listening (the MCP needs seconds to boot) \u2014 misses before the FIRST
-  // success must not retire the panel, or it never mounts (the exact bug
-  // where a restart left the section gone while the serve was healthy).
-  var hbMiss = 0;
+  // Lifecycle heartbeat \u2014 same hard/soft contract as the theme bootstrap:
+  //   hard = connection REFUSED (fast reject): the serve process is really
+  //   gone (plugin disabled / crash) \u2192 retire the section within ~10s.
+  //   soft = timeout while the serve is alive but busy (Monet decode, sync
+  //   library enumeration block its loop for seconds) \u2192 tolerated, never
+  //   retires. Latched on first success: cold start (page up before the
+  //   serve) doesn't count. If health returns after a retire (serve
+  //   respawned), the panel revives itself.
+  var hbHard = 0;
+  var hbSoft = 0;
   var hbSeen = false;
+  var hbRetired = false;
   setInterval(function () {
+    var t0 = Date.now();
     fetch(API + '/api/health', { signal: AbortSignal.timeout(2500) })
       .then(function (r) { return r.json(); })
       .then(function (b) {
         if (!b || b.service !== 'zcode-wallpaper') throw 0;
-        var first = !hbSeen;
+        var revive = hbRetired || !hbSeen;
         hbSeen = true;
-        hbMiss = 0;
-        if (first) schedule(); // serve just came up \u2014 maybe settings opened during the gap
+        hbHard = 0;
+        hbSoft = 0;
+        hbRetired = false;
+        if (revive) schedule(); // serve just came up (or back) \u2014 (re)mount
       })
       .catch(function () {
         if (!hbSeen) return; // cold-start race: keep waiting for the serve
-        if (++hbMiss < 2) return;
-        if (mountObserver) mountObserver.disconnect();
-        neutralize.disconnect();
+        var hard = (Date.now() - t0) < 150;
+        if (hard) { hbHard++; hbSoft = 0; } else { hbSoft++; hbHard = 0; }
+        if (hbHard < 2 && hbSoft < 6) return;
+        hbHard = 0;
+        hbSoft = 0;
+        hbRetired = true;
         var mine = document.getElementById(MARKER);
         if (mine) mine.remove();
       });
@@ -49298,6 +49334,17 @@ function buildPanelScript(apiPort) {
   mountObserver = new MutationObserver(onMutations);
   mountObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
   neutralize.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  // Safety rescan: React re-renders of the settings page can transiently
+  // replace the host container, taking the section with it; when the
+  // appearance page is back but the section is not, requiring another DOM
+  // mutation (a user click) to remount reads as "the box disappeared until I
+  // clicked somewhere". Poll for that state instead.
+  setInterval(function () {
+    if (hbRetired) return;
+    if (document.getElementById(MARKER)) return;
+    if (!appearanceSectionList()) return;
+    schedule();
+  }, 2000);
   sweepLegacy();
   scan();
 })();`;
@@ -49340,6 +49387,17 @@ function sendStaticFile(req, res, filePath, opts = {}) {
     ...extra
   });
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
+  const pipe = (opts2) => {
+    const stream = opts2 ? fs9.createReadStream(filePath, opts2) : fs9.createReadStream(filePath);
+    stream.on("error", () => {
+      try {
+        res.destroy();
+      } catch {
+      }
+    });
+    res.on("close", () => stream.destroy());
+    stream.pipe(res);
+  };
   if (range && (range[1] !== "" || range[2] !== "")) {
     let start;
     let end;
@@ -49367,13 +49425,13 @@ function sendStaticFile(req, res, filePath, opts = {}) {
       res.end();
     } else {
       res.writeHead(206, headers);
-      fs9.createReadStream(filePath, { start, end }).pipe(res);
+      pipe({ start, end });
     }
   } else {
     const headers = bodyHeaders({ "Content-Length": stat.size });
     res.writeHead(200, headers);
     if (isHead) res.end();
-    else fs9.createReadStream(filePath).pipe(res);
+    else pipe();
   }
   return true;
 }
@@ -52692,6 +52750,8 @@ async function startServe(opts) {
       }
     });
   });
+  process.on("uncaughtException", (err) => console.error(`serve: uncaught exception \u2014 ${err.stack ?? err}`));
+  process.on("unhandledRejection", (err) => console.error(`serve: unhandled rejection \u2014 ${err?.stack ?? err}`));
   async function handleRequest(req, res) {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {

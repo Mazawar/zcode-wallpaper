@@ -242,12 +242,13 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     // A rapid switch during an in-flight transition: jump to its end first.
     if (document.getElementById(MARKER + '-live-next')) promoteNext();
     var cur = document.getElementById(MARKER + '-live');
-    if (!src) { liveFrames().forEach(function (f) { f.remove(); }); return; }
+    if (!src) { liveFrames().forEach(function (f) { f.remove(); }); S.appliedLive = null; return; }
     if (!cur) {
       // "cut" transitions swap with no animation at all.
       if (TRANS === 'cut') {
         var c0 = makeFrame(MARKER + '-live', src, 'opacity:1;');
         wp.appendChild(c0);
+        S.appliedLive = src;
         bindLiveBridge();
         return;
       }
@@ -255,6 +256,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       // fade in from the app's own background instead of popping in.
       var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
       wp.appendChild(first);
+      S.appliedLive = src;
       bindLiveBridge();
       var settled = false;
       var onFirstReady = function (ev) {
@@ -271,13 +273,19 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       }, 10000);
       return;
     }
-    if (cur.getAttribute('src') === src) { bindLiveBridge(); return; }
-    var a = queryOf(cur.getAttribute('src') || '');
+    // Compare against the LAST APPLIED url, not the frame's src attribute:
+    // hot-updates never rewrite the attribute (that would navigate/reload),
+    // so attribute comparison makes the second toggle of a param (e.g. mute
+    // -> unmute -> mute) a silent no-op — the volume command never ships.
+    var applied = S.appliedLive || cur.getAttribute('src') || '';
+    if (applied === src) { bindLiveBridge(); return; }
+    var a = queryOf(applied);
     var b = queryOf(src);
     if (a.src && a.src === b.src && a.type === b.type) {
       // Same wallpaper, only fit/fps/muted changed: hot-update via postMessage.
       // (Setting src would reload the iframe and flash.)
       postAllFrames({ zw: 'cfg', fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === '0' ? 1 : 0 });
+      S.appliedLive = src;
       bindLiveBridge();
       return;
     }
@@ -286,17 +294,20 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       cur.remove();
       var swap = makeFrame(MARKER + '-live', src, 'opacity:1;');
       wp.appendChild(swap);
+      S.appliedLive = src;
       bindLiveBridge();
       return;
     }
     // Different wallpaper: cross-fade. The new frame mounts transparent, fades
     // in when its renderer signals readiness (poster covers it until then),
-    // and the old frame is removed after the transition. The old frame's
-    // render loop is paused right away — two WebGL contexts rendering at full
-    // tilt during assembly starves the GPU and makes the UI jank.
-    try { cur.contentWindow.postMessage({ zw: 'pause' }, '*'); } catch (e) { /* mid-swap */ }
+    // and the old frame is removed after the transition. The old frame keeps
+    // RENDERING until then: pausing it up front blanks the WebCodecs video
+    // canvas (pause clears it), which turned the "cross-fade" into
+    // blank-then-fade-in. The 600ms overlap of two live contexts is the
+    // price of an actual fade.
     var next = makeFrame(MARKER + '-live-next', src, 'opacity:0;transition:opacity .6s ease;');
     wp.appendChild(next);
+    S.appliedLive = src;
     bindLiveBridge();
     var done = false;
     var finalize = function () {
@@ -473,7 +484,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
           document.getElementById('zcode-wallpaper-settings-2')?.remove();
           try { localStorage.removeItem(MARKER + ':css'); localStorage.removeItem(MARKER + ':wallpaper'); } catch (e) {}
           // allow a clean re-injection if the serve comes back (app restart)
-          S.cssText = null; S.videoSrc = null; S.liveSrc = null;
+          S.cssText = null; S.videoSrc = null; S.liveSrc = null; S.appliedLive = null;
         });
     }, 5000);
   }

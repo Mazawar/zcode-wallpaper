@@ -163,6 +163,27 @@ const statsTimer = setInterval(() => {
   }
 }, 1000);
 
+// Pausing the engine clears the WebCodecs video canvas to transparent, which
+// reads as "the wallpaper vanished". Snapshot the last frame into the host
+// background so a pause FREEZES on the current picture instead of blanking.
+var frozen = false;
+function freezeFrame() {
+  if (frozen || framesSeen < 1) return;
+  frozen = true;
+  try {
+    const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
+    if (c && c.width) {
+      host.style.background = `#000 url("${c.toDataURL("image/jpeg", 0.88)}") center / cover no-repeat`;
+    }
+  } catch {
+    // tainted canvas — leave whatever background is already there
+  }
+}
+function unfreezeFrame() {
+  frozen = false;
+  host.style.background = "";
+}
+
 // --- input bridge from the ZCode host page ------------------------------------
 window.addEventListener("message", (ev) => {
   const d = ev.data;
@@ -172,8 +193,8 @@ window.addEventListener("message", (ev) => {
     else if (d.zw === "ptrleave") inst.pointerLeave();
     else if (d.zw === "ptrup") inst.pushPointer(Number(d.u ?? 0.5), Number(d.v ?? 0.5), 0, 0);
     else if (d.zw === "wheel") inst.pushWheel(Number(d.dx) || 0, Number(d.dy) || 0, Number(d.mode) || 0, Number(d.mods) || 0);
-    else if (d.zw === "pause") inst.pause();
-    else if (d.zw === "resume") inst.resume();
+    else if (d.zw === "pause") { freezeFrame(); inst.pause(); }
+    else if (d.zw === "resume") { unfreezeFrame(); inst.resume(); }
     // Hot config update (same wallpaper, changed fit/fps/volume) — avoids a
     // full reload (and the reload flash) for tweaks the engine applies live.
     else if (d.zw === "cfg") {

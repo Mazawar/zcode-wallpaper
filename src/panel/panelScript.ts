@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 21;
+  var V = 24;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -199,6 +199,21 @@ export function buildPanelScript(apiPort: number): string {
   function setSwitch(btn, checked) {
     btn.setAttribute('data-state', checked ? 'checked' : 'unchecked');
     btn.setAttribute('aria-checked', checked ? 'true' : 'false');
+    // ZCode's switch CSS keys on data-checked / data-unchecked ATTRIBUTES on
+    // BOTH the track (group) and the thumb — without them the track never
+    // recolors and the thumb never slides.
+    var parts = [btn, btn.firstElementChild];
+    for (var i = 0; i < parts.length; i++) {
+      var n = parts[i];
+      if (!n) continue;
+      if (checked) {
+        n.setAttribute('data-checked', 'true');
+        n.removeAttribute('data-unchecked');
+      } else {
+        n.setAttribute('data-unchecked', 'true');
+        n.removeAttribute('data-checked');
+      }
+    }
   }
   function makeSwitch(checked, onChange, labelText, key) {
     var wrap = el('label', 'inline-flex items-center gap-2 cursor-pointer');
@@ -883,6 +898,17 @@ export function buildPanelScript(apiPort: number): string {
   mountObserver = new MutationObserver(onMutations);
   mountObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
   neutralize.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  // Safety rescan: React re-renders of the settings page can transiently
+  // replace the host container, taking the section with it; when the
+  // appearance page is back but the section is not, requiring another DOM
+  // mutation (a user click) to remount reads as "the box disappeared until I
+  // clicked somewhere". Poll for that state instead.
+  setInterval(function () {
+    if (hbRetired) return;
+    if (document.getElementById(MARKER)) return;
+    if (!appearanceSectionList()) return;
+    schedule();
+  }, 2000);
   sweepLegacy();
   scan();
 })();`;

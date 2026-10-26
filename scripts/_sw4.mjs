@@ -1,0 +1,21 @@
+const targets = await (await fetch("http://127.0.0.1:28256/json/list")).json();
+const page = targets.find(t => t.type === "page" && t.url.includes("out/renderer/index.html"));
+const ws = new WebSocket(page.webSocketDebuggerUrl);
+let id = 1; const pend = new Map();
+const send = (m, p = {}) => new Promise(r => { const i = id++; pend.set(i, r); ws.send(JSON.stringify({ id: i, method: m, params: p })); });
+ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id !== undefined && pend.has(m.id)) { pend.get(m.id)(m.result); pend.delete(m.id); } };
+await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+const r = await send("Runtime.evaluate", { expression: `(() => {
+  const f = document.getElementById('zcode-wallpaper-settings-v6');
+  const b = f && f.querySelector('[data-k=flip]');
+  if (!b) return 'no switch';
+  const thumb = b.firstElementChild;
+  const read = () => ({ st: b.getAttribute('data-state'), thumb: getComputedStyle(thumb).transform });
+  const off = read();
+  b.click();
+  const on = read();
+  b.click();
+  return JSON.stringify({ off, on, restored: b.getAttribute('data-state') });
+})()`, returnByValue: true });
+console.log(r.result && r.result.value);
+ws.close(); process.exit(0);
