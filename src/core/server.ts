@@ -1070,31 +1070,82 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
 
-  // Lifecycle: the serve exists to serve a running ZCode (it is normally
-  // spawned by the plugin's MCP server at app start). Once both the CDP
-  // endpoint AND the ZCode process have been gone for ~5 minutes (covering
-  // app restarts), exit instead of lingering after the app was closed.
-  const LIFECHECK_MS = 30_000;
-  const LIFECHECK_LIMIT = 10;
+  // Lifecycle. A serve spawned by the plugin MCP (ZW_SPAWNED_BY_MCP=1) stays
+  // alive only while at least one of this plugin's MCP server processes is
+  // running — MCP processes are owned by ZCode, so "no MCP alive" means the
+  // plugin was disabled or the app was closed; either way the serve cleans up
+  // (restore default appearance) and exits. A manually started serve
+  // (`zcode-wallpaper serve`) falls back to the ZCode-process check so it can
+  // bridge app restarts. ~5 minutes of grace covers restart gaps and slow
+  // app startup; ticks are env-tunable for testing.
+  const LIFECHECK_MS = Number(process.env.ZW_LIFECHECK_MS) || 30_000;
+  const LIFECHECK_LIMIT = Number(process.env.ZW_LIFECHECK_LIMIT) || 10;
+  const spawnedByMcp = process.env.ZW_SPAWNED_BY_MCP === "1";
   let missingTicks = 0;
   const { isZcodeProcessRunning } = await import("./launch.js");
-  setInterval(() => {
-    void (async () => {
-      let alive = false;
+
+  async function anyOwnerAlive(): Promise<boolean> {
+    if (!spawnedByMcp) {
+      // manual serve: alive while ZCode runs
       try {
         await listTargets(cdpPort);
-        alive = true;
+        return true;
       } catch {
-        alive = await isZcodeProcessRunning().catch(() => false);
+        return isZcodeProcessRunning().catch(() => false);
       }
+    }
+    // MCP-spawned serve: alive while any zcode-wallpaper MCP process runs
+    try {
+      const { promisify } = await import("node:util");
+      const { execFile } = await import("node:child_process");
+      const execFileAsync = promisify(execFile);
+      if (process.platform === "win32") {
+        const { stdout } = await execFileAsync(
+          "powershell",
+          [
+            "-NoProfile", "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object {$_.CommandLine -like '*zcode-wallpaper*mcp*server.js*'} | Select-Object -First 1 ProcessId | ForEach-Object { $_.ProcessId }",
+          ],
+          { timeout: 10_000, windowsHide: true }
+        );
+        return /\d/.test(stdout);
+      }
+      const { stdout } = await execFileAsync("pgrep", ["-f", "zcode-wallpaper.*mcp/server.js"]);
+      return stdout.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  setInterval(() => {
+    void (async () => {
+      const alive = await anyOwnerAlive().catch(() => false);
       if (alive) {
         missingTicks = 0;
         return;
       }
-      if (++missingTicks >= LIFECHECK_LIMIT) {
-        console.log("serve: ZCode has been down for ~5 minutes — exiting.");
-        process.exit(0);
+      if (++missingTicks < LIFECHECK_LIMIT) return;
+      console.log("serve: no plugin MCP owner alive for a while — restoring default appearance and exiting.");
+      // Leave the UI as we found it, then go.
+      for (const [, session] of held) {
+        try {
+          await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
+          if (session.themeScriptId) {
+            await session.conn
+              .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId })
+              .catch(() => {});
+          }
+          if (session.panelScriptId) {
+            await session.conn
+              .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId })
+              .catch(() => {});
+          }
+          session.conn.close();
+        } catch {
+          /* already gone */
+        }
       }
+      process.exit(0);
     })();
   }, LIFECHECK_MS);
 

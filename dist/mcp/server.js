@@ -64960,6 +64960,7 @@ function bootstrapServe() {
       try {
         const childEnv = { ...process.env };
         delete childEnv.ZW_DATA_DIR;
+        childEnv.ZW_SPAWNED_BY_MCP = "1";
         spawn2(process.execPath, [cliJs, "serve", "--detach"], {
           detached: true,
           stdio: "ignore",
@@ -64970,6 +64971,24 @@ function bootstrapServe() {
       }
     });
     Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.ensureShortcutsHaveCdpFlag(28256)).catch(() => void 0);
+    setInterval(() => {
+      fetch("http://127.0.0.1:28257/api/health", { signal: AbortSignal.timeout(1500) }).then((r2) => r2.json()).then((body) => {
+        if (body?.service !== "zcode-wallpaper") throw new Error("foreign");
+      }).catch(() => {
+        try {
+          const childEnv2 = { ...process.env };
+          delete childEnv2.ZW_DATA_DIR;
+          childEnv2.ZW_SPAWNED_BY_MCP = "1";
+          spawn2(process.execPath, [cliJs, "serve", "--detach"], {
+            detached: true,
+            stdio: "ignore",
+            windowsHide: true,
+            env: childEnv2
+          }).unref();
+        } catch {
+        }
+      });
+    }, 6e4).unref();
   } catch {
   }
 }

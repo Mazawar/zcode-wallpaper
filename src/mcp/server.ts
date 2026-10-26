@@ -47,6 +47,7 @@ function bootstrapServe(): void {
           // the default data dir.
           const childEnv = { ...process.env };
           delete childEnv.ZW_DATA_DIR;
+          childEnv.ZW_SPAWNED_BY_MCP = "1"; // serve tracks MCP processes as its owner
           spawn(process.execPath, [cliJs, "serve", "--detach"], {
             detached: true,
             stdio: "ignore",
@@ -62,6 +63,30 @@ function bootstrapServe(): void {
     import("../core/shortcuts.js")
       .then((m) => m.ensureShortcutsHaveCdpFlag(28256))
       .catch(() => undefined);
+    // Keep the serve alive for as long as this MCP process lives (it may exit
+    // on its own when its owner checks fail — e.g. transient failures).
+    setInterval(() => {
+      fetch("http://127.0.0.1:28257/api/health", { signal: AbortSignal.timeout(1500) })
+        .then((r) => r.json())
+        .then((body) => {
+          if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign");
+        })
+        .catch(() => {
+          try {
+            const childEnv2 = { ...process.env };
+            delete childEnv2.ZW_DATA_DIR;
+            childEnv2.ZW_SPAWNED_BY_MCP = "1";
+            spawn(process.execPath, [cliJs, "serve", "--detach"], {
+              detached: true,
+              stdio: "ignore",
+              windowsHide: true,
+              env: childEnv2,
+            }).unref();
+          } catch {
+            /* best effort */
+          }
+        });
+    }, 60_000).unref();
   } catch {
     /* best effort */
   }

@@ -52617,27 +52617,67 @@ async function startServe(opts) {
   console.log(`serve: control API on http://127.0.0.1:${apiPort} \u2014 Ctrl+C to stop`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
-  const LIFECHECK_MS = 3e4;
-  const LIFECHECK_LIMIT = 10;
+  const LIFECHECK_MS = Number(process.env.ZW_LIFECHECK_MS) || 3e4;
+  const LIFECHECK_LIMIT = Number(process.env.ZW_LIFECHECK_LIMIT) || 10;
+  const spawnedByMcp = process.env.ZW_SPAWNED_BY_MCP === "1";
   let missingTicks = 0;
   const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
-  setInterval(() => {
-    void (async () => {
-      let alive = false;
+  async function anyOwnerAlive() {
+    if (!spawnedByMcp) {
       try {
         await listTargets(cdpPort);
-        alive = true;
+        return true;
       } catch {
-        alive = await isZcodeProcessRunning2().catch(() => false);
+        return isZcodeProcessRunning2().catch(() => false);
       }
+    }
+    try {
+      const { promisify: promisify5 } = await import("node:util");
+      const { execFile: execFile5 } = await import("node:child_process");
+      const execFileAsync3 = promisify5(execFile5);
+      if (process.platform === "win32") {
+        const { stdout: stdout2 } = await execFileAsync3(
+          "powershell",
+          [
+            "-NoProfile",
+            "-Command",
+            `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {$_.CommandLine -like '*zcode-wallpaper*mcp*server.js*'} | Select-Object -First 1 ProcessId | ForEach-Object { $_.ProcessId }`
+          ],
+          { timeout: 1e4, windowsHide: true }
+        );
+        return /\d/.test(stdout2);
+      }
+      const { stdout } = await execFileAsync3("pgrep", ["-f", "zcode-wallpaper.*mcp/server.js"]);
+      return stdout.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+  setInterval(() => {
+    void (async () => {
+      const alive = await anyOwnerAlive().catch(() => false);
       if (alive) {
         missingTicks = 0;
         return;
       }
-      if (++missingTicks >= LIFECHECK_LIMIT) {
-        console.log("serve: ZCode has been down for ~5 minutes \u2014 exiting.");
-        process.exit(0);
+      if (++missingTicks < LIFECHECK_LIMIT) return;
+      console.log("serve: no plugin MCP owner alive for a while \u2014 restoring default appearance and exiting.");
+      for (const [, session] of held) {
+        try {
+          await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
+          if (session.themeScriptId) {
+            await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
+            });
+          }
+          if (session.panelScriptId) {
+            await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId }).catch(() => {
+            });
+          }
+          session.conn.close();
+        } catch {
+        }
       }
+      process.exit(0);
     })();
   }, LIFECHECK_MS);
   await poll(runtimeConfig(), apiPort);
