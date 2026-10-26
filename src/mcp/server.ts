@@ -70,7 +70,10 @@ function bootstrapServe(): void {
         });
     };
     ensure();
-    setInterval(ensure, 60_000).unref();
+    // 10s: when the previous app instance's host lingers (slow teardown), the
+    // old serve holds the port until it dies — this retry bounds the
+    // no-observer handoff gap during which an engine stall has no cover.
+    setInterval(ensure, 10_000).unref();
 
     // Self-heal launch shortcuts: without the CDP flag a start-menu launch
     // gets no injection for the whole session. Fire-and-forget, silent.

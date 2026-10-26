@@ -125,7 +125,23 @@ function buildBootstrapScript(payload) {
         });
       }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'src'] });
       document.addEventListener('visibilitychange', function () { window.__zwRec('VIS', document.hidden ? 'hidden' : 'visible'); });
-      window.addEventListener('message', function (ev) { if (ev.data && ev.data.zwEvent) window.__zwRec('MSG', ev.data.zwEvent); });
+      window.addEventListener('message', function (ev) {
+        if (!ev.data || !ev.data.zwEvent) return;
+        var d = ev.data;
+        if (d.zwEvent === 'hb2') {
+          window.__zwRec('ENGINE', 'fps=' + d.fps + ' paused=' + d.paused + ' poster=' + d.poster);
+        } else {
+          window.__zwRec('MSG', d.zwEvent + (d.message ? ' ' + String(d.message).slice(0, 80) : ''));
+        }
+      });
+      // Periodic state snapshot: silent changes (css rewrites, style attr
+      // churn) leave no mutation trail \u2014 poll the invariants.
+      setInterval(function () {
+        var st = document.getElementById(MARKER + '-style');
+        var lv = document.getElementById(MARKER + '-live');
+        var bd = document.getElementById(MARKER + '-backdrop');
+        window.__zwRec('SNAP', 'css=' + (st ? st.textContent.length : 0) + ' live=' + (lv ? getComputedStyle(lv).opacity : '-') + ' bd=' + (bd ? bd.dataset.on : '-'));
+      }, 3000);
       window.addEventListener('error', function (e) { window.__zwRec('PAGEERR', (e.message || '') + ' @' + (e.lineno || 0)); });
     } catch (e2) { /* recorder must never break the bootstrap */ }
     window.__zwRec('BOOT', 'bootstrap v' + ${JSON.stringify(payload.transition ?? "fade")} + ' installed');

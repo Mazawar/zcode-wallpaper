@@ -342,4 +342,18 @@ setInterval(function () {
   }
 }, 2000);
 
+// Vitals beacon: every 2s the engine reports fps/pause/poster to the host
+// page's flight recorder — silent frame stalls (no DOM change, no reload)
+// leave no other trace.
+setInterval(() => {
+  try {
+    parent.postMessage(
+      { zwEvent: "hb2", fps: Math.round(inst.stats?.fps ?? 0), paused: !!inst.paused, poster: (host.style.background || "") !== "" },
+      "*"
+    );
+  } catch {
+    /* parent gone */
+  }
+}, 2000);
+
 loadCurrent();
