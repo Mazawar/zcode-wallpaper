@@ -255,4 +255,24 @@ window.addEventListener("message", (ev) => {
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 window.addEventListener("pagehide", () => inst.destroy());
 
+// Size watchdog: the engine can initialize while its container has no
+// layout yet (canvas stays 1x1) — nothing renders under the poster and the
+// wallpaper reads as dead until the engine happens to resize. If the host is
+// sized but the canvas stayed tiny, remount once (the zwreload marker breaks
+// any reload loop).
+if (!/[?&]zwreload=1/.test(location.search)) {
+  setTimeout(() => {
+    try {
+      const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
+      if (c && c.width < 10 && host.clientWidth > 50) {
+        const u = new URL(location.href);
+        u.searchParams.set("zwreload", "1");
+        location.replace(u.href);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, 3000);
+}
+
 loadCurrent();
