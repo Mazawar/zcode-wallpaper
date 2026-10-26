@@ -55373,7 +55373,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 16;
+  var V = 17;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -55573,6 +55573,101 @@ function buildPanelScript(apiPort) {
     return b;
   }
 
+  // --- custom slider (dsh-style thin track + filled progress) -------------------
+  // ZCode's compiled CSS has no accent-* utility for range inputs \u2014 left alone
+  // they render as chunky native Chromium widgets. A tiny stylesheet plus a
+  // --zw-fill custom property gives the filled-track look; --color-primary is
+  // the theme accent (white in this dark theme, black in light).
+  function ensureSliderStyle() {
+    if (document.getElementById(MARKER + '-range-style')) return;
+    var st = document.createElement('style');
+    st.id = MARKER + '-range-style';
+    st.textContent =
+      'input.zw-range{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:9999px;margin:0;' +
+      'background:linear-gradient(to right,var(--color-primary,#fff) var(--zw-fill,50%),rgba(127,127,127,.28) var(--zw-fill,50%));' +
+      'outline:none;cursor:pointer;}' +
+      'input.zw-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;' +
+      'background:var(--color-primary,#fff);border:2px solid var(--color-background,#161616);box-shadow:0 1px 3px rgba(0,0,0,.35);}';
+    (document.head || document.documentElement).appendChild(st);
+  }
+  function paintRange(i) {
+    var min = Number(i.min) || 0;
+    var max = Number(i.max) || 100;
+    var pct = ((Number(i.value) - min) / (max - min)) * 100;
+    i.style.setProperty('--zw-fill', Math.max(0, Math.min(100, pct)) + '%');
+  }
+  /** Read-back for refresh(): input value, chip text, fill level. */
+  function syncRange(f, k, val, unit) {
+    var i = f.querySelector('[data-k=' + k + ']');
+    if (!i) return;
+    i.value = String(val);
+    var chip = f.querySelector('[data-k=' + k + 'v]');
+    if (chip) chip.textContent = val + (unit || '');
+    paintRange(i);
+  }
+
+  // --- segmented control (dsh's \u500D\u901F / \u5E27\u7387 / \u9002\u914D rows) --------------------------
+  // Dropdowns hide the choices; a segment row shows them. Active segment =
+  // bg-input pill with a hairline inset border, verified classes + inline only.
+  function makeSeg(options, value, onChange, key) {
+    var wrap = el('div', 'inline-flex items-center gap-1 rounded-lg border border-border');
+    wrap.style.cssText = 'padding:3px;flex-wrap:wrap;row-gap:2px;';
+    wrap.setAttribute('role', 'radiogroup');
+    if (key) wrap.setAttribute('data-k', key);
+    wrap.setAttribute('data-value', String(value));
+    wrap.__zwPaint = function () {
+      var cur = String(wrap.getAttribute('data-value'));
+      Array.prototype.forEach.call(wrap.children, function (b) {
+        var on = b.getAttribute('data-v') === cur;
+        b.style.background = on ? 'var(--color-input,#2b2b2b)' : 'transparent';
+        b.style.color = on ? 'var(--color-foreground,#eee)' : 'var(--color-foreground-subtle,#999)';
+        b.style.fontWeight = on ? '500' : '400';
+        b.style.boxShadow = on ? 'inset 0 0 0 1px var(--color-input-border,#ffffff1a)' : 'none';
+      });
+    };
+    options.forEach(function (o) {
+      var b = el('button', 'h-7 px-3 rounded-md text-xs cursor-pointer outline-none transition-colors');
+      b.type = 'button';
+      b.textContent = o[1];
+      b.setAttribute('data-v', String(o[0]));
+      b.addEventListener('click', function () {
+        wrap.setAttribute('data-value', String(o[0]));
+        wrap.__zwPaint();
+        onChange(o[0]);
+      });
+      wrap.appendChild(b);
+    });
+    wrap.__zwPaint();
+    return wrap;
+  }
+  function setSeg(f, key, val) {
+    var w = f && f.querySelector('[data-k=' + key + ']');
+    if (!w || !w.__zwPaint) return;
+    w.setAttribute('data-value', String(val));
+    w.__zwPaint();
+  }
+
+  // Full-width play-pane row (label + description left, control right). The
+  // native 192px control column only fits dropdowns \u2014 segments need width.
+  function prow(labelText, descText) {
+    var r = el('div', 'border-t border-border');
+    r.style.cssText = 'padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;';
+    var left = el('div', 'min-w-0');
+    left.appendChild(el('div', 'text-sm font-medium text-foreground', labelText));
+    if (descText) left.appendChild(el('div', 'text-xs text-foreground-subtle', descText));
+    var right = el('div', 'inline-flex items-center');
+    right.style.cssText = 'gap:12px;flex-wrap:wrap;justify-content:flex-end;';
+    r.appendChild(left);
+    r.appendChild(right);
+    return { r: r, right: right };
+  }
+  function groupLabel(t) {
+    var g = el('div', 'text-xs font-medium text-foreground-subtlest');
+    g.style.cssText = 'padding:14px 16px 6px;letter-spacing:.08em;';
+    g.textContent = t;
+    return g;
+  }
+
   function pushConfig(patch) {
     post('/api/config', patch).catch(function () {});
   }
@@ -55730,30 +55825,25 @@ function buildPanelScript(apiPort) {
       var f = document.getElementById(MARKER);
       if (!f) return;
       var q = function (k) { return f.querySelector('[data-k=' + k + ']'); };
-      var blur = q('blur'); if (blur) { blur.value = c.blur; q('blurv').textContent = c.blur + 'px'; }
-      var dim = q('dim'); if (dim) { dim.value = c.dim; q('dimv').textContent = c.dim + '%'; }
+      var blur = syncRange(f, 'blur', c.blur, 'px');
+      var dim = syncRange(f, 'dim', c.dim, '%');
       var monet = q('monet'); if (monet) setSwitch(monet, !!c.monet);
       var vis = q('vis'); if (vis) setSwitch(vis, !!c.wallpaperVisible);
-      var fit = q('fit'); if (fit) fit.setAttribute('data-value', c.fit || 'cover');
-      var fps = q('fps'); if (fps) fps.setAttribute('data-value', String(c.liveFps || 30));
       var mute = q('mute'); if (mute) setSwitch(mute, c.liveMuted !== false);
-      var sync = function (k, val, unit) {
-        var i = q(k); if (!i) return;
-        i.value = String(val);
-        var lab = q(k + 'v'); if (lab) lab.textContent = val + (unit || '');
-      };
-      sync('bright', c.wallBrightness == null ? 100 : c.wallBrightness, '%');
-      sync('contrast', c.wallContrast == null ? 100 : c.wallContrast, '%');
-      sync('saturate', c.wallSaturate == null ? 100 : c.wallSaturate, '%');
-      sync('opacity', c.wallOpacity == null ? 0 : c.wallOpacity, '%');
-      sync('posx', c.posX == null ? 50 : c.posX, '');
-      sync('posy', c.posY == null ? 50 : c.posY, '');
-      sync('scale', c.layerScale == null ? 100 : c.layerScale, '%');
+      syncRange(f, 'bright', c.wallBrightness == null ? 100 : c.wallBrightness, '%');
+      syncRange(f, 'contrast', c.wallContrast == null ? 100 : c.wallContrast, '%');
+      syncRange(f, 'saturate', c.wallSaturate == null ? 100 : c.wallSaturate, '%');
+      syncRange(f, 'opacity', c.wallOpacity == null ? 0 : c.wallOpacity, '%');
+      syncRange(f, 'posx', c.posX == null ? 50 : c.posX, '');
+      syncRange(f, 'posy', c.posY == null ? 50 : c.posY, '');
+      syncRange(f, 'scale', c.layerScale == null ? 100 : c.layerScale, '%');
       var flip = q('flip'); if (flip) setSwitch(flip, !!c.flip);
-      var trans = q('trans'); if (trans) trans.setAttribute('data-value', c.switchTransition === 'cut' ? 'cut' : 'fade');
       var rot = q('rot'); if (rot) setSwitch(rot, !!c.rotationEnabled);
-      var rotmin = q('rotmin'); if (rotmin) rotmin.setAttribute('data-value', String(c.rotationMinutes || 30));
-      var rotord = q('rotord'); if (rotord) rotord.setAttribute('data-value', c.rotationOrder === 'random' ? 'random' : 'sequence');
+      setSeg(f, 'fit', c.fit || 'cover');
+      setSeg(f, 'fps', String(c.liveFps || 30));
+      setSeg(f, 'trans', c.switchTransition === 'cut' ? 'cut' : 'fade');
+      setSeg(f, 'rotmin', String(c.rotationMinutes || 30));
+      setSeg(f, 'rotord', c.rotationOrder === 'random' ? 'random' : 'sequence');
     }).catch(function () {});
     fetchJson('/api/wallpapers').then(function (d) {
       state.lib = d;
@@ -55781,51 +55871,38 @@ function buildPanelScript(apiPort) {
     var content = el('div', CLS.content);
     content.setAttribute('data-slot', 'card-content');
 
-    // --- tabbed panes (dsh's structure: \u58C1\u7EB8\u5E93 / \u753B\u9762\u4E0E\u64AD\u653E) --------------------
-    // Active pill colors go through CSS vars with inline styles \u2014 the plain
-    // bg-menu-hover utility may only exist in the app CSS as a data-attr
-    // variant, and arbitrary Tailwind classes are not guaranteed compiled.
-    var tabBar = el('div', 'flex items-center gap-1 px-4 pt-3');
-    function tabBtn(label) {
-      var b = el('button', 'h-7 px-3 rounded-md text-sm outline-none transition-colors cursor-pointer');
-      b.type = 'button';
-      b.textContent = label;
-      tabBar.appendChild(b);
-      return b;
-    }
-    var tabLibBtn = tabBtn('\u58C1\u7EB8\u5E93');
-    var tabPlayBtn = tabBtn('\u753B\u9762\u4E0E\u64AD\u653E');
+    // --- segmented tab strip (same look as the option segments) -----------------
+    ensureSliderStyle();
+    var tabBar = el('div');
+    tabBar.style.cssText = 'padding:12px 16px 8px;';
+    var tabSeg = makeSeg([['lib', '\u58C1\u7EB8\u5E93'], ['play', '\u753B\u9762\u4E0E\u64AD\u653E']], (function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })(), function (v) { showTab(v); }, 'zwtabs');
+    Array.prototype.forEach.call(tabSeg.children, function (b) { b.style.fontSize = '13px'; b.style.paddingLeft = '16px'; b.style.paddingRight = '16px'; });
+    tabBar.appendChild(tabSeg);
+    content.appendChild(tabBar);
     var tabLib = el('div');
     var tabPlay = el('div');
     tabPlay.style.display = 'none';
-    content.appendChild(tabBar);
     content.appendChild(tabLib);
     content.appendChild(tabPlay);
     function showTab(t) {
       var isLib = t !== 'play';
       tabLib.style.display = isLib ? '' : 'none';
       tabPlay.style.display = isLib ? 'none' : '';
-      [tabLibBtn, tabPlayBtn].forEach(function (b, idx) {
-        var on = isLib ? idx === 0 : idx === 1;
-        b.style.background = on ? 'var(--color-menu-hover, rgba(127,127,127,0.16))' : 'transparent';
-        b.style.color = on ? 'var(--color-foreground, inherit)' : 'var(--color-foreground-subtle, inherit)';
-        b.style.fontWeight = on ? '500' : '400';
-      });
-      state.tab = t;
-      try { localStorage.setItem('zw-panel-tab', t); } catch (e) { /* private mode */ }
+      setSeg(section, 'zwtabs', isLib ? 'lib' : 'play');
+      state.tab = isLib ? 'lib' : 'play';
+      try { localStorage.setItem('zw-panel-tab', state.tab); } catch (e) { /* private mode */ }
     }
-    tabLibBtn.addEventListener('click', function () { showTab('lib'); });
-    tabPlayBtn.addEventListener('click', function () { showTab('play'); });
-    showTab((function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })());
+    showTab(tabSeg.getAttribute('data-value'));
 
     // Current wallpaper strip (dsh's \u5F53\u524D\u58C1\u7EB8 card): poster + title + badge.
-    var curCard = el('div', 'flex items-center gap-3 px-4 py-3 border-b border-border');
+    var curCard = el('div', 'border-t border-border');
+    curCard.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:14px;';
     ui.curPoster = el('img');
     ui.curPoster.loading = 'lazy';
-    ui.curPoster.style.cssText = 'width:96px;height:54px;border-radius:8px;object-fit:cover;background:rgba(0,0,0,.25);flex:none;';
+    ui.curPoster.style.cssText = 'width:120px;height:68px;border-radius:8px;object-fit:cover;background:rgba(0,0,0,.25);flex:none;';
     var curInfo = el('div', 'min-w-0 flex-1');
-    ui.curTitle = el('div', 'text-ui-base font-medium text-foreground truncate', '\u2026');
-    ui.curMeta = el('div', 'text-ui-base text-foreground-subtle truncate');
+    ui.curTitle = el('div', 'text-sm font-medium text-foreground truncate', '\u2026');
+    ui.curMeta = el('div', 'text-xs text-foreground-subtle truncate');
     curInfo.appendChild(ui.curTitle);
     curInfo.appendChild(ui.curMeta);
     ui.curBadge = el('span', CLS.badge, '\u2026');
@@ -55834,37 +55911,38 @@ function buildPanelScript(apiPort) {
     curCard.appendChild(ui.curBadge);
     tabLib.appendChild(curCard);
 
-    // \u2500\u2500 picture & playback pane \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    function groupLabel(t) {
-      return el('div', 'text-ui-base font-medium text-foreground-subtle px-4 pt-3', t);
-    }
     tabPlay.appendChild(groupLabel('\u753B\u9762'));
 
-    // Two-column slider grid (inline styles: arbitrary grid utilities may not
-    // exist in the app's compiled stylesheet).
+    // Two-column slider grid: custom zw-range sliders (the accent-* utility
+    // doesn't exist in ZCode's CSS \u2014 native widgets look broken), tabular
+    // value chips like the native px inputs.
     var knobs = el('div');
-    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px;padding:8px 16px 4px;';
+    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 32px;padding:2px 16px 10px;';
     function sliderCell(k, cfgKey, labelText, min, max, unit, def) {
       var c = el('div');
       var head = el('div', 'flex items-center justify-between');
-      head.appendChild(el('span', 'text-sm text-foreground-subtle', labelText));
-      var v = el('span', 'text-sm text-foreground-subtle');
+      head.style.cssText = 'margin-bottom:6px;';
+      head.appendChild(el('span', 'text-xs text-foreground-subtle', labelText));
+      var v = el('span', 'text-xs text-foreground-subtle');
       v.setAttribute('data-k', k + 'v');
+      v.style.cssText = 'font-variant-numeric:tabular-nums;';
       v.textContent = def + unit;
       head.appendChild(v);
       var i = el('input');
       i.type = 'range';
+      i.className = 'zw-range';
       i.min = String(min);
       i.max = String(max);
       i.value = String(def);
-      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
       i.setAttribute('data-k', k);
       i.addEventListener('input', function () {
         v.textContent = i.value + unit;
+        paintRange(i);
         var p = {};
         p[cfgKey] = Number(i.value);
         pushConfig(p);
       });
+      paintRange(i);
       c.appendChild(head);
       c.appendChild(i);
       return c;
@@ -55882,60 +55960,43 @@ function buildPanelScript(apiPort) {
 
     tabPlay.appendChild(groupLabel('\u9002\u914D\u4E0E\u64AD\u653E'));
 
-    var rFit = row('\u586B\u5145\u65B9\u5F0F', 'cover \u88C1\u5207\u94FA\u6EE1\uFF1Bcontain \u7559\u8FB9\uFF1Bstretch \u62C9\u4F38\uFF1Bsmart \u5206\u6790\u4E3B\u4F53\u540E\u81EA\u52A8\u6784\u56FE\u3002');
-    var fit = dropdown([['cover', 'cover \u88C1\u5207\u94FA\u6EE1'], ['contain', 'contain \u7559\u8FB9'], ['stretch', 'stretch \u62C9\u4F38'], ['smart', 'smart \u667A\u80FD\u6784\u56FE']], 'cover', function (v) { pushConfig({ fit: v }); });
-    fit.setAttribute('data-k', 'fit');
-    rFit.right.appendChild(fit);
+    var rFit = prow('\u586B\u5145\u65B9\u5F0F', '\u8986\u76D6 = \u88C1\u5207\u94FA\u6EE1 \xB7 \u7559\u8FB9 = \u5B8C\u6574\u663E\u793A \xB7 \u62C9\u4F38 = \u53D8\u5F62\u586B\u6EE1 \xB7 \u667A\u80FD = \u5206\u6790\u4E3B\u4F53\u81EA\u52A8\u6784\u56FE\u3002');
+    rFit.right.appendChild(makeSeg([['cover', '\u8986\u76D6'], ['contain', '\u7559\u8FB9'], ['stretch', '\u62C9\u4F38'], ['smart', '\u667A\u80FD']], 'cover', function (v) { pushConfig({ fit: v }); }, 'fit'));
     tabPlay.appendChild(rFit.r);
 
-    var rFlip = row('\u753B\u9762\u955C\u50CF', '\u6C34\u5E73\u7FFB\u8F6C\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF08\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\uFF0C\u65E0\u6E32\u67D3\u5F00\u9500\uFF09\u3002');
+    var rFlip = prow('\u753B\u9762\u955C\u50CF', '\u6C34\u5E73\u7FFB\u8F6C\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF0C\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\uFF0C\u65E0\u6E32\u67D3\u5F00\u9500\u3002');
     rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '\u6C34\u5E73\u7FFB\u8F6C', 'flip'));
     tabPlay.appendChild(rFlip.r);
 
-    var rLive = row('\u5B9E\u65F6\u6E32\u67D3', '\u573A\u666F\u58C1\u7EB8\u7684\u6E32\u67D3\u5E27\u7387\u4E0A\u9650\u4E0E\u81EA\u5E26\u97F3\u9891\u3002');
-    var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
-    var fps = dropdown([['15', '15 fps'], ['30', '30 fps'], ['60', '60 fps']], '30', function (v) { pushConfig({ liveFps: Number(v) }); });
-    fps.setAttribute('data-k', 'fps');
-    var mute = makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '\u9759\u97F3', 'mute');
-    liveBox.appendChild(fps); liveBox.appendChild(mute);
-    rLive.right.appendChild(liveBox);
+    var rLive = prow('\u5E27\u7387\u4E0E\u58F0\u97F3', '\u573A\u666F\u6E32\u67D3\u5E27\u7387\u4E0A\u9650\uFF1B\u89C6\u9891\u58C1\u7EB8\u6309\u6E90\u5E27\u7387\u64AD\u653E\u3002\u5173\u95ED\u9759\u97F3\u53EF\u64AD\u653E\u58C1\u7EB8\u81EA\u5E26\u97F3\u9891\u3002');
+    rLive.right.appendChild(makeSeg([['15', '15'], ['30', '30'], ['60', '60']], '30', function (v) { pushConfig({ liveFps: Number(v) }); }, 'fps'));
+    rLive.right.appendChild(makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '\u9759\u97F3', 'mute'));
     tabPlay.appendChild(rLive.r);
 
     tabPlay.appendChild(groupLabel('\u5207\u6362\u4E0E\u8F6E\u64AD'));
 
-    var rTrans = row('\u5207\u6362\u8FC7\u573A', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
-    var trans = dropdown([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); });
-    trans.setAttribute('data-k', 'trans');
-    rTrans.right.appendChild(trans);
+    var rTrans = prow('\u5207\u6362\u8FC7\u573A', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
+    rTrans.right.appendChild(makeSeg([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
     tabPlay.appendChild(rTrans.r);
 
-    var rRot = row('\u81EA\u52A8\u8F6E\u64AD', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\u4E2D\u81EA\u52A8\u5207\u6362\uFF08\u987A\u5E8F\u6216\u968F\u673A\uFF09\uFF0C\u8F6E\u64AD\u5E93 = \u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\u3002');
-    var rotBox = el('div', 'flex items-center gap-3 justify-end flex-wrap w-full');
-    var rot = makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '\u8F6E\u64AD', 'rot');
-    var rotmin = dropdown([['5', '5 \u5206\u949F'], ['15', '15 \u5206\u949F'], ['30', '30 \u5206\u949F'], ['60', '60 \u5206\u949F'], ['120', '2 \u5C0F\u65F6']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); });
-    rotmin.setAttribute('data-k', 'rotmin');
-    var rotord = dropdown([['sequence', '\u987A\u5E8F'], ['random', '\u968F\u673A']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); });
-    rotord.setAttribute('data-k', 'rotord');
-    rotBox.appendChild(rot); rotBox.appendChild(rotmin); rotBox.appendChild(rotord);
-    rRot.right.appendChild(rotBox);
+    var rRot = prow('\u81EA\u52A8\u8F6E\u64AD', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\uFF08\u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\uFF09\u4E2D\u81EA\u52A8\u5207\u6362\u3002');
+    rRot.right.appendChild(makeSeg([['sequence', '\u987A\u5E8F'], ['random', '\u968F\u673A']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); }, 'rotord'));
+    rRot.right.appendChild(makeSeg([['5', '5 \u5206'], ['15', '15 \u5206'], ['30', '30 \u5206'], ['60', '1 \u5C0F\u65F6'], ['120', '2 \u5C0F\u65F6']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); }, 'rotmin'));
+    rRot.right.appendChild(makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '\u8F6E\u64AD', 'rot'));
     tabPlay.appendChild(rRot.r);
 
     tabPlay.appendChild(groupLabel('\u53D6\u8272'));
 
-    var rTheme = row('Monet \u52A8\u6001\u53D6\u8272', '\u4ECE\u58C1\u7EB8\u771F\u5B9E\u6E32\u67D3\u50CF\u7D20\u63D0\u53D6 Material Design 3 \u914D\u8272\u5E76\u9002\u914D\u754C\u9762\u3002');
-    var themeBox = el('div', 'flex items-center gap-4');
-    var monet = makeSwitch(true, function (v) { pushConfig({ monet: v }); }, '\u542F\u7528', 'monet');
-    var vis = makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '\u663E\u793A\u58C1\u7EB8', 'vis');
-    themeBox.appendChild(monet); themeBox.appendChild(vis);
-    rTheme.right.appendChild(themeBox);
+    var rTheme = prow('Monet \u52A8\u6001\u53D6\u8272', '\u4ECE\u58C1\u7EB8\u771F\u5B9E\u6E32\u67D3\u50CF\u7D20\u63D0\u53D6 Material Design 3 \u914D\u8272\u5E76\u9002\u914D\u754C\u9762\uFF1B\u5173\u95ED\u300C\u663E\u793A\u58C1\u7EB8\u300D\u5219\u53EA\u53D6\u8272\u4E0D\u94FA\u56FE\u3002');
+    rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ monet: v }); }, '\u53D6\u8272', 'monet'));
+    rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '\u663E\u793A\u58C1\u7EB8', 'vis'));
     tabPlay.appendChild(rTheme.r);
 
     // library pane content \u2014 appended into tabLib below the current-wallpaper
     // strip. The tab bar already labels this pane, so no repeated header.
     var libRow = tabLib;
-    var libHead = el('div', 'flex items-center justify-end gap-2 flex-wrap');
-    libHead.style.cssText = 'padding:0 16px;margin-bottom:8px;';
-    var acts = el('div', 'flex items-center gap-2 flex-wrap justify-end');
+    var libHead = el('div');
+    libHead.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
     // Instant pause/resume: posted straight into the live renderer iframes in
     // this page \u2014 no server roundtrip, no config change.
     var livePaused = false;
@@ -55948,13 +56009,29 @@ function buildPanelScript(apiPort) {
         }
       });
     }, '\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3');
-    acts.appendChild(pauseBtn);
+    // Search takes the slack in the row; the filter and actions hug the right.
+    var search = el('input', CLS.input);
+    search.type = 'search';
+    search.placeholder = '\u641C\u7D22\u58C1\u7EB8\uFF08\u540D\u79F0 / \u7C7B\u578B / \u6765\u6E90\uFF09';
+    search.value = state.filter || '';
+    search.style.cssText = 'flex:1 1 180px;min-width:160px;';
+    var searchTimer = null;
+    search.addEventListener('input', function () {
+      clearTimeout(searchTimer);
+      var v = search.value;
+      searchTimer = setTimeout(function () {
+        state.filter = v;
+        state.page = 0;
+        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+      }, 200);
+    });
+    ui.search = search;
     var typeSel = dropdown([['all', '\u5168\u90E8\u7C7B\u578B'], ['scene', '\u573A\u666F'], ['video', '\u89C6\u9891'], ['web', '\u7F51\u9875']], state.typeF || 'all', function (v) {
       state.typeF = v; state.page = 0;
       renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
     });
-    acts.appendChild(typeSel);
-    acts.appendChild(button('\u5237\u65B0', function () { refresh(); }));
+    typeSel.style.width = '128px';
+    typeSel.style.flex = 'none';
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos \u2014 dispatched by file type. Same chooser UX as
     // everywhere else in the app; no Wallpaper Engine involved.
@@ -55990,29 +56067,13 @@ function buildPanelScript(apiPort) {
       }
       importFile.value = '';
     });
-    acts.appendChild(button('\u5BFC\u5165\u58C1\u7EB8\u2026', function () { importFile.click(); }, '\u652F\u6301\uFF1A\u56FE\u7247\u3001.zw.zip \u8D44\u6E90\u5305\u3001.pkg \u573A\u666F\u3001.mp4/.webm \u89C6\u9891\uFF08\u65E0\u9700 Wallpaper Engine\uFF09'));
-    acts.appendChild(importFile);
-    libHead.appendChild(acts);
+    libHead.appendChild(search);
+    libHead.appendChild(typeSel);
+    libHead.appendChild(pauseBtn);
+    libHead.appendChild(button('\u5237\u65B0', function () { refresh(); }));
+    libHead.appendChild(button('\u5BFC\u5165\u58C1\u7EB8\u2026', function () { importFile.click(); }, '\u652F\u6301\uFF1A\u56FE\u7247\u3001.zw.zip \u8D44\u6E90\u5305\u3001.pkg \u573A\u666F\u3001.mp4/.webm \u89C6\u9891\uFF08\u65E0\u9700 Wallpaper Engine\uFF09'));
+    libHead.appendChild(importFile);
     libRow.appendChild(libHead);
-
-    // search box
-    var search = el('input', CLS.input + ' w-full mb-2');
-    search.type = 'search';
-    search.placeholder = '\u641C\u7D22\u58C1\u7EB8\uFF08\u540D\u79F0 / \u7C7B\u578B / \u6765\u6E90\uFF09';
-    search.value = state.filter || '';
-    var searchTimer = null;
-    search.addEventListener('input', function () {
-      clearTimeout(searchTimer);
-      var v = search.value;
-      searchTimer = setTimeout(function () {
-        state.filter = v;
-        state.page = 0;
-        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-      }, 200);
-    });
-    ui.search = search;
-    search.style.cssText += 'margin:0 16px;width:calc(100% - 32px);';
-    libRow.appendChild(search);
 
     ui.libBox = el('div');
     ui.libBox.style.cssText = 'padding:0 16px;';
