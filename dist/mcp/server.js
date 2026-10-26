@@ -59758,7 +59758,6 @@ function shortcutDirs() {
 }
 async function ensureShortcutsHaveCdpFlag(port) {
   if (process.platform !== "win32") return { updated: [], skipped: [], failed: [] };
-  const flag = `--remote-debugging-port=${port}`;
   const result = { updated: [], skipped: [], failed: [] };
   const links = [];
   const collect = (dir) => {
@@ -59778,22 +59777,21 @@ async function ensureShortcutsHaveCdpFlag(port) {
     }
   }
   if (links.length === 0) return result;
+  const antiOcclusion = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"];
   for (const lnk of links) {
     const script = `
 $ErrorActionPreference = 'Stop'
 try {
   $ws = New-Object -ComObject WScript.Shell
   $s = $ws.CreateShortcut('${lnk.replace(/'/g, "''")}')
-  if ($s.TargetPath -notmatch 'ZCode.exe$') { Write-Output 'ok|not-zcode'; exit }
-  $args2 = [string]$s.Arguments
-  if ($args2 -match '(--remote-debugging-port=)(\\d+)') {
-    if ($Matches[2] -eq '${port}') { Write-Output 'ok|has-flag'; exit }
-    $s.Arguments = ($args2 -replace '--remote-debugging-port=\\d+', '${flag}')
-    $s.Save()
-    Write-Output 'updated'
-    exit
-  }
-  $s.Arguments = ($args2.Trim() + ' ${flag}').Trim()
+  if ($s.TargetPath -notmatch 'ZCode\\.exe$') { Write-Output 'ok|not-zcode'; exit }
+  $anti = @('${antiOcclusion.join("', '")}')
+  # rebuild: strip our managed flags, append the canonical set (idempotent)
+  $parts = @(([string]$s.Arguments) -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
+  $canonical = @('--remote-debugging-port=${port}') + $anti
+  $new = ($parts + $canonical) -join ' '
+  if ($new -eq [string]$s.Arguments) { Write-Output 'ok|has-flag'; exit }
+  $s.Arguments = $new
   $s.Save()
   Write-Output 'updated'
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
