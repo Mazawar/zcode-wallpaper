@@ -103,10 +103,12 @@ function buildBootstrapScript(payload) {
   var S = window.__zw;
   var VIDEO_SRC = ${JSON.stringify(videoSrc)};
   var LIVE_SRC = ${JSON.stringify(liveSrc)};
-  if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC) return;
+  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : "fade")};
+  if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
   S.cssText = ${JSON.stringify(payload.css)};
   S.videoSrc = VIDEO_SRC;
   S.liveSrc = LIVE_SRC;
+  S.trans = TRANS;
 
   var style = document.getElementById(MARKER + '-style');
   if (!style) {
@@ -132,7 +134,7 @@ function buildBootstrapScript(payload) {
     var out = {};
     try {
       var q = new URL(u, location.href).searchParams;
-      ['type', 'src', 'fit', 'fps', 'muted'].forEach(function (k) { out[k] = q.get(k) || ''; });
+      ['type', 'src', 'file', 'fit', 'fps', 'muted'].forEach(function (k) { out[k] = q.get(k) || ''; });
     } catch (e) { /* bad url */ }
     return out;
   }
@@ -170,6 +172,13 @@ function buildBootstrapScript(payload) {
     var cur = document.getElementById(MARKER + '-live');
     if (!src) { liveFrames().forEach(function (f) { f.remove(); }); return; }
     if (!cur) {
+      // "cut" transitions swap with no animation at all.
+      if (TRANS === 'cut') {
+        var c0 = makeFrame(MARKER + '-live', src, 'opacity:1;');
+        wp.appendChild(c0);
+        bindLiveBridge();
+        return;
+      }
       // First mount (page load, heartbeat self-clean, plugin re-enable):
       // fade in from the app's own background instead of popping in.
       var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
@@ -197,6 +206,14 @@ function buildBootstrapScript(payload) {
       // Same wallpaper, only fit/fps/muted changed: hot-update via postMessage.
       // (Setting src would reload the iframe and flash.)
       postAllFrames({ zw: 'cfg', fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === '0' ? 1 : 0 });
+      bindLiveBridge();
+      return;
+    }
+    // "cut" transitions replace the frame outright \u2014 no fade machinery.
+    if (TRANS === 'cut') {
+      cur.remove();
+      var swap = makeFrame(MARKER + '-live', src, 'opacity:1;');
+      wp.appendChild(swap);
       bindLiveBridge();
       return;
     }
@@ -47691,7 +47708,7 @@ function buildLiveUrl(config) {
   const q = new URLSearchParams({
     type: config.live.kind,
     src: config.live.sourceId,
-    fit: config.fit === "contain" ? "contain" : "cover",
+    fit: config.fit === "contain" ? "contain" : config.fit === "stretch" ? "stretch" : "cover",
     fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1"
   });
@@ -47703,22 +47720,35 @@ function buildLiveUrl(config) {
 }
 function buildPayload(config, assets, opts = {}) {
   const parts = [];
-  const resolved = config.fit === "smart" ? assets?.focus.fit ?? "cover" : config.fit === "contain" ? "contain" : "cover";
+  const smartFit = assets?.focus.fit ?? "cover";
+  const resolved = config.fit === "smart" ? smartFit : config.fit === "contain" ? "contain" : config.fit === "stretch" ? "stretch" : "cover";
   const focusX = config.fit === "smart" ? assets?.focus.x ?? 0.5 : 0.5;
   const focusY = config.fit === "smart" ? assets?.focus.y ?? 0.5 : 0.5;
   const position = `${Math.round(focusX * 100)}% ${Math.round(focusY * 100)}%`;
+  const bgSize = resolved === "stretch" ? "100% 100%" : resolved;
+  const fx = [];
+  if (config.blur > 0) fx.push(`blur(${config.blur}px)`);
+  if ((config.wallBrightness ?? 100) !== 100) fx.push(`brightness(${config.wallBrightness}%)`);
+  if ((config.wallContrast ?? 100) !== 100) fx.push(`contrast(${config.wallContrast}%)`);
+  if ((config.wallSaturate ?? 100) !== 100) fx.push(`saturate(${config.wallSaturate}%)`);
+  const tx = ((config.posX ?? 50) - 50) / 2;
+  const ty = ((config.posY ?? 50) - 50) / 2;
+  const layerScale = (config.layerScale ?? 100) / 100 * (config.blur > 0 ? 1.04 : 1);
+  const transform = `translate(${tx}%, ${ty}%)${config.flip ? " scaleX(-1)" : ""} scale(${layerScale})`;
+  const layerOpacity = 1 - (config.wallOpacity ?? 0) / 100;
   parts.push(`
 html, body { background: transparent !important; }
 #zcode-wallpaper-wallpaper {
   position: fixed;
   inset: 0;
   z-index: -2147483646;
-  background-size: ${resolved};
+  background-size: ${bgSize};
   background-position: ${resolved === "contain" ? "center" : position};
   background-repeat: no-repeat;
   pointer-events: none;
-  filter: blur(${config.blur}px);
-  transform: scale(${config.blur > 0 ? 1.04 : 1});
+  filter: ${fx.length ? fx.join(" ") : "none"};
+  transform: ${transform};
+  opacity: ${layerOpacity};
 }
 #zcode-wallpaper-backdrop {
   position: fixed;
@@ -47761,6 +47791,7 @@ html, body { background: transparent !important; }
     videoSrc,
     liveSrc,
     fit: visible ? resolved : "cover",
+    transition: config.switchTransition === "cut" ? "cut" : "fade",
     focusX,
     focusY
   };
@@ -47813,7 +47844,17 @@ var init_inject = __esm({
       wallpaperVisible: true,
       fit: "cover",
       liveFps: 30,
-      liveMuted: true
+      liveMuted: true,
+      wallBrightness: 100,
+      wallContrast: 100,
+      wallSaturate: 100,
+      wallOpacity: 0,
+      posX: 50,
+      posY: 50,
+      layerScale: 100,
+      switchTransition: "fade",
+      rotationMinutes: 30,
+      rotationOrder: "sequence"
     };
     DEFAULT_API_PORT = 28257;
   }
@@ -48405,7 +48446,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 14;
+  var V = 15;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -48433,7 +48474,7 @@ function buildPanelScript(apiPort) {
     });
   }
 
-  var state = { cfg: null, lib: null, page: 0, filter: '', gridH: 0 };
+  var state = { cfg: null, lib: null, page: 0, filter: '', typeF: 'all', gridH: 0 };
   var ui = { libBox: null, pagerBox: null, badge: null, search: null };
   var mountObserver = null;
 
@@ -48622,8 +48663,10 @@ function buildPanelScript(apiPort) {
   // --- library (searchable, paginated, fixed height) --------------------------
   function filteredList(list) {
     var q = (state.filter || '').trim().toLowerCase();
-    if (!q) return list;
+    var t = state.typeF || 'all';
     return list.filter(function (w) {
+      if (t !== 'all' && String(w.type || '') !== t) return false;
+      if (!q) return true;
       var hay = ((w.title || '') + ' ' + (w.id || '') + ' ' + (TYPE_LABEL[w.type] || w.type || '') + ' ' + (ORIGIN_LABEL[w.origin] || w.origin || '')).toLowerCase();
       return hay.indexOf(q) >= 0;
     });
@@ -48736,6 +48779,23 @@ function buildPanelScript(apiPort) {
       var fit = q('fit'); if (fit) fit.setAttribute('data-value', c.fit || 'cover');
       var fps = q('fps'); if (fps) fps.setAttribute('data-value', String(c.liveFps || 30));
       var mute = q('mute'); if (mute) setSwitch(mute, c.liveMuted !== false);
+      var sync = function (k, val, unit) {
+        var i = q(k); if (!i) return;
+        i.value = String(val);
+        var lab = q(k + 'v'); if (lab) lab.textContent = val + (unit || '');
+      };
+      sync('bright', c.wallBrightness == null ? 100 : c.wallBrightness, '%');
+      sync('contrast', c.wallContrast == null ? 100 : c.wallContrast, '%');
+      sync('saturate', c.wallSaturate == null ? 100 : c.wallSaturate, '%');
+      sync('opacity', c.wallOpacity == null ? 0 : c.wallOpacity, '%');
+      sync('posx', c.posX == null ? 50 : c.posX, '');
+      sync('posy', c.posY == null ? 50 : c.posY, '');
+      sync('scale', c.layerScale == null ? 100 : c.layerScale, '%');
+      var flip = q('flip'); if (flip) setSwitch(flip, !!c.flip);
+      var trans = q('trans'); if (trans) trans.setAttribute('data-value', c.switchTransition === 'cut' ? 'cut' : 'fade');
+      var rot = q('rot'); if (rot) setSwitch(rot, !!c.rotationEnabled);
+      var rotmin = q('rotmin'); if (rotmin) rotmin.setAttribute('data-value', String(c.rotationMinutes || 30));
+      var rotord = q('rotord'); if (rotord) rotord.setAttribute('data-value', c.rotationOrder === 'random' ? 'random' : 'sequence');
     }).catch(function () {});
     fetchJson('/api/wallpapers').then(function (d) {
       state.lib = d;
@@ -48781,10 +48841,59 @@ function buildPanelScript(apiPort) {
     content.appendChild(rDim.r);
 
     var rFit = row('\u586B\u5145\u65B9\u5F0F', 'cover \u88C1\u5207\u94FA\u6EE1\uFF1Bcontain \u7559\u8FB9\uFF1Bsmart \u672C\u5730\u5206\u6790\u4E3B\u4F53\u540E\u81EA\u52A8\u6784\u56FE\u3002');
-    var fit = dropdown([['cover', 'cover \u88C1\u5207\u94FA\u6EE1'], ['contain', 'contain \u7559\u8FB9'], ['smart', 'smart \u667A\u80FD\u6784\u56FE']], 'cover', function (v) { pushConfig({ fit: v }); });
+    var fit = dropdown([['cover', 'cover \u88C1\u5207\u94FA\u6EE1'], ['contain', 'contain \u7559\u8FB9'], ['stretch', 'stretch \u62C9\u4F38'], ['smart', 'smart \u667A\u80FD\u6784\u56FE']], 'cover', function (v) { pushConfig({ fit: v }); });
     fit.setAttribute('data-k', 'fit');
     rFit.right.appendChild(fit);
     content.appendChild(rFit.r);
+
+    // dsh-style picture knobs: media filter + framing sliders on the wallpaper
+    // layer. Same shape as the blur/dim rows above (drag = live push).
+    function knobRow(labelText, k, cfgKey, min, max, unit, def) {
+      var r = row(labelText, null);
+      var box = el('div', 'flex items-center gap-2 w-full');
+      var i = el('input');
+      i.type = 'range'; i.min = String(min); i.max = String(max); i.value = String(def);
+      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
+      i.setAttribute('data-k', k);
+      var v = el('span', 'text-sm text-foreground-subtle w-10 text-right');
+      v.setAttribute('data-k', k + 'v'); v.textContent = def + unit;
+      i.addEventListener('input', function () {
+        v.textContent = i.value + unit;
+        var patch = {}; patch[cfgKey] = Number(i.value);
+        pushConfig(patch);
+      });
+      box.appendChild(i); box.appendChild(v);
+      r.right.appendChild(box);
+      content.appendChild(r.r);
+    }
+    knobRow('\u753B\u9762\u4EAE\u5EA6', 'bright', 'wallBrightness', 40, 160, '%', 100);
+    knobRow('\u753B\u9762\u5BF9\u6BD4\u5EA6', 'contrast', 'wallContrast', 40, 200, '%', 100);
+    knobRow('\u753B\u9762\u9971\u548C\u5EA6', 'saturate', 'wallSaturate', 0, 200, '%', 100);
+    knobRow('\u58C1\u7EB8\u900F\u660E\u5EA6', 'opacity', 'wallOpacity', 0, 90, '%', 0);
+    knobRow('\u6C34\u5E73\u4F4D\u7F6E', 'posx', 'posX', 0, 100, '', 50);
+    knobRow('\u5782\u76F4\u4F4D\u7F6E', 'posy', 'posY', 0, 100, '', 50);
+    knobRow('\u753B\u9762\u7F29\u653E', 'scale', 'layerScale', 50, 150, '%', 100);
+
+    var rFlip = row('\u753B\u9762\u955C\u50CF', '\u6C34\u5E73\u7FFB\u8F6C\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF08\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\uFF0C\u65E0\u6E32\u67D3\u5F00\u9500\uFF09\u3002');
+    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '\u6C34\u5E73\u7FFB\u8F6C', 'flip'));
+    content.appendChild(rFlip.r);
+
+    var rTrans = row('\u5207\u6362\u8FC7\u573A', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
+    var trans = dropdown([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); });
+    trans.setAttribute('data-k', 'trans');
+    rTrans.right.appendChild(trans);
+    content.appendChild(rTrans.r);
+
+    var rRot = row('\u81EA\u52A8\u8F6E\u64AD', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\u4E2D\u81EA\u52A8\u5207\u6362\uFF08\u987A\u5E8F\u6216\u968F\u673A\uFF09\uFF0C\u8F6E\u64AD\u5E93 = \u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\u3002');
+    var rotBox = el('div', 'flex items-center gap-3 justify-end flex-wrap w-full');
+    var rot = makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '\u8F6E\u64AD', 'rot');
+    var rotmin = dropdown([['5', '5 \u5206\u949F'], ['15', '15 \u5206\u949F'], ['30', '30 \u5206\u949F'], ['60', '60 \u5206\u949F'], ['120', '2 \u5C0F\u65F6']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); });
+    rotmin.setAttribute('data-k', 'rotmin');
+    var rotord = dropdown([['sequence', '\u987A\u5E8F'], ['random', '\u968F\u673A']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); });
+    rotord.setAttribute('data-k', 'rotord');
+    rotBox.appendChild(rot); rotBox.appendChild(rotmin); rotBox.appendChild(rotord);
+    rRot.right.appendChild(rotBox);
+    content.appendChild(rRot.r);
 
     var rLive = row('\u5B9E\u65F6\u6E32\u67D3', '\u573A\u666F\u58C1\u7EB8\u7684\u6E32\u67D3\u5E27\u7387\u4E0A\u9650\u4E0E\u81EA\u5E26\u97F3\u9891\u3002');
     var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
@@ -48808,6 +48917,24 @@ function buildPanelScript(apiPort) {
     var libHead = el('div', 'flex items-center justify-between gap-2 mb-2');
     libHead.appendChild(el('div', CLS.label, '\u58C1\u7EB8\u5E93'));
     var acts = el('div', 'flex items-center gap-2 flex-wrap justify-end');
+    // Instant pause/resume: posted straight into the live renderer iframes in
+    // this page \u2014 no server roundtrip, no config change.
+    var livePaused = false;
+    var pauseBtn = button('\u6682\u505C', function () {
+      livePaused = !livePaused;
+      pauseBtn.textContent = livePaused ? '\u7EE7\u7EED' : '\u6682\u505C';
+      Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
+        if ((f.getAttribute('src') || '').indexOf('/live/index.html') !== -1) {
+          try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume' }, '*'); } catch (e) { /* mid-swap */ }
+        }
+      });
+    }, '\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3');
+    acts.appendChild(pauseBtn);
+    var typeSel = dropdown([['all', '\u5168\u90E8\u7C7B\u578B'], ['scene', '\u573A\u666F'], ['video', '\u89C6\u9891'], ['web', '\u7F51\u9875']], state.typeF || 'all', function (v) {
+      state.typeF = v; state.page = 0;
+      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+    });
+    acts.appendChild(typeSel);
     acts.appendChild(button('\u5237\u65B0', function () { refresh(); }));
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos \u2014 dispatched by file type. Same chooser UX as
@@ -51982,6 +52109,18 @@ function publicConfig(config) {
     live: config.live ?? null,
     liveFps: config.liveFps ?? 30,
     liveMuted: config.liveMuted ?? true,
+    wallBrightness: config.wallBrightness ?? 100,
+    wallContrast: config.wallContrast ?? 100,
+    wallSaturate: config.wallSaturate ?? 100,
+    wallOpacity: config.wallOpacity ?? 0,
+    posX: config.posX ?? 50,
+    posY: config.posY ?? 50,
+    layerScale: config.layerScale ?? 100,
+    flip: config.flip === true,
+    switchTransition: config.switchTransition === "cut" ? "cut" : "fade",
+    rotationEnabled: config.rotationEnabled === true,
+    rotationMinutes: config.rotationMinutes ?? 30,
+    rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
     hasBackup: hasBackup(),
     cdpPort: config.port,
     apiPort: config.apiPort
@@ -51993,9 +52132,21 @@ function sanitize(body) {
   if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
   if (typeof body?.monet === "boolean") out.monet = body.monet;
   if (typeof body?.wallpaperVisible === "boolean") out.wallpaperVisible = body.wallpaperVisible;
-  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart") out.fit = body.fit;
+  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
   if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
   if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
+  if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
+  if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
+  if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
+  if (typeof body?.wallOpacity === "number") out.wallOpacity = Math.min(90, Math.max(0, Math.round(body.wallOpacity)));
+  if (typeof body?.posX === "number") out.posX = Math.min(100, Math.max(0, Math.round(body.posX)));
+  if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
+  if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
+  if (typeof body?.flip === "boolean") out.flip = body.flip;
+  if (body?.switchTransition === "cut" || body?.switchTransition === "fade") out.switchTransition = body.switchTransition;
+  if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
+  if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
+  if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
   return out;
 }
 function findVideoInDir(dir) {
@@ -52305,6 +52456,8 @@ async function shutdownServe() {
 async function startServe(opts) {
   const { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
+  let lastRotateAt = Date.now();
+  let rotationCursor = 0;
   const already = await existingServePid(apiPort);
   if (already !== void 0) {
     throw new Error(
@@ -52372,7 +52525,9 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/config") {
         const patch = sanitize(JSON.parse(await readBody(req)));
-        const config = { ...runtimeConfig(), ...patch };
+        const before = runtimeConfig();
+        const config = { ...before, ...patch };
+        if (patch.rotationEnabled === true && !before.rotationEnabled) lastRotateAt = Date.now();
         saveConfig(persisted(config));
         const windows = await pushConfigToSessions(config).catch(() => 0);
         sendJson(res, 200, { ok: true, windows, ...publicConfig(config) });
@@ -52752,6 +52907,22 @@ async function startServe(opts) {
       })();
     }, 3e4);
   }
+  setInterval(() => {
+    void (async () => {
+      const cfg = runtimeConfig();
+      if (!cfg.rotationEnabled) return;
+      if (Date.now() - lastRotateAt < (cfg.rotationMinutes ?? 30) * 6e4) return;
+      const ids = storedCustomSources().map((c3) => c3.id);
+      const lib = await enumerateWallpapers().catch(() => void 0);
+      if (lib) for (const w of lib.wallpapers) ids.push(w.id);
+      lastRotateAt = Date.now();
+      const pool = ids.filter((id) => id !== (cfg.live?.sourceId ?? ""));
+      if (pool.length === 0) return;
+      const next = cfg.rotationOrder === "random" ? pool[Math.floor(Math.random() * pool.length)] : pool[rotationCursor++ % pool.length];
+      console.log(`serve: auto-rotation -> ${next}`);
+      await applySource(next, runtimeConfig()).catch(() => void 0);
+    })();
+  }, 3e4);
   await migrateLegacyVideo();
   await poll(runtimeConfig(), apiPort);
   let healTick = 0;

@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 6;
-  var V = 14;
+  var V = 15;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -56,7 +56,7 @@ export function buildPanelScript(apiPort: number): string {
     });
   }
 
-  var state = { cfg: null, lib: null, page: 0, filter: '', gridH: 0 };
+  var state = { cfg: null, lib: null, page: 0, filter: '', typeF: 'all', gridH: 0 };
   var ui = { libBox: null, pagerBox: null, badge: null, search: null };
   var mountObserver = null;
 
@@ -245,8 +245,10 @@ export function buildPanelScript(apiPort: number): string {
   // --- library (searchable, paginated, fixed height) --------------------------
   function filteredList(list) {
     var q = (state.filter || '').trim().toLowerCase();
-    if (!q) return list;
+    var t = state.typeF || 'all';
     return list.filter(function (w) {
+      if (t !== 'all' && String(w.type || '') !== t) return false;
+      if (!q) return true;
       var hay = ((w.title || '') + ' ' + (w.id || '') + ' ' + (TYPE_LABEL[w.type] || w.type || '') + ' ' + (ORIGIN_LABEL[w.origin] || w.origin || '')).toLowerCase();
       return hay.indexOf(q) >= 0;
     });
@@ -359,6 +361,23 @@ export function buildPanelScript(apiPort: number): string {
       var fit = q('fit'); if (fit) fit.setAttribute('data-value', c.fit || 'cover');
       var fps = q('fps'); if (fps) fps.setAttribute('data-value', String(c.liveFps || 30));
       var mute = q('mute'); if (mute) setSwitch(mute, c.liveMuted !== false);
+      var sync = function (k, val, unit) {
+        var i = q(k); if (!i) return;
+        i.value = String(val);
+        var lab = q(k + 'v'); if (lab) lab.textContent = val + (unit || '');
+      };
+      sync('bright', c.wallBrightness == null ? 100 : c.wallBrightness, '%');
+      sync('contrast', c.wallContrast == null ? 100 : c.wallContrast, '%');
+      sync('saturate', c.wallSaturate == null ? 100 : c.wallSaturate, '%');
+      sync('opacity', c.wallOpacity == null ? 0 : c.wallOpacity, '%');
+      sync('posx', c.posX == null ? 50 : c.posX, '');
+      sync('posy', c.posY == null ? 50 : c.posY, '');
+      sync('scale', c.layerScale == null ? 100 : c.layerScale, '%');
+      var flip = q('flip'); if (flip) setSwitch(flip, !!c.flip);
+      var trans = q('trans'); if (trans) trans.setAttribute('data-value', c.switchTransition === 'cut' ? 'cut' : 'fade');
+      var rot = q('rot'); if (rot) setSwitch(rot, !!c.rotationEnabled);
+      var rotmin = q('rotmin'); if (rotmin) rotmin.setAttribute('data-value', String(c.rotationMinutes || 30));
+      var rotord = q('rotord'); if (rotord) rotord.setAttribute('data-value', c.rotationOrder === 'random' ? 'random' : 'sequence');
     }).catch(function () {});
     fetchJson('/api/wallpapers').then(function (d) {
       state.lib = d;
@@ -404,10 +423,59 @@ export function buildPanelScript(apiPort: number): string {
     content.appendChild(rDim.r);
 
     var rFit = row('填充方式', 'cover 裁切铺满；contain 留边；smart 本地分析主体后自动构图。');
-    var fit = dropdown([['cover', 'cover 裁切铺满'], ['contain', 'contain 留边'], ['smart', 'smart 智能构图']], 'cover', function (v) { pushConfig({ fit: v }); });
+    var fit = dropdown([['cover', 'cover 裁切铺满'], ['contain', 'contain 留边'], ['stretch', 'stretch 拉伸'], ['smart', 'smart 智能构图']], 'cover', function (v) { pushConfig({ fit: v }); });
     fit.setAttribute('data-k', 'fit');
     rFit.right.appendChild(fit);
     content.appendChild(rFit.r);
+
+    // dsh-style picture knobs: media filter + framing sliders on the wallpaper
+    // layer. Same shape as the blur/dim rows above (drag = live push).
+    function knobRow(labelText, k, cfgKey, min, max, unit, def) {
+      var r = row(labelText, null);
+      var box = el('div', 'flex items-center gap-2 w-full');
+      var i = el('input');
+      i.type = 'range'; i.min = String(min); i.max = String(max); i.value = String(def);
+      i.className = 'w-full accent-[var(--color-primary,#7aa2f7)]';
+      i.setAttribute('data-k', k);
+      var v = el('span', 'text-sm text-foreground-subtle w-10 text-right');
+      v.setAttribute('data-k', k + 'v'); v.textContent = def + unit;
+      i.addEventListener('input', function () {
+        v.textContent = i.value + unit;
+        var patch = {}; patch[cfgKey] = Number(i.value);
+        pushConfig(patch);
+      });
+      box.appendChild(i); box.appendChild(v);
+      r.right.appendChild(box);
+      content.appendChild(r.r);
+    }
+    knobRow('画面亮度', 'bright', 'wallBrightness', 40, 160, '%', 100);
+    knobRow('画面对比度', 'contrast', 'wallContrast', 40, 200, '%', 100);
+    knobRow('画面饱和度', 'saturate', 'wallSaturate', 0, 200, '%', 100);
+    knobRow('壁纸透明度', 'opacity', 'wallOpacity', 0, 90, '%', 0);
+    knobRow('水平位置', 'posx', 'posX', 0, 100, '', 50);
+    knobRow('垂直位置', 'posy', 'posY', 0, 100, '', 50);
+    knobRow('画面缩放', 'scale', 'layerScale', 50, 150, '%', 100);
+
+    var rFlip = row('画面镜像', '水平翻转整个壁纸层（纯合成器操作，无渲染开销）。');
+    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '水平翻转', 'flip'));
+    content.appendChild(rFlip.r);
+
+    var rTrans = row('切换过场', '手动点选与自动轮播共用的切换动画。');
+    var trans = dropdown([['fade', '交叉淡入'], ['cut', '直接切换']], 'fade', function (v) { pushConfig({ switchTransition: v }); });
+    trans.setAttribute('data-k', 'trans');
+    rTrans.right.appendChild(trans);
+    content.appendChild(rTrans.r);
+
+    var rRot = row('自动轮播', '按间隔在壁纸库中自动切换（顺序或随机），轮播库 = 订阅 + 本机导入。');
+    var rotBox = el('div', 'flex items-center gap-3 justify-end flex-wrap w-full');
+    var rot = makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '轮播', 'rot');
+    var rotmin = dropdown([['5', '5 分钟'], ['15', '15 分钟'], ['30', '30 分钟'], ['60', '60 分钟'], ['120', '2 小时']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); });
+    rotmin.setAttribute('data-k', 'rotmin');
+    var rotord = dropdown([['sequence', '顺序'], ['random', '随机']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); });
+    rotord.setAttribute('data-k', 'rotord');
+    rotBox.appendChild(rot); rotBox.appendChild(rotmin); rotBox.appendChild(rotord);
+    rRot.right.appendChild(rotBox);
+    content.appendChild(rRot.r);
 
     var rLive = row('实时渲染', '场景壁纸的渲染帧率上限与自带音频。');
     var liveBox = el('div', 'flex items-center gap-3 justify-end w-full');
@@ -431,6 +499,24 @@ export function buildPanelScript(apiPort: number): string {
     var libHead = el('div', 'flex items-center justify-between gap-2 mb-2');
     libHead.appendChild(el('div', CLS.label, '壁纸库'));
     var acts = el('div', 'flex items-center gap-2 flex-wrap justify-end');
+    // Instant pause/resume: posted straight into the live renderer iframes in
+    // this page — no server roundtrip, no config change.
+    var livePaused = false;
+    var pauseBtn = button('暂停', function () {
+      livePaused = !livePaused;
+      pauseBtn.textContent = livePaused ? '继续' : '暂停';
+      Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
+        if ((f.getAttribute('src') || '').indexOf('/live/index.html') !== -1) {
+          try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume' }, '*'); } catch (e) { /* mid-swap */ }
+        }
+      });
+    }, '暂停/恢复实时渲染');
+    acts.appendChild(pauseBtn);
+    var typeSel = dropdown([['all', '全部类型'], ['scene', '场景'], ['video', '视频'], ['web', '网页']], state.typeF || 'all', function (v) {
+      state.typeF = v; state.page = 0;
+      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
+    });
+    acts.appendChild(typeSel);
     acts.appendChild(button('刷新', function () { refresh(); }));
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos — dispatched by file type. Same chooser UX as

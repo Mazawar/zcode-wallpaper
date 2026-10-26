@@ -131,7 +131,9 @@ export interface InjectionPayload {
   /** Unique-ish id so re-injection is idempotent. */
   marker?: string;
   /** "contain" additionally drives a blurred backdrop layer behind the image. */
-  fit?: "cover" | "contain";
+  fit?: "cover" | "contain" | "stretch";
+  /** Wallpaper switch animation: "cut" swaps instantly, default cross-fades. */
+  transition?: string;
   /** Serve API port for the injected heartbeat (lifecycle self-clean). */
   apiPort?: number;
 }
@@ -173,10 +175,12 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   var S = window.__zw;
   var VIDEO_SRC = ${JSON.stringify(videoSrc)};
   var LIVE_SRC = ${JSON.stringify(liveSrc)};
-  if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC) return;
+  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : "fade")};
+  if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
   S.cssText = ${JSON.stringify(payload.css)};
   S.videoSrc = VIDEO_SRC;
   S.liveSrc = LIVE_SRC;
+  S.trans = TRANS;
 
   var style = document.getElementById(MARKER + '-style');
   if (!style) {
@@ -202,7 +206,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     var out = {};
     try {
       var q = new URL(u, location.href).searchParams;
-      ['type', 'src', 'fit', 'fps', 'muted'].forEach(function (k) { out[k] = q.get(k) || ''; });
+      ['type', 'src', 'file', 'fit', 'fps', 'muted'].forEach(function (k) { out[k] = q.get(k) || ''; });
     } catch (e) { /* bad url */ }
     return out;
   }
@@ -240,6 +244,13 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
     var cur = document.getElementById(MARKER + '-live');
     if (!src) { liveFrames().forEach(function (f) { f.remove(); }); return; }
     if (!cur) {
+      // "cut" transitions swap with no animation at all.
+      if (TRANS === 'cut') {
+        var c0 = makeFrame(MARKER + '-live', src, 'opacity:1;');
+        wp.appendChild(c0);
+        bindLiveBridge();
+        return;
+      }
       // First mount (page load, heartbeat self-clean, plugin re-enable):
       // fade in from the app's own background instead of popping in.
       var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
@@ -267,6 +278,14 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
       // Same wallpaper, only fit/fps/muted changed: hot-update via postMessage.
       // (Setting src would reload the iframe and flash.)
       postAllFrames({ zw: 'cfg', fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === '0' ? 1 : 0 });
+      bindLiveBridge();
+      return;
+    }
+    // "cut" transitions replace the frame outright — no fade machinery.
+    if (TRANS === 'cut') {
+      cur.remove();
+      var swap = makeFrame(MARKER + '-live', src, 'opacity:1;');
+      wp.appendChild(swap);
       bindLiveBridge();
       return;
     }

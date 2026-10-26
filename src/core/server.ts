@@ -171,6 +171,18 @@ function publicConfig(config: BeautifyConfig) {
     live: config.live ?? null,
     liveFps: config.liveFps ?? 30,
     liveMuted: config.liveMuted ?? true,
+    wallBrightness: config.wallBrightness ?? 100,
+    wallContrast: config.wallContrast ?? 100,
+    wallSaturate: config.wallSaturate ?? 100,
+    wallOpacity: config.wallOpacity ?? 0,
+    posX: config.posX ?? 50,
+    posY: config.posY ?? 50,
+    layerScale: config.layerScale ?? 100,
+    flip: config.flip === true,
+    switchTransition: config.switchTransition === "cut" ? "cut" : "fade",
+    rotationEnabled: config.rotationEnabled === true,
+    rotationMinutes: config.rotationMinutes ?? 30,
+    rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
     hasBackup: hasBackup(),
     cdpPort: config.port,
     apiPort: config.apiPort,
@@ -183,9 +195,23 @@ function sanitize(body: any): Partial<BeautifyConfig> {
   if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
   if (typeof body?.monet === "boolean") out.monet = body.monet;
   if (typeof body?.wallpaperVisible === "boolean") out.wallpaperVisible = body.wallpaperVisible;
-  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart") out.fit = body.fit;
+  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
   if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
   if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
+  // dsh-style picture knobs
+  if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
+  if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
+  if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
+  if (typeof body?.wallOpacity === "number") out.wallOpacity = Math.min(90, Math.max(0, Math.round(body.wallOpacity)));
+  if (typeof body?.posX === "number") out.posX = Math.min(100, Math.max(0, Math.round(body.posX)));
+  if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
+  if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
+  if (typeof body?.flip === "boolean") out.flip = body.flip;
+  if (body?.switchTransition === "cut" || body?.switchTransition === "fade") out.switchTransition = body.switchTransition;
+  // auto-rotation
+  if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
+  if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
+  if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
   return out;
 }
 
@@ -621,6 +647,12 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   const { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
 
+  // Auto-rotation clock (dsh-style): shared by the 30s tick below and the
+  // /api/config handler, so (re-)enabling rotation never fires an immediate
+  // switch — the first rotation happens a full interval after the toggle.
+  let lastRotateAt = Date.now();
+  let rotationCursor = 0;
+
   const already = await existingServePid(apiPort);
   if (already !== undefined) {
     throw new Error(
@@ -705,7 +737,9 @@ export async function startServe(opts: ServeOptions): Promise<void> {
 
       if (req.method === "POST" && url.pathname === "/api/config") {
         const patch = sanitize(JSON.parse(await readBody(req)));
-        const config = { ...runtimeConfig(), ...patch };
+        const before = runtimeConfig();
+        const config = { ...before, ...patch };
+        if (patch.rotationEnabled === true && !before.rotationEnabled) lastRotateAt = Date.now();
         saveConfig(persisted(config));
         const windows = await pushConfigToSessions(config).catch(() => 0);
         sendJson(res, 200, { ok: true, windows, ...publicConfig(config) });
@@ -1151,6 +1185,30 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       })();
     }, 30_000);
   }
+
+  // Auto-rotation: a 30s tick checks whether the configured interval has
+  // fully elapsed, then applies the next library wallpaper (custom imports +
+  // workshop subscriptions; the one in use is never re-applied). Sequence
+  // mode walks the list in order; random re-rolls every time.
+  setInterval(() => {
+    void (async () => {
+      const cfg = runtimeConfig();
+      if (!cfg.rotationEnabled) return;
+      if (Date.now() - lastRotateAt < (cfg.rotationMinutes ?? 30) * 60_000) return;
+      const ids = storedCustomSources().map((c) => c.id);
+      const lib = await enumerateWallpapers().catch(() => undefined);
+      if (lib) for (const w of lib.wallpapers) ids.push(w.id);
+      lastRotateAt = Date.now();
+      const pool = ids.filter((id) => id !== (cfg.live?.sourceId ?? ""));
+      if (pool.length === 0) return;
+      const next =
+        cfg.rotationOrder === "random"
+          ? pool[Math.floor(Math.random() * pool.length)]
+          : pool[rotationCursor++ % pool.length];
+      console.log(`serve: auto-rotation -> ${next}`);
+      await applySource(next, runtimeConfig()).catch(() => undefined);
+    })();
+  }, 30_000);
 
   await migrateLegacyVideo();
   await poll(runtimeConfig(), apiPort);

@@ -21,7 +21,7 @@ import {
 import { loadWallpaper, type WallpaperAssets } from "./monet.js";
 import { buildVariableOverrides, buildTransparencyOverrides } from "./tokens.js";
 
-export type WallpaperFit = "cover" | "contain" | "smart";
+export type WallpaperFit = "cover" | "contain" | "smart" | "stretch";
 
 export interface LiveSourceRef {
   /** Registry id served under /files/<id>/. */
@@ -56,6 +56,26 @@ export interface BeautifyConfig {
   live?: LiveSourceRef;
   liveFps?: number;
   liveMuted?: boolean;
+  // ── dsh-style picture knobs: media filter + framing on the wallpaper layer ──
+  /** Percent, 100 = untouched (brightness 40–160 / contrast 40–200 / saturate 0–200). */
+  wallBrightness?: number;
+  wallContrast?: number;
+  wallSaturate?: number;
+  /** Wallpaper transparency in % (0 = opaque, higher = more see-through). */
+  wallOpacity?: number;
+  /** Framing: 0–100 with 50 centered (100 shifts the layer by 25% of its size). */
+  posX?: number;
+  posY?: number;
+  /** Layer scale in %, 100 = original size. */
+  layerScale?: number;
+  /** Horizontal mirror (compositor-only, no render cost). */
+  flip?: boolean;
+  /** Wallpaper-switch animation shared by manual picks and auto-rotation. */
+  switchTransition?: "fade" | "cut";
+  // ── auto-rotation over the wallpaper library ──
+  rotationEnabled?: boolean;
+  rotationMinutes?: number;
+  rotationOrder?: "sequence" | "random";
   /** Absolute path of the Monet source image (captured live frame or preview). */
   monetSourcePath?: string;
   /** User-registered wallpaper directories outside Steam/workshop. */
@@ -72,6 +92,16 @@ export const DEFAULT_CONFIG: BeautifyConfig = {
   fit: "cover",
   liveFps: 30,
   liveMuted: true,
+  wallBrightness: 100,
+  wallContrast: 100,
+  wallSaturate: 100,
+  wallOpacity: 0,
+  posX: 50,
+  posY: 50,
+  layerScale: 100,
+  switchTransition: "fade",
+  rotationMinutes: 30,
+  rotationOrder: "sequence",
 };
 
 export const DEFAULT_API_PORT = 28257;
@@ -90,7 +120,7 @@ export function buildLiveUrl(config: BeautifyConfig): string | undefined {
   const q = new URLSearchParams({
     type: config.live.kind,
     src: config.live.sourceId,
-    fit: config.fit === "contain" ? "contain" : "cover",
+    fit: config.fit === "contain" ? "contain" : config.fit === "stretch" ? "stretch" : "cover",
     fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1",
   });
@@ -110,12 +140,33 @@ export function buildPayload(config: BeautifyConfig, assets?: WallpaperAssets, o
   const parts: string[] = [];
 
   // "smart" resolves to the analyzed suggestion at build time, so the injected
-  // CSS only ever deals with cover or contain.
-  const resolved: "cover" | "contain" =
-    config.fit === "smart" ? (assets?.focus.fit ?? "cover") : config.fit === "contain" ? "contain" : "cover";
+  // CSS only ever deals with cover, contain or stretch (100% 100%).
+  const smartFit = (assets?.focus.fit ?? "cover") as "cover" | "contain";
+  const resolved: "cover" | "contain" | "stretch" =
+    config.fit === "smart"
+      ? smartFit
+      : config.fit === "contain"
+        ? "contain"
+        : config.fit === "stretch"
+          ? "stretch"
+          : "cover";
   const focusX = config.fit === "smart" ? (assets?.focus.x ?? 0.5) : 0.5;
   const focusY = config.fit === "smart" ? (assets?.focus.y ?? 0.5) : 0.5;
   const position = `${Math.round(focusX * 100)}% ${Math.round(focusY * 100)}%`;
+  const bgSize = resolved === "stretch" ? "100% 100%" : resolved;
+
+  // dsh-style picture knobs: a media filter plus a compositor transform on the
+  // wallpaper layer. 100 = untouched; position maps 0–100 to ±25% of the layer.
+  const fx: string[] = [];
+  if (config.blur > 0) fx.push(`blur(${config.blur}px)`);
+  if ((config.wallBrightness ?? 100) !== 100) fx.push(`brightness(${config.wallBrightness}%)`);
+  if ((config.wallContrast ?? 100) !== 100) fx.push(`contrast(${config.wallContrast}%)`);
+  if ((config.wallSaturate ?? 100) !== 100) fx.push(`saturate(${config.wallSaturate}%)`);
+  const tx = ((config.posX ?? 50) - 50) / 2;
+  const ty = ((config.posY ?? 50) - 50) / 2;
+  const layerScale = ((config.layerScale ?? 100) / 100) * (config.blur > 0 ? 1.04 : 1);
+  const transform = `translate(${tx}%, ${ty}%)${config.flip ? " scaleX(-1)" : ""} scale(${layerScale})`;
+  const layerOpacity = 1 - (config.wallOpacity ?? 0) / 100;
 
   parts.push(`
 html, body { background: transparent !important; }
@@ -123,12 +174,13 @@ html, body { background: transparent !important; }
   position: fixed;
   inset: 0;
   z-index: -2147483646;
-  background-size: ${resolved};
+  background-size: ${bgSize};
   background-position: ${resolved === "contain" ? "center" : position};
   background-repeat: no-repeat;
   pointer-events: none;
-  filter: blur(${config.blur}px);
-  transform: scale(${config.blur > 0 ? 1.04 : 1});
+  filter: ${fx.length ? fx.join(" ") : "none"};
+  transform: ${transform};
+  opacity: ${layerOpacity};
 }
 #zcode-wallpaper-backdrop {
   position: fixed;
@@ -178,6 +230,7 @@ html, body { background: transparent !important; }
     videoSrc,
     liveSrc,
     fit: visible ? resolved : "cover",
+    transition: config.switchTransition === "cut" ? "cut" : "fade",
     focusX,
     focusY,
   };
