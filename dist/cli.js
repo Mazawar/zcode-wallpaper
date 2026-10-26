@@ -473,6 +473,16 @@ var init_cdp = __esm({
 });
 
 // src/core/launch.ts
+var launch_exports = {};
+__export(launch_exports, {
+  configFile: () => configFile,
+  dataDir: () => dataDir,
+  findZcodeExecutable: () => findZcodeExecutable,
+  isZcodeProcessRunning: () => isZcodeProcessRunning,
+  launchZcode: () => launchZcode,
+  loadConfig: () => loadConfig,
+  saveConfig: () => saveConfig
+});
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
@@ -52698,6 +52708,23 @@ async function startServe(opts) {
   console.log(`serve: control API on http://127.0.0.1:${apiPort} \u2014 Ctrl+C to stop`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
+  if (process.env.ZW_SPAWNED_BY_MCP !== "1") {
+    let manualTicks = 0;
+    const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
+    setInterval(() => {
+      void (async () => {
+        const alive = await isZcodeProcessRunning2().catch(() => true);
+        if (alive) {
+          manualTicks = 0;
+          return;
+        }
+        if (++manualTicks >= 20) {
+          console.log("serve: ZCode not running for ~10 minutes \u2014 exiting (manual serve).");
+          process.exit(0);
+        }
+      })();
+    }, 3e4);
+  }
   await poll(runtimeConfig(), apiPort);
   let healTick = 0;
   for (; ; ) {

@@ -54917,6 +54917,16 @@ var init_inject = __esm({
 });
 
 // src/core/launch.ts
+var launch_exports = {};
+__export(launch_exports, {
+  configFile: () => configFile,
+  dataDir: () => dataDir,
+  findZcodeExecutable: () => findZcodeExecutable,
+  isZcodeProcessRunning: () => isZcodeProcessRunning,
+  launchZcode: () => launchZcode,
+  loadConfig: () => loadConfig,
+  saveConfig: () => saveConfig
+});
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import fs4 from "node:fs";
@@ -54938,6 +54948,70 @@ function loadConfig() {
 function saveConfig(config2) {
   fs4.mkdirSync(dataDir(), { recursive: true });
   fs4.writeFileSync(configFile(), JSON.stringify(config2, null, 2));
+}
+function findZcodeExecutable() {
+  return ZCODE_EXE_CANDIDATES.map((p2) => p2).find((p2) => {
+    try {
+      return fs4.statSync(p2).isFile();
+    } catch {
+      return false;
+    }
+  });
+}
+async function isZcodeProcessRunning() {
+  try {
+    if (process.platform === "win32") {
+      const { stdout: stdout2 } = await execFileAsync("tasklist", ["/NH", "/FI", "IMAGENAME eq ZCode.exe"]);
+      return stdout2.toLowerCase().includes("zcode.exe");
+    }
+    const name = process.platform === "darwin" ? "ZCode" : "zcode";
+    const { stdout } = await execFileAsync("pgrep", ["-x", name]);
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+async function launchZcode(port) {
+  try {
+    await listTargets(port);
+    return { started: false, reason: "already-running-with-cdp" };
+  } catch {
+  }
+  const exe = findZcodeExecutable();
+  if (!exe) throw new Error("ZCode executable not found; set ZCODE_WINDOWS_APP_INSTALL_DIR or install ZCode to the default path.");
+  if (await isZcodeProcessRunning()) {
+    return { started: false, reason: "running-without-cdp" };
+  }
+  const child = spawn(exe, [`--remote-debugging-port=${port}`], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true
+  });
+  child.unref();
+  let up = false;
+  for (let i2 = 0; i2 < 40; i2++) {
+    await new Promise((r2) => setTimeout(r2, 500));
+    try {
+      await listTargets(port);
+      up = true;
+      break;
+    } catch {
+    }
+  }
+  if (!up) {
+    throw new Error(
+      "ZCode was started but no CDP endpoint appeared. Another instance may already be running without the debug port \u2014 quit ZCode completely and run `zcode-wallpaper launch` again."
+    );
+  }
+  await new Promise((r2) => setTimeout(r2, 2e3));
+  try {
+    await listTargets(port);
+  } catch {
+    throw new Error(
+      "CDP came up but closed again immediately \u2014 a running ZCode instance took over via the single-instance lock. Quit ZCode completely and run `zcode-wallpaper launch` again."
+    );
+  }
+  return { started: true };
 }
 var ZCODE_EXE_CANDIDATES, execFileAsync;
 var init_launch = __esm({
@@ -59559,6 +59633,23 @@ async function startServe(opts) {
   console.log(`serve: control API on http://127.0.0.1:${apiPort} \u2014 Ctrl+C to stop`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
+  if (process.env.ZW_SPAWNED_BY_MCP !== "1") {
+    let manualTicks = 0;
+    const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
+    setInterval(() => {
+      void (async () => {
+        const alive = await isZcodeProcessRunning2().catch(() => true);
+        if (alive) {
+          manualTicks = 0;
+          return;
+        }
+        if (++manualTicks >= 20) {
+          console.log("serve: ZCode not running for ~10 minutes \u2014 exiting (manual serve).");
+          process.exit(0);
+        }
+      })();
+    }, 3e4);
+  }
   await poll(runtimeConfig(), apiPort);
   let healTick = 0;
   for (; ; ) {

@@ -1107,6 +1107,27 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
 
+  // A manually-started serve (CLI, no MCP host) must not linger forever:
+  // when ZCode has been gone for ~10 minutes (generous: manual serves are
+  // typically used to bridge restarts during development), exit.
+  if (process.env.ZW_SPAWNED_BY_MCP !== "1") {
+    let manualTicks = 0;
+    const { isZcodeProcessRunning } = await import("./launch.js");
+    setInterval(() => {
+      void (async () => {
+        const alive = await isZcodeProcessRunning().catch(() => true);
+        if (alive) {
+          manualTicks = 0;
+          return;
+        }
+        if (++manualTicks >= 20) {
+          console.log("serve: ZCode not running for ~10 minutes — exiting (manual serve).");
+          process.exit(0);
+        }
+      })();
+    }, 30_000);
+  }
+
   await poll(runtimeConfig(), apiPort);
   // Self-heal: every ~30s compare each held page against the expected
   // injection (wallpaper layer / live iframe / css present when configured).
