@@ -255,11 +255,12 @@ window.addEventListener("message", (ev) => {
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 window.addEventListener("pagehide", () => inst.destroy());
 
-// One-shot self-remount helper (marker breaks reload loops).
+// Self-remount helper — two chances per page lifetime (the marker counts).
 function reloadOnce() {
-  if (/[?&]zwreload=1/.test(location.search)) return false;
   const u = new URL(location.href);
-  u.searchParams.set("zwreload", "1");
+  const n = Number(u.searchParams.get("zwreload") || 0);
+  if (n >= 2) return false;
+  u.searchParams.set("zwreload", String(n + 1));
   location.replace(u.href);
   return true;
 }
@@ -267,17 +268,15 @@ function reloadOnce() {
 // Size watchdog: the engine can initialize while its container has no
 // layout yet (canvas stays 1x1) — nothing renders under the poster and the
 // wallpaper reads as dead until the engine happens to resize. If the host is
-// sized but the canvas stayed tiny, remount once.
-if (!/[?&]zwreload=1/.test(location.search)) {
-  setTimeout(() => {
-    try {
-      const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
-      if (c && c.width < 10 && host.clientWidth > 50) reloadOnce();
-    } catch {
-      /* ignore */
-    }
-  }, 3000);
-}
+// sized but the canvas stayed tiny, remount.
+setTimeout(() => {
+  try {
+    const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
+    if (c && c.width < 10 && host.clientWidth > 50) reloadOnce();
+  } catch {
+    /* ignore */
+  }
+}, 3000);
 
 // Liveness watch (dsh's startLiveWatch analog): a mounted scene can stall —
 // engine hiccup, GPU reset, assembly that never produced a frame. If no

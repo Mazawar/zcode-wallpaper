@@ -11499,7 +11499,18 @@ function buildBootstrapScript(payload) {
     // A rapid switch during an in-flight transition: jump to its end first.
     if (document.getElementById(MARKER + '-live-next')) promoteNext();
     var cur = document.getElementById(MARKER + '-live');
-    if (!src) { liveFrames().forEach(function (f) { f.remove(); }); S.appliedLive = null; return; }
+    if (!src) {
+      // No live layer wanted (switched to video/image): fade the engine out
+      // instead of dropping it on the spot \u2014 the incoming layer fades in
+      // underneath, so cross-kind switches never flash black.
+      liveFrames().forEach(function (f) {
+        f.style.transition = 'opacity .6s ease';
+        f.style.opacity = '0';
+        setTimeout(function () { f.remove(); }, 660);
+      });
+      S.appliedLive = null;
+      return;
+    }
     if (!cur) {
       // "cut" transitions swap with no animation at all.
       if (TRANS === 'cut') {
@@ -11639,8 +11650,15 @@ function buildBootstrapScript(payload) {
       var commit = function () {
         if (committed) return;
         committed = true;
+        // The outgoing video FADES OUT while the preplayed one fades in \u2014
+        // removing it up front leaves a hard black gap under the fade.
         var old = document.getElementById(MARKER + '-video');
-        if (old) old.remove();
+        if (old) {
+          old.removeAttribute('id');
+          old.style.transition = 'opacity .6s ease';
+          old.style.opacity = '0';
+          setTimeout(function () { old.remove(); }, 660);
+        }
         nv.id = MARKER + '-video';
         nv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:' + VFIT + ';opacity:0;transition:opacity .6s ease;';
         wp.appendChild(nv);
@@ -11654,7 +11672,13 @@ function buildBootstrapScript(payload) {
       nv.play().catch(function() {});
     }
   } else {
-    if (vid) vid.remove();
+    if (vid) {
+      // Switching away from a video: fade it out over the incoming layer.
+      var vOut = vid;
+      vOut.style.transition = 'opacity .6s ease';
+      vOut.style.opacity = '0';
+      setTimeout(function () { vOut.remove(); }, 660);
+    }
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
       wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
     } else if (wp) {
