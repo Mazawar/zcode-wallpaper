@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 25;
+  var V = 26;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -700,11 +700,14 @@ export function buildPanelScript(apiPort: number): string {
     var pauseBtn = button('暂停', function () {
       livePaused = !livePaused;
       pauseBtn.textContent = livePaused ? '继续' : '暂停';
+      // live scenes: message the renderer iframes; videos: the native element
       Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
         if ((f.getAttribute('src') || '').indexOf('/live/index.html') !== -1) {
           try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume', user: true }, '*'); } catch (e) { /* mid-swap */ }
         }
       });
+      var v = document.getElementById('zcode-wallpaper-video');
+      if (v) { if (livePaused) { v.pause(); } else { v.play().catch(function () {}); } }
     }, '暂停/恢复实时渲染');
     actRow.appendChild(pauseBtn);
     actRow.appendChild(button('刷新', function () { refresh(); }));

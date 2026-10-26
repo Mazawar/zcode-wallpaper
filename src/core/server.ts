@@ -283,15 +283,15 @@ async function applySource(
     const video = findVideoInDir(entry.dir);
     if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
     const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
+    // dsh's model: video wallpapers play on a NATIVE <video> element in the
+    // host page (preplayed offscreen, swapped in already playing). The
+    // engine's WebCodecs path clears its canvas on pause and fast-forwards
+    // on wake — native elements have neither quirk.
     next = {
       ...config,
-      // Videos render through the same WebWallGL iframe as scenes (dsh-style):
-      // one pipeline, cross-fade on switch, Monet colors from real frames.
-      mediaType: "live",
-      live: { sourceId: id, kind: "video", title: entry.title, poster: entry.preview, file },
-      // sceneVideoUrl stays so the legacy <video> bootstrap still registered
-      // in long-lived pages keeps rendering until the live payload lands.
+      mediaType: "video",
       sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${file}`,
+      live: undefined,
       wallpaperPath: undefined,
       monetSourcePath: entry.preview ? path.join(entry.dir, entry.preview) : config.monetSourcePath,
     };
@@ -318,22 +318,23 @@ async function applySource(
 }
 
 /**
- * One-time migration: configs written while video wallpapers streamed through
- * an injected <video> layer are re-pointed at the live renderer pipeline, so
- * they pick up cross-fade and real-frame Monet colors on the next start. A
- * source that no longer resolves keeps its legacy config — the <video>
- * bootstrap path still renders it — rather than losing the wallpaper.
+ * One-time migration: video wallpapers briefly went through the WebGL engine
+ * (live.kind "video"); that path pauses to a cleared canvas and fast-forwards
+ * on wake. Move any stored config back onto the native <video> layer.
  */
 async function migrateLegacyVideo(): Promise<void> {
   const stored = loadConfig() as Partial<BeautifyConfig>;
-  if (stored.mediaType !== "video" || !stored.sceneVideoUrl) return;
-  const id = /\/files\/([^/]+)\//.exec(stored.sceneVideoUrl)?.[1];
-  if (!id) return;
-  const result = await applySource(id, { ...DEFAULT_CONFIG, ...stored } as BeautifyConfig, false).catch(() => undefined);
-  if (result?.config.mediaType === "live") {
-    saveConfig(persisted(result.config));
-    console.log(`serve: migrated video wallpaper to the live renderer (${id})`);
-  }
+  const live = stored.live;
+  if (!live || live.kind !== "video" || !live.file) return;
+  const next: BeautifyConfig = {
+    ...(DEFAULT_CONFIG as unknown as BeautifyConfig),
+    ...stored,
+    mediaType: "video",
+    live: undefined,
+    sceneVideoUrl: `http://127.0.0.1:${stored.apiPort ?? DEFAULT_API_PORT}/files/${live.sourceId}/${live.file}`,
+  };
+  saveConfig(persisted(next));
+  console.log(`serve: video wallpaper moved back to the native layer (${live.sourceId})`);
 }
 
 /** Walks up from a picked file to the nearest enclosing project.json directory. */

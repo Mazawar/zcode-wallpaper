@@ -132,6 +132,8 @@ export interface InjectionPayload {
   marker?: string;
   /** "contain" additionally drives a blurred backdrop layer behind the image. */
   fit?: "cover" | "contain" | "stretch";
+  /** Mute state for the native loop-video layer. */
+  videoMuted?: boolean;
   /** Wallpaper switch animation: "cut" swaps instantly, default cross-fades. */
   transition?: string;
   /** Serve API port for the injected heartbeat (lifecycle self-clean). */
@@ -355,26 +357,47 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   }
   applyLive(LIVE_SRC);
 
-  // --- loop video layer ---------------------------------------------------
+  // --- loop video layer (dsh's model: a native <video> in the host page) ----
+  // Videos never enter the WebGL engine: engine pause clears the WebCodecs
+  // canvas and its scheduler fast-forwards on wake. A native element pauses
+  // on its last frame and preplays OFFSCREEN (dsh's prepareVideoProbe): the
+  // new video reaches canplay while detached, then commits already playing —
+  // on screen it is a live picture immediately, no reload gap, no burst.
   var vid = document.getElementById(MARKER + '-video');
+  var VMUTED = ${JSON.stringify(payload.videoMuted !== false)};
+  var VFIT = ${JSON.stringify(payload.fit === "contain" ? "contain" : payload.fit === "stretch" ? "fill" : "cover")};
   if (VIDEO_SRC) {
     wp.style.backgroundImage = 'none';
-    if (!vid) {
-      vid = document.createElement('video');
-      vid.id = MARKER + '-video';
-      vid.setAttribute('autoplay', '');
-      vid.setAttribute('loop', '');
-      vid.setAttribute('muted', '');
-      vid.setAttribute('playsinline', '');
-      vid.muted = true;
-      vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
-      wp.appendChild(vid);
+    if (vid && vid.getAttribute('src') === VIDEO_SRC) {
+      vid.muted = VMUTED; // hot-update: same video, muted/fit tweak
+      vid.style.objectFit = VFIT;
+      vid.play().catch(function() {});
+    } else {
+      var nv = document.createElement('video');
+      nv.setAttribute('autoplay', '');
+      nv.setAttribute('loop', '');
+      nv.setAttribute('playsinline', '');
+      nv.muted = VMUTED;
+      nv.src = VIDEO_SRC;
+      nv.load();
+      var committed = false;
+      var commit = function () {
+        if (committed) return;
+        committed = true;
+        var old = document.getElementById(MARKER + '-video');
+        if (old) old.remove();
+        nv.id = MARKER + '-video';
+        nv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:' + VFIT + ';opacity:0;transition:opacity .6s ease;';
+        wp.appendChild(nv);
+        nv.play().catch(function() {});
+        requestAnimationFrame(function () { nv.style.opacity = '1'; });
+        setTimeout(function () { if (nv.style) nv.style.transition = 'none'; }, 660);
+      };
+      nv.addEventListener('canplay', commit, { once: true });
+      nv.addEventListener('error', commit, { once: true });
+      setTimeout(commit, 3000); // slow disk: commit anyway, element keeps loading
+      nv.play().catch(function() {});
     }
-    if (vid.getAttribute('src') !== VIDEO_SRC) {
-      vid.setAttribute('src', VIDEO_SRC);
-      vid.load();
-    }
-    vid.play().catch(function() {});
   } else {
     if (vid) vid.remove();
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {

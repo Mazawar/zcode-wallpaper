@@ -239,6 +239,7 @@ html, body { background: transparent !important; }
     css: parts.join("\n"),
     wallpaperDataUri,
     videoSrc,
+    videoMuted: config.liveMuted !== false,
     liveSrc,
     fit: visible ? resolved : "cover",
     transition: config.switchTransition === "cut" ? "cut" : "fade",

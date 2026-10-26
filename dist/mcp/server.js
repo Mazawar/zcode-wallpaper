@@ -11612,26 +11612,47 @@ function buildBootstrapScript(payload) {
   }
   applyLive(LIVE_SRC);
 
-  // --- loop video layer ---------------------------------------------------
+  // --- loop video layer (dsh's model: a native <video> in the host page) ----
+  // Videos never enter the WebGL engine: engine pause clears the WebCodecs
+  // canvas and its scheduler fast-forwards on wake. A native element pauses
+  // on its last frame and preplays OFFSCREEN (dsh's prepareVideoProbe): the
+  // new video reaches canplay while detached, then commits already playing \u2014
+  // on screen it is a live picture immediately, no reload gap, no burst.
   var vid = document.getElementById(MARKER + '-video');
+  var VMUTED = ${JSON.stringify(payload.videoMuted !== false)};
+  var VFIT = ${JSON.stringify(payload.fit === "contain" ? "contain" : payload.fit === "stretch" ? "fill" : "cover")};
   if (VIDEO_SRC) {
     wp.style.backgroundImage = 'none';
-    if (!vid) {
-      vid = document.createElement('video');
-      vid.id = MARKER + '-video';
-      vid.setAttribute('autoplay', '');
-      vid.setAttribute('loop', '');
-      vid.setAttribute('muted', '');
-      vid.setAttribute('playsinline', '');
-      vid.muted = true;
-      vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
-      wp.appendChild(vid);
+    if (vid && vid.getAttribute('src') === VIDEO_SRC) {
+      vid.muted = VMUTED; // hot-update: same video, muted/fit tweak
+      vid.style.objectFit = VFIT;
+      vid.play().catch(function() {});
+    } else {
+      var nv = document.createElement('video');
+      nv.setAttribute('autoplay', '');
+      nv.setAttribute('loop', '');
+      nv.setAttribute('playsinline', '');
+      nv.muted = VMUTED;
+      nv.src = VIDEO_SRC;
+      nv.load();
+      var committed = false;
+      var commit = function () {
+        if (committed) return;
+        committed = true;
+        var old = document.getElementById(MARKER + '-video');
+        if (old) old.remove();
+        nv.id = MARKER + '-video';
+        nv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:' + VFIT + ';opacity:0;transition:opacity .6s ease;';
+        wp.appendChild(nv);
+        nv.play().catch(function() {});
+        requestAnimationFrame(function () { nv.style.opacity = '1'; });
+        setTimeout(function () { if (nv.style) nv.style.transition = 'none'; }, 660);
+      };
+      nv.addEventListener('canplay', commit, { once: true });
+      nv.addEventListener('error', commit, { once: true });
+      setTimeout(commit, 3000); // slow disk: commit anyway, element keeps loading
+      nv.play().catch(function() {});
     }
-    if (vid.getAttribute('src') !== VIDEO_SRC) {
-      vid.setAttribute('src', VIDEO_SRC);
-      vid.load();
-    }
-    vid.play().catch(function() {});
   } else {
     if (vid) vid.remove();
     if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
@@ -54948,6 +54969,7 @@ html, body { background: transparent !important; }
     css: parts.join("\n"),
     wallpaperDataUri,
     videoSrc,
+    videoMuted: config2.liveMuted !== false,
     liveSrc,
     fit: visible ? resolved : "cover",
     transition: config2.switchTransition === "cut" ? "cut" : "fade",
@@ -55422,7 +55444,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 25;
+  var V = 26;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -56094,11 +56116,14 @@ function buildPanelScript(apiPort) {
     var pauseBtn = button('\u6682\u505C', function () {
       livePaused = !livePaused;
       pauseBtn.textContent = livePaused ? '\u7EE7\u7EED' : '\u6682\u505C';
+      // live scenes: message the renderer iframes; videos: the native element
       Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
         if ((f.getAttribute('src') || '').indexOf('/live/index.html') !== -1) {
           try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume', user: true }, '*'); } catch (e) { /* mid-swap */ }
         }
       });
+      var v = document.getElementById('zcode-wallpaper-video');
+      if (v) { if (livePaused) { v.pause(); } else { v.play().catch(function () {}); } }
     }, '\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3');
     actRow.appendChild(pauseBtn);
     actRow.appendChild(button('\u5237\u65B0', function () { refresh(); }));
@@ -59426,13 +59451,9 @@ async function applySource(id, config2, apply = true) {
     const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
     next = {
       ...config2,
-      // Videos render through the same WebWallGL iframe as scenes (dsh-style):
-      // one pipeline, cross-fade on switch, Monet colors from real frames.
-      mediaType: "live",
-      live: { sourceId: id, kind: "video", title: entry.title, poster: entry.preview, file },
-      // sceneVideoUrl stays so the legacy <video> bootstrap still registered
-      // in long-lived pages keeps rendering until the live payload lands.
+      mediaType: "video",
       sceneVideoUrl: `http://127.0.0.1:${config2.apiPort}/files/${id}/${file}`,
+      live: void 0,
       wallpaperPath: void 0,
       monetSourcePath: entry.preview ? path6.join(entry.dir, entry.preview) : config2.monetSourcePath
     };
@@ -59452,14 +59473,17 @@ async function applySource(id, config2, apply = true) {
 }
 async function migrateLegacyVideo() {
   const stored = loadConfig();
-  if (stored.mediaType !== "video" || !stored.sceneVideoUrl) return;
-  const id = /\/files\/([^/]+)\//.exec(stored.sceneVideoUrl)?.[1];
-  if (!id) return;
-  const result = await applySource(id, { ...DEFAULT_CONFIG, ...stored }, false).catch(() => void 0);
-  if (result?.config.mediaType === "live") {
-    saveConfig(persisted(result.config));
-    console.log(`serve: migrated video wallpaper to the live renderer (${id})`);
-  }
+  const live = stored.live;
+  if (!live || live.kind !== "video" || !live.file) return;
+  const next = {
+    ...DEFAULT_CONFIG,
+    ...stored,
+    mediaType: "video",
+    live: void 0,
+    sceneVideoUrl: `http://127.0.0.1:${stored.apiPort ?? DEFAULT_API_PORT}/files/${live.sourceId}/${live.file}`
+  };
+  saveConfig(persisted(next));
+  console.log(`serve: video wallpaper moved back to the native layer (${live.sourceId})`);
 }
 function resolveSceneInput(input) {
   let stat;
