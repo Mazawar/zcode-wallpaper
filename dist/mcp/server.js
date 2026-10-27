@@ -58797,6 +58797,18 @@ try {
     }
     if (-not $zcode -and $meta) { $zcode = $meta.zcode }
   }
+  # Last resort: a shortcut copied from ANOTHER machine (synced Desktop,
+  # copied .zcode dir) points at a wrapper path that does not exist here and
+  # its meta names a foreign ZCode.exe \u2014 the original target is unrecoverable
+  # from the .lnk. Probe this machine's install locations instead so the sync
+  # can rewrite the entry into a locally valid one instead of skipping forever.
+  if (-not $zcode -or -not (Test-Path $zcode)) {
+    $cands = @()
+    if ($env:ZCODE_WINDOWS_APP_INSTALL_DIR) { $cands += (Join-Path $env:ZCODE_WINDOWS_APP_INSTALL_DIR 'ZCode.exe') }
+    $cands += 'C:\\Program Files\\ZCode\\ZCode.exe'
+    $cands += (Join-Path $env:LOCALAPPDATA 'Programs\\ZCode\\ZCode.exe')
+    foreach ($c in $cands) { if (Test-Path $c) { $zcode = $c; break } }
+  }
   if (-not $zcode) { Write-Output 'ok|not-zcode'; exit }
   if (-not (Test-Path $zcode)) { Write-Output 'ok|zcode-missing'; exit }
   $anti = @('${antiOcclusion.join("', '")}')
