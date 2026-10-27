@@ -1,107 +1,86 @@
 # zcode-wallpaper
 
-**把 Wallpaper Engine 订阅的场景壁纸实时渲染进 ZCode 桌面客户端** —— 粒子、SceneScript、鼠标视差全部保留，不录屏、不需要 Wallpaper Engine 常驻；再配上 Material Design 3（Monet）动态取色，注入 ZCode 原生「设置 → 外观」页的自定义配置区块。
+**把 Wallpaper Engine 订阅的壁纸实时渲染进 ZCode 桌面客户端**——粒子、SceneScript、鼠标视差全部保留，不录屏、不需要 Wallpaper Engine 常驻；再配上 Material Design 3（Monet）动态取色，与 ZCode「设置 → 外观」页原生融合的配置面板。
 
-![ZCode 外观页中的壁纸引擎区块](docs/e2e-zcode-live-render.jpg)
+![ZCode 设置→外观页中的壁纸引擎面板](docs/appearance-panel.jpg)
 
-> 端到端实测：工坊订阅场景「Sunset 水光之城」（WLOP）在 ZCode 界面背后由 WebWallGL 实时渲染，配置区块与原生设置同款样式。
+> 图为 1.0 实拍：外观页底部的「壁纸引擎」区块（壁纸库页签——当前壁纸卡片、切换过场、自动轮播、壁纸库网格），与 ZCode 原生设置同款视觉；壁纸在其后实时渲染。
 
 ## 特性
 
 | 能力 | 说明 |
 |---|---|
-| **实时场景渲染** | WebWallGL（WebGL2）直接解析渲染 `scene.pkg` / 松散工程，保留粒子、puppet 骨骼、SceneScript、音频反应 |
-| **鼠标视差** | 界面上的真实鼠标位置实时驱动壁纸（指针桥 postMessage 转发） |
-| **满画质** | MSAA×4、视频纹理不压缩、禁用自动降档，渲染分辨率跟随设备 DPR —— 壁纸啥样这里就啥样 |
-| **平滑切换** | 双 iframe 交叉淡入（预览图占位→就绪淡入→旧层移除），零黑屏零闪烁；改帧率/填充/静音走热更新，不重载 |
-| **订阅枚举** | 自动发现 Steam 各库的工坊订阅（431960）+ WE 内置/我的工程，支持多 Steam 库 |
-| **壁纸库** | 设置→外观页原生样式区块：搜索（名称/类型/来源）、分页（固定高度不塌缩）、类型徽标、预览图 |
-| **跨机迁移** | 每张壁纸一键导出 `.zw.zip` 资源包；另一台电脑（无需 Steam/WE）浏览器文件选择器导入即用 |
-| **统一导入** | 「导入壁纸…」一个入口接受图片 / `.zw.zip` / `.pkg` 场景 / `.mp4`/`.webm` 视频（裸 pkg 自动合成元数据） |
-| **删除管理** | 本机导入项可删除（使用中自动切换），文件后台重试清理（规避 Windows 句柄锁定） |
-| **Monet 动态取色** | 从壁纸真实渲染首帧提取 MD3 配色适配界面（首帧回传机制），两段推送不阻塞切换 |
-| **失败分级与回退** | 实时渲染失败分软/硬：传输未完成自动冷却重试（次数有上限）；渲染器硬失败落盘记忆→自动回退预览图，面板显示原因并一键重试（换源/重试自动清记忆） |
-| **传输账本** | 装载期按源记账字节流，「正在下载」不被误判成「渲染不出来」；首帧预算按包大小现算（大场景不再被固定墙钟冤杀） |
-| **视频/图片壁纸** | 视频 Range 流式播放（WE 视频本就无缝），图片三种构图（cover/contain/smart 智能主体分析） |
-| **Agent 工具** | MCP 工具 7 个（`list_wallpapers`、`import_scene_wallpaper`、`apply_options`…），`/wallpaper` 命令 + 技能 |
-| **架构与守卫** | 壁纸层为声明式状态机（12 相位，转移表唯一权威）；运行时多模块开发、单文件投递；模块级守卫 4 条 + 端到端闸门，`npm run verify` 一键（见 `docs/`） |
-
-## 工作原理
-
-```
-Steam 工坊订阅 ──枚举──▶ serve (127.0.0.1:28257)
-   (注册表 → libraryfolders.vdf        ├─ /agent.js /panel.js  页面运行时(真文件,部署即最新)
-    → workshop/content/431960)         ├─ /files/<id>/…     壁纸静态文件（Range + ETag/304，穿越防护）
-                                       ├─ /live/index.html  WebWallGL 渲染页（vendored 引擎）
-                                       ├─ /api/events       SSE 配置通道（所有页面运行时持有）
-                                       └─ /api/…            配置 / 壁纸库 / 导入导出 / 删除
-                                              │ SSE 广播配置
-ZCode ◀── CDP 注入 (28256) ── 瘦 bootstrap(关键CSS + 初始载荷 + agent加载器 + 生命周期心跳)
-   Page.addScriptToEvaluateOnNewDocument + Page.setBypassCSP
-```
-
-- **页面侧单一施加者**：CDP 注册的只是一段瘦 bootstrap（同步写入防闪烁的关键 CSS，内嵌初始载荷，加载 `live/agent.js`）；壁纸层状态机、过场、视频、看门狗全部在作为**真实文件**由 serve 供应的 agent 运行时里，配置变更经 SSE 直达 agent —— 不再每次变更都重新生成脚本穿过 CDP（0.2.x 之前的滑杆 CDP 队列风暴 / bare-css 竞态 / 重注册舞蹈整个类别的根因被移除）。设置面板同理（`/panel.js`）。
-- **渲染核心**是开源引擎 [webwallgl](https://github.com/oneincase/webwallgl)（MIT，npm v3）：它的 `httpSource` 只要求把壁纸目录当静态文件供给，其余（解析、装配、渲染循环、脚本沙箱、指针与音频）全部内置。
-- **注入通道**沿用 [zcode-beautify](https://github.com/Logocceai/zcode-beautify)（MIT）的 CDP 方案与 Monet 模块；Steam/WE 发现链路参考了 [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine)（MIT）的宿主契约。
-- 与「开 WE 窗口录屏→ffmpeg 循环」的方案相比：不丢交互、不依赖 WE/ffmpeg 常驻、跨平台、秒级导入。
+| **实时场景渲染** | WebWallGL（WebGL2）直接解析渲染 `scene.pkg` / 松散工程：粒子、puppet 骨骼、SceneScript、音频反应全保留，满画质（MSAA×4，分辨率跟随设备 DPR） |
+| **鼠标视差** | 真实指针位置实时驱动壁纸交互 |
+| **壁纸库** | 自动发现 Steam 工坊订阅（431960）+ WE 工程 + 本机导入；搜索 / 类型筛选 / 分页 / 预览海报 |
+| **统一导入** | 一个入口接受图片、`.zw.zip` 资源包、`.pkg` 场景、`.mp4/.webm` 视频（裸 pkg 自动合成元数据） |
+| **跨机迁移** | 每张壁纸一键导出 `.zw.zip`；另一台**没有 Steam / WE 的电脑**浏览器选择器导入即用 |
+| **切换体验** | 六种过场（淡入/推移/擦除/光圈/缩放/直接）、自动轮播、视频原生播放、失败自动回退预览图并带原因+一键重试 |
+| **Monet 动态取色** | 从壁纸真实渲染首帧提取 MD3 配色适配整个界面 |
+| **画面调节** | 亮度/对比度/饱和度/透明度/位置/缩放/翻转、模糊、压暗、帧率上限（15/30/60）、静音 |
+| **Agent 工具** | 7 个 MCP 工具 + `/wallpaper` 命令 + 技能（列出/应用/调参/重置/状态） |
+| **可靠生命周期** | 停用 / 卸载 / 应用退出均自动恢复默认外观；跨平台（Windows / macOS / Linux）启动链 |
 
 ## 安装
 
-### 作为插件安装（推荐）
+### 插件市场（推荐）
 
-- **市场安装**：ZCode 插件市场 → 添加 → 添加插件市场，粘贴本仓库根目录（含 `marketplace.json`；发布后也可直接填 GitHub 仓库地址），随后在 个人 → zcode-wallpaper → ZCode 壁纸引擎 点击安装。装好的插件在 设置 → 插件 管理，随 ZCode 启动自动拉起 serve 与面板。
-- **更新**：市场页齿轮 → 市场源 → 刷新该市场，再到 个人 → 插件详情 → 更新。
-- **离线安装**：从 [Releases](../../releases) 下载 `zcode-wallpaper-x.y.z.zip`，按 ZCode 本地插件方式安装（含 `.zcode-plugin/plugin.json`、MCP 服务、`/wallpaper` 命令与技能）。
+插件市场 → 添加 → 添加插件市场，粘贴本仓库地址（GitHub），添加后在「个人」页找到 **ZCode 壁纸引擎** 点击安装。装完**完全退出 ZCode，再双击图标启动**（快捷方式会被自动维护为带壁纸的启动链，此后开机即生效）。
 
-### 从源码运行
+### 离线安装
 
-```bash
-git clone https://github.com/<you>/zcode-wallpaper && cd zcode-wallpaper
-npm install && npm run build        # tsc + vendor WebWallGL 引擎
-node dist/cli.js launch             # 带 CDP 端口拉起 ZCode（完全退出后执行；快捷方式会被自动更新）
-node dist/cli.js serve --detach     # 常驻服务（API 28257，注入 CDP 28256）
-```
-
-端口：CDP **28256**、API **28257**（`serve --port/--api-port` 可覆盖）。
+从 [Releases](../../releases) 下载 `zcode-wallpaper-x.y.z.zip`，按 ZCode 本地插件方式安装。
 
 ## 使用
 
-- **面板**：ZCode 设置 → 外观 页底部「壁纸引擎」区块（仅此页显示，切页即隐）——壁纸库（搜索/分页/导出/删除）、「导入壁纸…」统一文件选择器、背景模糊/压暗、填充方式、实时帧率（15/30/60）与静音、Monet 开关（ZCode 原生开关样式）。
-- **CLI**：`launch | apply <path-or-id> | wallpapers | colors | reset | status | serve`
-- **MCP 工具**：`set_background` / `list_wallpapers` / `import_scene_wallpaper` / `apply_options` / `refresh_theme` / `reset_appearance` / `wallpaper_status`
+- **面板**：ZCode 设置 → 外观 页底部「壁纸引擎」区块——壁纸库、导入、过场、轮播、画面调节、取色开关都在这里（标题旁的 `p1.x.y` 徽章是面板构建版本）。「画面与播放」页签负责画质微调：
 
-## 无 Wallpaper Engine 的机器能用吗？
+  ![画面与播放页签：画面滑杆、适配方式、帧率上限、Monet 取色](docs/appearance-playback.jpg)
+- **CLI**：`node dist/cli.js launch | apply <path-or-id> | wallpapers | colors | reset | status | serve`
+- **Agent**：对 ZCode 里的助手说「换个壁纸」即可（或 `/wallpaper`）；工具见技能 `wallpaper`。
 
-能。Steam/WE 只影响「自动列出工坊订阅」；`.zw.zip` 资源包 / 裸 `.pkg` / 视频 / 图片导入完全不依赖它们 —— A 电脑导出 → B 电脑装本插件 → 导入即用。
+## 没有 Wallpaper Engine 的机器能用吗？
+
+能。Steam/WE 只影响「自动列出工坊订阅」；`.zw.zip` / 裸 `.pkg` / 视频 / 图片导入完全不依赖它们——A 电脑导出 → B 电脑装插件 → 导入即用。
+
+## 工作原理（两分钟版）
+
+```
+Steam 工坊订阅 ──枚举──▶ serve (127.0.0.1:28257)
+                          ├─ /agent.js /panel.js   页面运行时（真文件，部署即最新）
+                          ├─ /live/index.html      WebWallGL 渲染页
+                          ├─ /api/events           SSE 配置通道
+                          └─ /api/…                配置/壁纸库/导入导出/传输账本
+ZCode ◀── CDP 注入 (28256) ── 瘦 bootstrap（仅注册一次 + 生命周期心跳）
+```
+
+页面里的壁纸层由**声明式状态机**驱动（12 相位，转移表唯一权威），实时渲染失败分级处理（传输未完成=自动重试，渲染器故障=回退预览图并显示原因）；对 ZCode 界面本身**只做声明式样式，不改动任何宿主 DOM**。
+
+> 边界说明：ZCode 目前没有官方外观/注入 API（社区生态全部经 CDP，见 [feedback #171](https://github.com/zai-org/feedback/issues/171)），本插件保持非破坏性：不修改 ZCode 安装文件，`恢复默认外观` / 卸载 / 停用均可一键或自动还原。
+
+架构与决策档案见 [`docs/`](docs/)：[ARCHITECTURE](docs/ARCHITECTURE.md) · [DECISIONS](docs/DECISIONS.md) · [STATE](docs/STATE.md) · [GUARD-MAP](docs/GUARD-MAP.md)。
 
 ## 已知边界
 
-- 保真度取决于 WebWallGL 对 WE 引擎语义的复刻，个别工坊场景可能与 Wallpaper Engine 本体有差异（引擎诊断打到 serve 控制台 `[live:*]`）。
-- Application 类壁纸（需宿主运行第三方可执行文件）有意不支持。
-- 壁纸自带音频默认静音，可在面板/工具开启。
-- 端到端回归闸门：`node scripts/e2e.mjs`（需要 serve 运行中 + ZCode 带 CDP 端口）——注入、SSE 推送、切换、重置/还原全链路断言。
+- 保真度取决于 WebWallGL 对 WE 引擎语义的复刻，个别工坊场景可能与本体有细微差异（引擎诊断打到 serve 日志 `[live:*]`）。
+- Application 类壁纸（需宿主运行第三方可执行）有意不支持。
+- 换壁纸的耗时 = 场景下载与装配时间（小场景约 1–2 秒）；传输期间有字节账本防止误判失败。
 
-## 目录结构
+## 开发
 
+```bash
+npm install && npm run build     # tsc + esbuild 打包（live/src → live/*.js，产物入库）
+npm run verify                   # 4 条守卫：状态机/双向对账/守卫地图/产物契约
+npm run market                   # 导出干净本地市场 .local-market/（约 5MB，勿以仓库根当市场）
+node scripts/e2e.mjs             # 端到端闸门（需 serve 运行中 + ZCode 带 CDP 端口）
 ```
-src/core/    steam.ts(发现/枚举) server.ts(HTTP 路由+生命周期) cdp.ts(连接+瘦 bootstrap)
-             sessions.ts(会话/自愈) broadcast.ts(SSE) sources.ts(应用/导入导出/删除)
-             inject.ts(配置模型+载荷) payload.ts/assets.ts(载荷组装+缓存) monet.ts(tokens.ts)
-             configApi.ts(校验/投影) media.ts(静态服务+传输账本回调) ledger.ts(字节账本)
-             livefail.ts(实时渲染失败记忆) session.ts(CLI/MCP 共用操作)
-live/src/    agent/(main 总装·liveframe·video·watchdogs·ledger·heal·bridge·recorder)
-             panel/(main·mount·controls·library)  state.js(状态机+失败策略，纯逻辑可测)
-live/        agent.js panel.js = esbuild 打包产物（改 live/src 后 npm run build）
-             index.html + renderer.js(WebWallGL 渲染页)
-src/mcp/     MCP 服务器（7 个工具）
-docs/        ARCHITECTURE(分层) DECISIONS(决策档案) STATE(状态机规范) GUARD-MAP(生成物)
-scripts/     /wallpaper 命令、构建、e2e 与守卫脚本（verify-*）
-```
+
+改运行时代码一律改 `live/src/**` 后重新构建，不手改产物。守卫地图（改哪个文件跑哪条验证）见 `docs/GUARD-MAP.md`。
 
 ## 致谢与许可
 
 - [webwallgl](https://github.com/oneincase/webwallgl)（MIT, © oneincase）— 渲染核心
 - [zcode-beautify](https://github.com/Logocceai/zcode-beautify)（MIT, © Logocceai）— CDP 注入 / Monet / 启动器模块来源
-- [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine)（MIT）— 实时渲染架构与 Steam 发现参考
+- [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine)（MIT）— 实时渲染架构与稳定性机制参考
 
 Wallpaper Engine 创意工坊素材版权归各自作者；请只使用你自己拥有或已订阅的内容，勿分发他人作品。
