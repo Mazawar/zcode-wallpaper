@@ -319,7 +319,7 @@ async function applySource(
     // instant), then decode the new Monet source in the background and push
     // the recolored UI as a second pass — the switch itself never waits on
     // image decoding.
-    windows = await pushConfigToSessions(next).catch(() => 0);
+    windows = await pushConfigToSessions(next, false).catch(() => 0);
     void (async () => {
       await getAssets(next, true).catch(() => undefined);
       await pushConfigToSessions(next, true).catch(() => 0);
@@ -482,7 +482,12 @@ async function holdSession(
 }
 
 /** Re-evaluates the theme bootstrap in every live session after a config change. */
-async function pushConfigToSessions(config: BeautifyConfig, allowDecode = false): Promise<number> {
+// Default allowDecode=true: a cache-only push with a cold cache emits BARE
+// css (no transparency overrides) and the app's opaque surfaces cover the
+// wallpaper — the black-box caught exactly that (css=824 windows). Only the
+// deliberate fast first push of a wallpaper switch opts out (phase 2 follows
+// with the decoded payload).
+async function pushConfigToSessions(config: BeautifyConfig, allowDecode = true): Promise<number> {
   const bootstrap = await buildBootstrapFor(config, allowDecode);
   let ok = 0;
   for (const [id, session] of held) {
@@ -1284,7 +1289,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     const config = runtimeConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
     const wantLive = config.wallpaperVisible && config.mediaType === "live";
-    const bootstrap = await buildBootstrapFor(config).catch(() => null);
+    const bootstrap = await buildBootstrapFor(config, true).catch(() => null);
     if (!bootstrap) continue;
     for (const [id, session] of held) {
       try {

@@ -52665,7 +52665,7 @@ async function applySource(id, config, apply = true) {
   let windows = 0;
   if (apply) {
     saveConfig(persisted(next));
-    windows = await pushConfigToSessions(next).catch(() => 0);
+    windows = await pushConfigToSessions(next, false).catch(() => 0);
     void (async () => {
       await getAssets(next, true).catch(() => void 0);
       await pushConfigToSessions(next, true).catch(() => 0);
@@ -52775,7 +52775,7 @@ async function holdSession(target, config, apiPort) {
   await conn.send("Runtime.evaluate", { expression: panelScript, returnByValue: true });
   held.set(target.id, session);
 }
-async function pushConfigToSessions(config, allowDecode = false) {
+async function pushConfigToSessions(config, allowDecode = true) {
   const bootstrap = await buildBootstrapFor(config, allowDecode);
   let ok = 0;
   for (const [id, session] of held) {
@@ -53415,7 +53415,7 @@ async function startServe(opts) {
     const config = runtimeConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
     const wantLive = config.wallpaperVisible && config.mediaType === "live";
-    const bootstrap = await buildBootstrapFor(config).catch(() => null);
+    const bootstrap = await buildBootstrapFor(config, true).catch(() => null);
     if (!bootstrap) continue;
     for (const [id, session] of held) {
       try {

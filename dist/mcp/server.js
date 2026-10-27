@@ -59592,7 +59592,7 @@ async function applySource(id, config2, apply = true) {
   let windows = 0;
   if (apply) {
     saveConfig(persisted(next));
-    windows = await pushConfigToSessions(next).catch(() => 0);
+    windows = await pushConfigToSessions(next, false).catch(() => 0);
     void (async () => {
       await getAssets(next, true).catch(() => void 0);
       await pushConfigToSessions(next, true).catch(() => 0);
@@ -59702,7 +59702,7 @@ async function holdSession(target, config2, apiPort) {
   await conn.send("Runtime.evaluate", { expression: panelScript, returnByValue: true });
   held.set(target.id, session);
 }
-async function pushConfigToSessions(config2, allowDecode = false) {
+async function pushConfigToSessions(config2, allowDecode = true) {
   const bootstrap = await buildBootstrapFor(config2, allowDecode);
   let ok = 0;
   for (const [id, session] of held) {
@@ -60342,7 +60342,7 @@ async function startServe(opts) {
     const config2 = runtimeConfig();
     const wantLayer = config2.wallpaperVisible && Boolean(config2.live || config2.sceneVideoUrl || config2.wallpaperPath);
     const wantLive = config2.wallpaperVisible && config2.mediaType === "live";
-    const bootstrap = await buildBootstrapFor(config2).catch(() => null);
+    const bootstrap = await buildBootstrapFor(config2, true).catch(() => null);
     if (!bootstrap) continue;
     for (const [id, session] of held) {
       try {
