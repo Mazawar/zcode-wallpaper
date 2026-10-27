@@ -170,6 +170,7 @@ async function main(): Promise<void> {
           break;
         }
         const { startServe } = await import("./core/server.js");
+        if (has("--early")) process.env.ZW_EARLY = "1";
         await startServe({ cdpPort: port, apiPort });
         break;
       }

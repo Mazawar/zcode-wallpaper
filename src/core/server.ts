@@ -795,6 +795,12 @@ export async function startServe(opts: ServeOptions): Promise<void> {
         return;
       }
 
+      if (req.method === "POST" && url.pathname === "/api/host-alive") {
+        (globalThis as { __zwHostAlive?: number }).__zwHostAlive = Date.now();
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
       if (req.method === "GET" && url.pathname === "/api/health") {
         sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
         return;
@@ -1257,6 +1263,42 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     }, 30_000);
   }
 
+  // Early-launch serve (ZW_EARLY=1, started hidden by the shortcut wrapper
+  // BEFORE ZCode): it owns the session until the plugin host's MCP shows up
+  // (it heartbeats /api/host-alive every 10s; the host sees this serve
+  // healthy and never starts its own). Lifecycle: no host within 120s of
+  // ZCode running means the plugin is disabled/uninstalled — reset the UI
+  // and exit; a host that goes silent for 45s after being seen means the
+  // plugin was disabled mid-session — same. Handing back never happens
+  // (port handoff would flash); the early serve simply is the serve.
+  if (process.env.ZW_EARLY === "1") {
+    let hostSeen = false;
+    let lastHostAlive = 0;
+    let startedAt = Date.now();
+    let zcodeSeenAt = 0;
+    const { isZcodeProcessRunning } = await import("./launch.js");
+    setInterval(() => {
+      void (async () => {
+        const zcode = await isZcodeProcessRunning().catch(() => true);
+        if (zcode) zcodeSeenAt = Date.now();
+        const now = Date.now();
+        (globalThis as { __zwHostAlive?: number }).__zwHostAlive = (globalThis as { __zwHostAlive?: number }).__zwHostAlive ?? 0;
+        const lastAlive = (globalThis as { __zwHostAlive?: number }).__zwHostAlive ?? 0;
+        if (lastAlive > lastHostAlive) { lastHostAlive = lastAlive; hostSeen = true; }
+        if (hostSeen && lastAlive && now - lastAlive > 45_000 && now - zcodeSeenAt < 30_000) {
+          console.log("serve: plugin host gone (disabled?) — restoring default appearance and exiting");
+          await shutdownServe().catch(() => undefined);
+          process.exit(0);
+        }
+        if (!hostSeen && now - startedAt > 180_000 && zcode) {
+          console.log("serve: no plugin host appeared within 3 minutes — plugin not enabled, exiting");
+          await shutdownServe().catch(() => undefined);
+          process.exit(0);
+        }
+      })();
+    }, 5_000);
+  }
+
   // Auto-rotation: a 30s tick checks whether the configured interval has
   // fully elapsed, then applies the next library wallpaper (custom imports +
   // workshop subscriptions; the one in use is never re-applied). Sequence
@@ -1280,6 +1322,14 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       await applySource(next, runtimeConfig()).catch(() => undefined);
     })();
   }, 30_000);
+
+  // Launch-shortcut sync also runs here (not only in the MCP bootstrap): the
+  // early serve exists before any plugin host, and a healthy serve keeps the
+  // host from ever starting its own — this is the only reliable hook it has.
+  import("./shortcuts.js")
+    .then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort))
+    .then((r) => { if (r.updated.length) console.log(`serve: ${r.updated.length} shortcut(s) point at the early launcher`); })
+    .catch(() => undefined);
 
   await migrateLegacyVideo();
   await withTimeout(poll(runtimeConfig(), apiPort), 20_000).catch((err) =>

@@ -48,6 +48,10 @@ function bootstrapServe(): void {
 
     let hosting = false;
     const ensure = () => {
+      // Heartbeat an early-launch serve (started hidden by the shortcut
+      // wrapper before ZCode): proves this host exists so it keeps owning
+      // the session; silence on its side means plugin disabled -> it resets.
+      void fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/host-alive`, { method: "POST" }).catch(() => undefined);
       if (hosting) return;
       fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) })
         .then((r) => r.json())
