@@ -863,19 +863,39 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   // (atomic-write safe, debounced) with the 5s tick as backstop. Any visible
   // explicit false — user scope or any open workspace — stops the serve and
   // restores the default appearance.
+  //
+  // UNINSTALL is the record DISAPPEARING (no false is ever written) — and the
+  // running process keeps serving until app quit ("enabled uninstall didn't
+  // stop it"). A serve that resolved its install identity at boot now stops
+  // when that record vanishes; 3 consecutive ticks confirm (an update
+  // briefly rewrites the record and must not read as uninstall).
   const cfgPath = path.join(os.homedir(), ".zcode", "cli", "config.json");
+  const installRecordPath = path.join(os.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
+  const bootInstallId = ownPluginId();
+  let uninstallTicks = 0;
   const checkDisabled = async (): Promise<boolean> => {
     const by = pluginDisabledBy(cfgPath);
-    if (!by) return false;
-    console.log(`serve: plugin disabled in ZCode (${by.scope} :: ${by.key}) — restoring default appearance and exiting`);
-    await shutdownServe().catch(() => undefined);
-    process.exit(0);
+    if (by) {
+      console.log(`serve: plugin disabled in ZCode (${by.scope} :: ${by.key}) — restoring default appearance and exiting`);
+      await shutdownServe().catch(() => undefined);
+      process.exit(0);
+    }
+    if (bootInstallId && !ownPluginId()) {
+      if (++uninstallTicks >= 3) {
+        console.log(`serve: install record for ${bootInstallId} gone (uninstalled) — restoring default appearance and exiting`);
+        await shutdownServe().catch(() => undefined);
+        process.exit(0);
+      }
+    } else {
+      uninstallTicks = 0;
+    }
+    return false;
   };
   await checkDisabled();
 
   let disableDebounce: NodeJS.Timeout | undefined;
   const onCfgDirEvent = (_event: string, file: string | null): void => {
-    if (file !== "config.json") return;
+    if (file !== "config.json" && file !== "installed_plugins.json") return;
     clearTimeout(disableDebounce);
     disableDebounce = setTimeout(() => void checkDisabled(), 250);
   };
@@ -890,7 +910,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       /* watching unsupported/absent here — the 5s tick alone decides */
     }
   };
-  const watchedDirs = new Set<string>([path.dirname(cfgPath)]);
+  const watchedDirs = new Set<string>([path.dirname(cfgPath), path.dirname(installRecordPath)]);
   setInterval(() => {
     for (const ws of activeWorkspaceDirs()) {
       const dir = path.join(ws, ".zcode");

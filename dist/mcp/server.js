@@ -59619,17 +59619,31 @@ async function startServe(opts) {
     }, 3e4);
   }
   const cfgPath = path11.join(os2.homedir(), ".zcode", "cli", "config.json");
+  const installRecordPath = path11.join(os2.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
+  const bootInstallId = ownPluginId();
+  let uninstallTicks = 0;
   const checkDisabled = async () => {
     const by = pluginDisabledBy(cfgPath);
-    if (!by) return false;
-    console.log(`serve: plugin disabled in ZCode (${by.scope} :: ${by.key}) \u2014 restoring default appearance and exiting`);
-    await shutdownServe().catch(() => void 0);
-    process.exit(0);
+    if (by) {
+      console.log(`serve: plugin disabled in ZCode (${by.scope} :: ${by.key}) \u2014 restoring default appearance and exiting`);
+      await shutdownServe().catch(() => void 0);
+      process.exit(0);
+    }
+    if (bootInstallId && !ownPluginId()) {
+      if (++uninstallTicks >= 3) {
+        console.log(`serve: install record for ${bootInstallId} gone (uninstalled) \u2014 restoring default appearance and exiting`);
+        await shutdownServe().catch(() => void 0);
+        process.exit(0);
+      }
+    } else {
+      uninstallTicks = 0;
+    }
+    return false;
   };
   await checkDisabled();
   let disableDebounce;
   const onCfgDirEvent = (_event, file2) => {
-    if (file2 !== "config.json") return;
+    if (file2 !== "config.json" && file2 !== "installed_plugins.json") return;
     clearTimeout(disableDebounce);
     disableDebounce = setTimeout(() => void checkDisabled(), 250);
   };
@@ -59645,7 +59659,7 @@ async function startServe(opts) {
     } catch {
     }
   };
-  const watchedDirs = /* @__PURE__ */ new Set([path11.dirname(cfgPath)]);
+  const watchedDirs = /* @__PURE__ */ new Set([path11.dirname(cfgPath), path11.dirname(installRecordPath)]);
   setInterval(() => {
     for (const ws of activeWorkspaceDirs()) {
       const dir = path11.join(ws, ".zcode");
@@ -70275,7 +70289,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.4.14"
+  version: "0.4.15"
 });
 var TOOL_NAMES = [
   "set_background",
