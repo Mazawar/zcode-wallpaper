@@ -183,6 +183,28 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
 let activeServer: http.Server | undefined;
 
 /**
+ * Reads ZCode's persisted plugin-enablement. A disabled plugin spawns no
+ * hosts, and from heartbeats alone "host slow to boot" and "host will never
+ * come" are indistinguishable for minutes — the config file settles it in
+ * seconds. Unreadable/absent entries count as inconclusive (the caller falls
+ * back to its host-timeout heuristics); this is ZCode's private format,
+ * parsed best-effort and versioned by try/catch.
+ */
+export function pluginDisabledIn(cfgPath: string): boolean {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")) as {
+      plugins?: { enabledPlugins?: Record<string, boolean> };
+    };
+    const ep = cfg?.plugins?.enabledPlugins;
+    if (!ep || typeof ep !== "object") return false;
+    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
+    return keys.length > 0 && keys.every((k) => ep[k] === false);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Graceful shutdown: restore ZCode's default appearance (reset injection,
  * unregister page scripts), close held CDP sessions and the HTTP server.
  * Called by the hosting MCP process when ZCode closes its stdio pipe
@@ -707,6 +729,15 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     const { isZcodeProcessRunning } = await import("./launch.js");
     setInterval(() => {
       void (async () => {
+        // Explicit disable beats every timeout heuristic: the moment ZCode's
+        // config says this plugin is off, restore default appearance and exit
+        // (a disabled-restart via shortcut then shows nothing at all, instead
+        // of the wallpaper lingering for the no-host grace window).
+        if (pluginDisabledIn(path.join(os.homedir(), ".zcode", "cli", "config.json"))) {
+          console.log("serve: plugin disabled in ZCode — restoring default appearance and exiting");
+          await shutdownServe().catch(() => undefined);
+          process.exit(0);
+        }
         const zcode = await isZcodeProcessRunning().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
         const now = Date.now();

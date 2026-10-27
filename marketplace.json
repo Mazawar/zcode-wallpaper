@@ -5,7 +5,7 @@
     {
       "name": "zcode-wallpaper",
       "description": "Live Wallpaper Engine scene wallpapers inside ZCode: real-time WebWallGL rendering (particles / SceneScript / mouse parallax, no recording), native settings section, cross-machine .zw.zip packages, Monet dynamic theming.",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "author": "Mazawar",
       "license": "MIT",
       "source": "./",
@@ -19,5 +19,5 @@
       ]
     }
   ],
-  "version": "0.3.1"
+  "version": "0.3.2"
 }

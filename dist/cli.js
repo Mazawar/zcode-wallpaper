@@ -51869,6 +51869,7 @@ var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
   existingServePid: () => existingServePid,
+  pluginDisabledIn: () => pluginDisabledIn,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
 });
@@ -51955,6 +51956,17 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
     return stdout.trim();
   } catch {
     return "";
+  }
+}
+function pluginDisabledIn(cfgPath) {
+  try {
+    const cfg = JSON.parse(fs15.readFileSync(cfgPath, "utf8"));
+    const ep = cfg?.plugins?.enabledPlugins;
+    if (!ep || typeof ep !== "object") return false;
+    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
+    return keys.length > 0 && keys.every((k) => ep[k] === false);
+  } catch {
+    return false;
   }
 }
 async function shutdownServe() {
@@ -52380,6 +52392,11 @@ async function startServe(opts) {
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
     setInterval(() => {
       void (async () => {
+        if (pluginDisabledIn(path10.join(os2.homedir(), ".zcode", "cli", "config.json"))) {
+          console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
+          await shutdownServe().catch(() => void 0);
+          process.exit(0);
+        }
         const zcode = await isZcodeProcessRunning2().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
         const now = Date.now();
