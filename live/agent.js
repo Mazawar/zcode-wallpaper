@@ -251,6 +251,24 @@
         installed = true;
         heal();
         reg.every(heal, 5e3);
+        let pending = null;
+        let last = 0;
+        const schedule = function() {
+          const now = Date.now();
+          if (pending) return;
+          const wait = Math.max(0, 150 - (now - last));
+          pending = setTimeout(function() {
+            pending = null;
+            last = Date.now();
+            requestAnimationFrame(heal);
+          }, wait);
+        };
+        try {
+          const obs = new MutationObserver(schedule);
+          obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
+          reg.observer(obs);
+        } catch (e) {
+        }
       }
     };
   }

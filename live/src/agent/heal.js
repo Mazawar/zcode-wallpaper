@@ -45,6 +45,28 @@ export function createHeal(reg, rec) {
       installed = true;
       heal();
       reg.every(heal, 5000);
+      // Reactive pass: the 5s poll left a window where a freshly mounted
+      // route surface (opening Settings) sat OPAQUE over the wallpaper —
+      // "click settings, everything dims, then suddenly clears" was exactly
+      // that wait. Any DOM/class change schedules an immediate pass
+      // (rAF-coalesced, 150ms trailing throttle — mount animations churn).
+      let pending = null;
+      let last = 0;
+      const schedule = function () {
+        const now = Date.now();
+        if (pending) return;
+        const wait = Math.max(0, 150 - (now - last));
+        pending = setTimeout(function () {
+          pending = null;
+          last = Date.now();
+          requestAnimationFrame(heal);
+        }, wait);
+      };
+      try {
+        const obs = new MutationObserver(schedule);
+        obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
+        reg.observer(obs);
+      } catch (e) { /* the 5s poll still covers us */ }
     },
   };
 }
