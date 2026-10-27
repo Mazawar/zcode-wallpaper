@@ -11426,6 +11426,7 @@ function buildBootstrapScript(payload) {
   const videoSrc = payload.videoSrc ?? "";
   const liveSrc = payload.liveSrc ?? "";
   const apiPort = payload.apiPort ?? 28257;
+  const tspdMs = { fast: 260, normal: 600, slow: 1100 }[payload.transitionSpeed ?? "normal"] ?? 600;
   return `(function(){
   var MARKER = ${JSON.stringify(marker)};
   if (!window.__zw) window.__zw = {};
@@ -11477,7 +11478,8 @@ function buildBootstrapScript(payload) {
   }
   var VIDEO_SRC = ${JSON.stringify(videoSrc)};
   var LIVE_SRC = ${JSON.stringify(liveSrc)};
-  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : "fade")};
+  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : payload.transition ?? "fade")};
+  var TSPD = ${JSON.stringify(tspdMs)};
   if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
   S.cssText = ${JSON.stringify(payload.css)};
   S.videoSrc = VIDEO_SRC;
@@ -11624,12 +11626,37 @@ function buildBootstrapScript(payload) {
         overlay.src = overlaySrc;
         wp.appendChild(overlay);
         var faded = false;
+        // dsh's effect family: the outgoing snapshot LEAVES with the chosen
+        // effect while the freshly-loaded source sits underneath \u2014 push
+        // slides it away, wipe reveals edge-to-edge, iris opens a circle,
+        // zoom recedes; cut never mounts an overlay at all.
         var fadeOut = function () {
           if (faded) return;
           faded = true;
-          overlay.style.transition = 'opacity .6s ease';
-          overlay.style.opacity = '0';
-          setTimeout(function () { overlay.remove(); }, 660);
+          var t = TSPD + 'ms cubic-bezier(.4,0,.2,1)';
+          switch (TRANS) {
+            case 'push':
+              overlay.style.transition = 'transform ' + t;
+              overlay.style.transform = 'translateX(100%)';
+              break;
+            case 'wipe':
+              overlay.style.transition = 'clip-path ' + t;
+              overlay.style.clipPath = 'inset(0 0 0 100%)';
+              break;
+            case 'iris':
+              overlay.style.transition = 'clip-path ' + t;
+              overlay.style.clipPath = 'circle(0% at 50% 50%)';
+              break;
+            case 'zoom':
+              overlay.style.transition = 'transform ' + t + ', opacity ' + t;
+              overlay.style.transform = 'scale(1.18)';
+              overlay.style.opacity = '0';
+              break;
+            default: // fade
+              overlay.style.transition = 'opacity ' + t;
+              overlay.style.opacity = '0';
+          }
+          setTimeout(function () { overlay.remove(); }, TSPD + 80);
         };
         var onReady = function (ev) {
           if (ev.data && ev.data.zwEvent === 'ready' && cur.contentWindow === ev.source) {
@@ -55106,7 +55133,8 @@ html, body { background: transparent !important; }
     // blank/reloading/stalled engine shows a still instead of nothing.
     livePoster: visible && config2.live?.poster ? `http://127.0.0.1:${config2.apiPort}/files/${config2.live.sourceId}/${config2.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}` : void 0,
     fit: visible ? resolved : "cover",
-    transition: config2.switchTransition === "cut" ? "cut" : "fade",
+    transition: config2.switchTransition ?? "fade",
+    transitionSpeed: config2.switchTransitionSpeed ?? "normal",
     focusX,
     focusY
   };
@@ -55168,6 +55196,7 @@ var init_inject = __esm({
       posY: 50,
       layerScale: 100,
       switchTransition: "fade",
+      switchTransitionSpeed: "normal",
       rotationMinutes: 30,
       rotationOrder: "sequence"
     };
@@ -55578,7 +55607,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 26;
+  var V = 27;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -56081,7 +56110,8 @@ function buildPanelScript(apiPort) {
       var rot = q('rot'); if (rot) setSwitch(rot, !!c.rotationEnabled);
       setSeg(f, 'fit', c.fit || 'cover');
       setSeg(f, 'fps', String(c.liveFps || 30));
-      setSeg(f, 'trans', c.switchTransition === 'cut' ? 'cut' : 'fade');
+      setSeg(f, 'trans', c.switchTransition || 'fade');
+      setSeg(f, 'tspd', c.switchTransitionSpeed || 'normal');
       setSeg(f, 'rotmin', String(c.rotationMinutes || 30));
       setSeg(f, 'rotord', c.rotationOrder === 'random' ? 'random' : 'sequence');
     }).catch(function () {});
@@ -56301,8 +56331,9 @@ function buildPanelScript(apiPort) {
     libRow.appendChild(actRow);
 
     libRow.appendChild(groupLabel('\u5207\u6362\u8FC7\u573A'));
-    var rTrans = prow('\u8FC7\u573A\u52A8\u753B', '\u624B\u52A8\u70B9\u9009\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u7684\u5207\u6362\u52A8\u753B\u3002');
-    rTrans.right.appendChild(makeSeg([['fade', '\u4EA4\u53C9\u6DE1\u5165'], ['cut', '\u76F4\u63A5\u5207\u6362']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
+    var rTrans = prow('\u8FC7\u573A\u52A8\u753B', '\u5207\u6362\u65F6\u65E7\u753B\u9762\u9000\u573A\u7684\u6548\u679C\uFF08\u65B0\u753B\u9762\u5728\u4E0B\u65B9\u63A5\u66FF\uFF09\u3002');
+    rTrans.right.appendChild(makeSeg([['fade', '\u6DE1\u5165'], ['push', '\u63A8\u79FB'], ['wipe', '\u64E6\u9664'], ['iris', '\u5149\u5708'], ['zoom', '\u7F29\u653E'], ['cut', '\u76F4\u63A5']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
+    rTrans.right.appendChild(makeSeg([['fast', '\u5FEB'], ['normal', '\u6807\u51C6'], ['slow', '\u6162']], 'normal', function (v) { pushConfig({ switchTransitionSpeed: v }); }, 'tspd'));
     libRow.appendChild(rTrans.r);
 
     libRow.appendChild(groupLabel('\u81EA\u52A8\u8F6E\u64AD'));
@@ -59512,7 +59543,8 @@ function publicConfig(config2) {
     posY: config2.posY ?? 50,
     layerScale: config2.layerScale ?? 100,
     flip: config2.flip === true,
-    switchTransition: config2.switchTransition === "cut" ? "cut" : "fade",
+    switchTransition: config2.switchTransition ?? "fade",
+    switchTransitionSpeed: config2.switchTransitionSpeed ?? "normal",
     rotationEnabled: config2.rotationEnabled === true,
     rotationMinutes: config2.rotationMinutes ?? 30,
     rotationOrder: config2.rotationOrder === "random" ? "random" : "sequence",
@@ -59538,7 +59570,8 @@ function sanitize(body) {
   if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
   if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
   if (typeof body?.flip === "boolean") out.flip = body.flip;
-  if (body?.switchTransition === "cut" || body?.switchTransition === "fade") out.switchTransition = body.switchTransition;
+  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
+  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
   if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
@@ -71038,7 +71071,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.1.0"
+  version: "0.2.0"
 });
 var TOOL_NAMES = [
   "set_background",

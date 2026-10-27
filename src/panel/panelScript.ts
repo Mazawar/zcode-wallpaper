@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 26;
+  var V = 27;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -531,7 +531,8 @@ export function buildPanelScript(apiPort: number): string {
       var rot = q('rot'); if (rot) setSwitch(rot, !!c.rotationEnabled);
       setSeg(f, 'fit', c.fit || 'cover');
       setSeg(f, 'fps', String(c.liveFps || 30));
-      setSeg(f, 'trans', c.switchTransition === 'cut' ? 'cut' : 'fade');
+      setSeg(f, 'trans', c.switchTransition || 'fade');
+      setSeg(f, 'tspd', c.switchTransitionSpeed || 'normal');
       setSeg(f, 'rotmin', String(c.rotationMinutes || 30));
       setSeg(f, 'rotord', c.rotationOrder === 'random' ? 'random' : 'sequence');
     }).catch(function () {});
@@ -751,8 +752,9 @@ export function buildPanelScript(apiPort: number): string {
     libRow.appendChild(actRow);
 
     libRow.appendChild(groupLabel('切换过场'));
-    var rTrans = prow('过场动画', '手动点选与自动轮播共用的切换动画。');
-    rTrans.right.appendChild(makeSeg([['fade', '交叉淡入'], ['cut', '直接切换']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
+    var rTrans = prow('过场动画', '切换时旧画面退场的效果（新画面在下方接替）。');
+    rTrans.right.appendChild(makeSeg([['fade', '淡入'], ['push', '推移'], ['wipe', '擦除'], ['iris', '光圈'], ['zoom', '缩放'], ['cut', '直接']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
+    rTrans.right.appendChild(makeSeg([['fast', '快'], ['normal', '标准'], ['slow', '慢']], 'normal', function (v) { pushConfig({ switchTransitionSpeed: v }); }, 'tspd'));
     libRow.appendChild(rTrans.r);
 
     libRow.appendChild(groupLabel('自动轮播'));

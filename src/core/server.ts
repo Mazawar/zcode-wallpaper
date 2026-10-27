@@ -198,7 +198,8 @@ function publicConfig(config: BeautifyConfig) {
     posY: config.posY ?? 50,
     layerScale: config.layerScale ?? 100,
     flip: config.flip === true,
-    switchTransition: config.switchTransition === "cut" ? "cut" : "fade",
+    switchTransition: config.switchTransition ?? "fade",
+    switchTransitionSpeed: config.switchTransitionSpeed ?? "normal",
     rotationEnabled: config.rotationEnabled === true,
     rotationMinutes: config.rotationMinutes ?? 30,
     rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
@@ -226,7 +227,8 @@ function sanitize(body: any): Partial<BeautifyConfig> {
   if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
   if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
   if (typeof body?.flip === "boolean") out.flip = body.flip;
-  if (body?.switchTransition === "cut" || body?.switchTransition === "fade") out.switchTransition = body.switchTransition;
+  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
+  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
   // auto-rotation
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));

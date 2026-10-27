@@ -136,8 +136,9 @@ export interface InjectionPayload {
   livePoster?: string;
   /** Mute state for the native loop-video layer. */
   videoMuted?: boolean;
-  /** Wallpaper switch animation: "cut" swaps instantly, default cross-fades. */
+  /** Switch effect (dsh's family) + speed, applied to the outgoing overlay. */
   transition?: string;
+  transitionSpeed?: string;
   /** Serve API port for the injected heartbeat (lifecycle self-clean). */
   apiPort?: number;
 }
@@ -173,6 +174,7 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   const videoSrc = payload.videoSrc ?? "";
   const liveSrc = payload.liveSrc ?? "";
   const apiPort = payload.apiPort ?? 28257;
+  const tspdMs = ({ fast: 260, normal: 600, slow: 1100 } as Record<string, number>)[payload.transitionSpeed ?? "normal"] ?? 600;
   return `(function(){
   var MARKER = ${JSON.stringify(marker)};
   if (!window.__zw) window.__zw = {};
@@ -224,7 +226,8 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
   }
   var VIDEO_SRC = ${JSON.stringify(videoSrc)};
   var LIVE_SRC = ${JSON.stringify(liveSrc)};
-  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : "fade")};
+  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : payload.transition ?? "fade")};
+  var TSPD = ${JSON.stringify(tspdMs)};
   if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
   S.cssText = ${JSON.stringify(payload.css)};
   S.videoSrc = VIDEO_SRC;
@@ -371,12 +374,37 @@ export function buildBootstrapScript(payload: InjectionPayload): string {
         overlay.src = overlaySrc;
         wp.appendChild(overlay);
         var faded = false;
+        // dsh's effect family: the outgoing snapshot LEAVES with the chosen
+        // effect while the freshly-loaded source sits underneath — push
+        // slides it away, wipe reveals edge-to-edge, iris opens a circle,
+        // zoom recedes; cut never mounts an overlay at all.
         var fadeOut = function () {
           if (faded) return;
           faded = true;
-          overlay.style.transition = 'opacity .6s ease';
-          overlay.style.opacity = '0';
-          setTimeout(function () { overlay.remove(); }, 660);
+          var t = TSPD + 'ms cubic-bezier(.4,0,.2,1)';
+          switch (TRANS) {
+            case 'push':
+              overlay.style.transition = 'transform ' + t;
+              overlay.style.transform = 'translateX(100%)';
+              break;
+            case 'wipe':
+              overlay.style.transition = 'clip-path ' + t;
+              overlay.style.clipPath = 'inset(0 0 0 100%)';
+              break;
+            case 'iris':
+              overlay.style.transition = 'clip-path ' + t;
+              overlay.style.clipPath = 'circle(0% at 50% 50%)';
+              break;
+            case 'zoom':
+              overlay.style.transition = 'transform ' + t + ', opacity ' + t;
+              overlay.style.transform = 'scale(1.18)';
+              overlay.style.opacity = '0';
+              break;
+            default: // fade
+              overlay.style.transition = 'opacity ' + t;
+              overlay.style.opacity = '0';
+          }
+          setTimeout(function () { overlay.remove(); }, TSPD + 80);
         };
         var onReady = function (ev) {
           if (ev.data && ev.data.zwEvent === 'ready' && cur.contentWindow === ev.source) {

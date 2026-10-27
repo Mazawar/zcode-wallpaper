@@ -71,7 +71,11 @@ export interface BeautifyConfig {
   /** Horizontal mirror (compositor-only, no render cost). */
   flip?: boolean;
   /** Wallpaper-switch animation shared by manual picks and auto-rotation. */
-  switchTransition?: "fade" | "cut";
+  /** Wallpaper switch animation shared by manual picks and auto-rotation
+   *  (dsh's effect family: the outgoing snapshot leaves with the effect
+   *  while the new source assembles underneath). */
+  switchTransition?: "cut" | "fade" | "push" | "wipe" | "iris" | "zoom";
+  switchTransitionSpeed?: "fast" | "normal" | "slow";
   // ── auto-rotation over the wallpaper library ──
   rotationEnabled?: boolean;
   rotationMinutes?: number;
@@ -100,6 +104,7 @@ export const DEFAULT_CONFIG: BeautifyConfig = {
   posY: 50,
   layerScale: 100,
   switchTransition: "fade",
+  switchTransitionSpeed: "normal",
   rotationMinutes: 30,
   rotationOrder: "sequence",
 };
@@ -251,7 +256,8 @@ html, body { background: transparent !important; }
             .join("/")}`
         : undefined,
     fit: visible ? resolved : "cover",
-    transition: config.switchTransition === "cut" ? "cut" : "fade",
+    transition: config.switchTransition ?? "fade",
+    transitionSpeed: config.switchTransitionSpeed ?? "normal",
     focusX,
     focusY,
   };
