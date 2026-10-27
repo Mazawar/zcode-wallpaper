@@ -26,7 +26,7 @@
   var MARKER = "zcode-wallpaper-settings-v6";
   var LEGACY_IDS = ["zcode-wallpaper-settings", "zcode-wallpaper-settings-2"];
   var H2_TEXT = /^(外观|Appearance)$/;
-  var PAGE_SIZE = 16;
+  var PAGE_SIZE = 15;
 
   var timers = [];
   var observers = [];
