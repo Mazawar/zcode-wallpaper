@@ -207,6 +207,50 @@ export function pluginDisabledIn(cfgPath: string): boolean {
 }
 
 /**
+ * The workspaces ZCode currently has open — the toggle in the client writes
+ * workspace-scoped disables into `<workspace>/.zcode/config.json`, and the
+ * user-scoped file alone then reads "enabled" (the 0.4.2 ghost: plugin off,
+ * relaunch, wallpaper came back for the no-host grace window). Open
+ * workspaces are not exposed anywhere official; every distinct
+ * "workspaceKey" in ZCode's log names them — ALL of them, not the newest:
+ * several windows can be open at once (observed: two workspaces logging
+ * interleaved) and the newest line's workspace is not necessarily the one
+ * carrying the disable. Private format again — best-effort, tail-only read.
+ */
+export function activeWorkspaceDirs(): string[] {
+  try {
+    const logDir = path.join(os.homedir(), ".zcode", "cli", "log");
+    const files = fs.readdirSync(logDir).filter((f) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).sort();
+    if (!files.length) return [];
+    const file = path.join(logDir, files[files.length - 1]);
+    const stat = fs.statSync(file);
+    const tail = Math.min(stat.size, 256 * 1024);
+    const fd = fs.openSync(file, "r");
+    const buf = Buffer.alloc(tail);
+    fs.readSync(fd, buf, 0, tail, stat.size - tail);
+    fs.closeSync(fd);
+    const out = new Set<string>();
+    for (const m of buf.toString("utf8").matchAll(/"workspaceKey":"((?:[^"\\]|\\.)*)"/g)) {
+      out.add(JSON.parse(`"${m[1]}"`) as string);
+    }
+    return [...out];
+  } catch {
+    return [];
+  }
+}
+
+/** Disabled in EVERY scope we can see: ZCode resolves plugin enablement per
+ *  workspace (plugin MCPs are workspace-isolated — a host spawns for each
+ *  workspace where the plugin is on), so the serve must stop only when no
+ *  open workspace wants it. A workspace with no entry defaults to enabled;
+ *  the user-level entry decides only when no open workspace is visible. */
+export function pluginDisabledAnywhere(userCfgPath: string): boolean {
+  const workspaces = activeWorkspaceDirs();
+  if (!workspaces.length) return pluginDisabledIn(userCfgPath);
+  return workspaces.every((ws) => pluginDisabledIn(path.join(ws, ".zcode", "config.json")));
+}
+
+/**
  * Graceful shutdown: restore ZCode's default appearance (reset injection,
  * unregister page scripts), close held CDP sessions and the HTTP server.
  * Called by the hosting MCP process when ZCode closes its stdio pipe
@@ -772,39 +816,54 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     const cfgPath = path.join(os.homedir(), ".zcode", "cli", "config.json");
 
     // Explicit disable beats every timeout heuristic: the moment ZCode's
-    // config says this plugin is off, restore default appearance and exit
-    // (a disabled-restart via shortcut then shows nothing at all, instead
-    // of the wallpaper lingering for the no-host grace window).
+    // config says this plugin is off — at USER scope OR in the workspace the
+    // client writes workspace-scoped toggles to — restore default appearance
+    // and exit. Checked once IMMEDIATELY at boot so a disabled plugin never
+    // paints so much as a ghost frame.
     const checkDisabled = async (): Promise<boolean> => {
-      if (!pluginDisabledIn(cfgPath)) return false;
+      if (!pluginDisabledAnywhere(cfgPath)) return false;
       console.log("serve: plugin disabled in ZCode — restoring default appearance and exiting");
       await shutdownServe().catch(() => undefined);
       process.exit(0);
     };
+    await checkDisabled();
 
     // Event-driven enablement watch: settle a disable the MOMENT ZCode
     // persists it instead of waiting out the 5s tick. Watch the DIRECTORY,
     // not the file — an atomic write (temp file + rename) invalidates a
     // file-level handle, while the directory watch survives replacements —
     // then debounce: change events can fire before the write completes.
-    // The 5s tick stays as the backstop (watchers can silently miss).
+    // The user config dir is watched once; every discovered workspace's
+    // .zcode dir is watched, re-derived each tick (new workspaces re-arm).
+    // The 5s tick itself stays as the backstop.
     let disableDebounce: NodeJS.Timeout | undefined;
-    try {
-      const watcher = fs.watch(path.dirname(cfgPath), (event, file) => {
-        if (file !== path.basename(cfgPath)) return;
-        clearTimeout(disableDebounce);
-        disableDebounce = setTimeout(() => void checkDisabled(), 250);
-      });
-      watcher.on("error", () => {
-        /* watcher died — the 5s tick still covers us */
-        try { watcher.close(); } catch { /* already closed */ }
-      });
-    } catch {
-      /* watching unsupported here — the 5s tick alone decides */
-    }
+    const onCfgDirEvent = (_event: string, file: string | null): void => {
+      if (file !== "config.json") return;
+      clearTimeout(disableDebounce);
+      disableDebounce = setTimeout(() => void checkDisabled(), 250);
+    };
+    const armWatch = (dir: string): void => {
+      try {
+        const w = fs.watch(dir, onCfgDirEvent);
+        w.on("error", () => {
+          /* watcher died (dir removed?) — the 5s tick still covers us */
+          try { w.close(); } catch { /* already closed */ }
+        });
+      } catch {
+        /* watching unsupported/absent here — the 5s tick alone decides */
+      }
+    };
+    const watchedDirs = new Set<string>([path.dirname(cfgPath)]);
 
     setInterval(() => {
       void (async () => {
+        for (const ws of activeWorkspaceDirs()) {
+          const dir = path.join(ws, ".zcode");
+          if (!watchedDirs.has(dir)) {
+            watchedDirs.add(dir);
+            armWatch(dir);
+          }
+        }
         if (await checkDisabled()) return;
         const zcode = await isZcodeProcessRunning().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();

@@ -59008,7 +59008,9 @@ var init_shortcuts = __esm({
 var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
+  activeWorkspaceDirs: () => activeWorkspaceDirs,
   existingServePid: () => existingServePid,
+  pluginDisabledAnywhere: () => pluginDisabledAnywhere,
   pluginDisabledIn: () => pluginDisabledIn,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
@@ -59108,6 +59110,32 @@ function pluginDisabledIn(cfgPath) {
   } catch {
     return false;
   }
+}
+function activeWorkspaceDirs() {
+  try {
+    const logDir = path11.join(os2.homedir(), ".zcode", "cli", "log");
+    const files = fs16.readdirSync(logDir).filter((f2) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f2)).sort();
+    if (!files.length) return [];
+    const file2 = path11.join(logDir, files[files.length - 1]);
+    const stat = fs16.statSync(file2);
+    const tail = Math.min(stat.size, 256 * 1024);
+    const fd = fs16.openSync(file2, "r");
+    const buf = Buffer.alloc(tail);
+    fs16.readSync(fd, buf, 0, tail, stat.size - tail);
+    fs16.closeSync(fd);
+    const out = /* @__PURE__ */ new Set();
+    for (const m of buf.toString("utf8").matchAll(/"workspaceKey":"((?:[^"\\]|\\.)*)"/g)) {
+      out.add(JSON.parse(`"${m[1]}"`));
+    }
+    return [...out];
+  } catch {
+    return [];
+  }
+}
+function pluginDisabledAnywhere(userCfgPath) {
+  const workspaces = activeWorkspaceDirs();
+  if (!workspaces.length) return pluginDisabledIn(userCfgPath);
+  return workspaces.every((ws) => pluginDisabledIn(path11.join(ws, ".zcode", "config.json")));
 }
 async function shutdownServe() {
   await shutdownSessions();
@@ -59559,28 +59587,40 @@ async function startServe(opts) {
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
     const cfgPath = path11.join(os2.homedir(), ".zcode", "cli", "config.json");
     const checkDisabled = async () => {
-      if (!pluginDisabledIn(cfgPath)) return false;
+      if (!pluginDisabledAnywhere(cfgPath)) return false;
       console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
       await shutdownServe().catch(() => void 0);
       process.exit(0);
     };
+    await checkDisabled();
     let disableDebounce;
-    try {
-      const watcher = fs16.watch(path11.dirname(cfgPath), (event, file2) => {
-        if (file2 !== path11.basename(cfgPath)) return;
-        clearTimeout(disableDebounce);
-        disableDebounce = setTimeout(() => void checkDisabled(), 250);
-      });
-      watcher.on("error", () => {
-        try {
-          watcher.close();
-        } catch {
-        }
-      });
-    } catch {
-    }
+    const onCfgDirEvent = (_event, file2) => {
+      if (file2 !== "config.json") return;
+      clearTimeout(disableDebounce);
+      disableDebounce = setTimeout(() => void checkDisabled(), 250);
+    };
+    const armWatch = (dir) => {
+      try {
+        const w = fs16.watch(dir, onCfgDirEvent);
+        w.on("error", () => {
+          try {
+            w.close();
+          } catch {
+          }
+        });
+      } catch {
+      }
+    };
+    const watchedDirs = /* @__PURE__ */ new Set([path11.dirname(cfgPath)]);
     setInterval(() => {
       void (async () => {
+        for (const ws of activeWorkspaceDirs()) {
+          const dir = path11.join(ws, ".zcode");
+          if (!watchedDirs.has(dir)) {
+            watchedDirs.add(dir);
+            armWatch(dir);
+          }
+        }
         if (await checkDisabled()) return;
         const zcode = await isZcodeProcessRunning2().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
@@ -70193,7 +70233,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.4.3"
+  version: "0.4.4"
 });
 var TOOL_NAMES = [
   "set_background",
