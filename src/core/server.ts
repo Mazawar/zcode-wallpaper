@@ -160,27 +160,55 @@ const IMAGE_EXT: Record<string, string> = {
 };
 
 /**
- * Native wallpaper file picker, shown from the serve process via PowerShell
- * WinForms (STA + a topmost owner form so it surfaces above ZCode). The
- * panel is a web page and cannot read absolute paths from <input type=file>,
- * so the dialog has to live in this local process. Resolves "" on cancel.
+ * Native wallpaper file picker, shown from the serve process (the panel is a
+ * web page and cannot read absolute paths from <input type=file>, so the
+ * dialog has to live in this local process). Resolves "" on cancel or when
+ * no dialog backend exists — the browser file chooser remains the fallback.
  */
 async function pickFileViaDialog(): Promise<string> {
-  if (process.platform !== "win32") return "";
-  const script = `
+  const title = "选择 Wallpaper Engine 壁纸（场景目录 / .pkg / 视频文件 / .zw.zip 资源包）";
+  if (process.platform === "win32") {
+    const script = `
 Add-Type -AssemblyName System.Windows.Forms
 $owner = New-Object System.Windows.Forms.Form
 $owner.TopMost = $true
 $d = New-Object System.Windows.Forms.OpenFileDialog
-$d.Title = '选择 Wallpaper Engine 壁纸（场景目录 / .pkg / 视频文件 / .zw.zip 资源包）'
+$d.Title = '${title}'
 $d.Filter = '壁纸 (project.json;*.pkg;*.mp4;*.webm;*.zip)|project.json;*.pkg;*.mp4;*.webm;*.zip|所有文件 (*.*)|*.*'
 if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.FileName }`;
-  try {
-    const { stdout } = await promisify(execFile)("powershell", ["-STA", "-NoProfile", "-Command", script], { timeout: 300_000, windowsHide: true });
-    return stdout.trim();
-  } catch {
-    return "";
+    try {
+      const { stdout } = await promisify(execFile)("powershell", ["-STA", "-NoProfile", "-Command", script], { timeout: 300_000, windowsHide: true });
+      return stdout.trim();
+    } catch {
+      return "";
+    }
   }
+  if (process.platform === "darwin") {
+    try {
+      const { stdout } = await promisify(execFile)(
+        "osascript",
+        ["-e", `POSIX path of (choose file with prompt "${title.replace(/"/g, '\\"')}")`],
+        { timeout: 300_000 }
+      );
+      return stdout.trim();
+    } catch {
+      return ""; // user cancelled / osascript unavailable
+    }
+  }
+  // linux: try zenity, then kdialog
+  for (const [cmd, args] of [
+    ["zenity", ["--file-selection", "--title", title]],
+    ["kdialog", ["--getopenfilename", ".", "application/octet-stream", title]],
+  ] as const) {
+    try {
+      const { stdout } = await promisify(execFile)(cmd, [...args], { timeout: 300_000 });
+      const p = stdout.trim();
+      if (p) return p;
+    } catch {
+      /* backend missing or cancelled — try the next */
+    }
+  }
+  return "";
 }
 
 let activeServer: http.Server | undefined;

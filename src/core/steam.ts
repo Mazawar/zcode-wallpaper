@@ -60,10 +60,22 @@ async function regQuery(key: string, value: string): Promise<string | undefined>
   }
 }
 
-const COMMON_STEAM_DIRS = [
-  path.join("C:", "Program Files (x86)", "Steam"),
-  path.join("C:", "Program Files", "Steam"),
-];
+/** Steam install roots worth probing per platform (besides registry/env). */
+export function commonSteamDirs(platform: NodeJS.Platform, home: string): string[] {
+  if (platform === "win32") {
+    return [path.join("C:", "Program Files (x86)", "Steam"), path.join("C:", "Program Files", "Steam")];
+  }
+  if (platform === "darwin") {
+    return [path.join(home, "Library", "Application Support", "Steam")];
+  }
+  // Linux: ~/.steam/steam and ~/.steam/root are the standard symlinks created
+  // by Steam itself; ~/.local/share/Steam is the flatpak/default data dir.
+  return [
+    path.join(home, ".steam", "steam"),
+    path.join(home, ".local", "share", "Steam"),
+    path.join(home, ".steam", "root"),
+  ];
+}
 
 /** Case-folded key for Windows path comparisons (registry may return d:\steam, vdf D:\Steam). */
 function pathKey(p: string): string {
@@ -89,7 +101,7 @@ export async function findSteamRoots(): Promise<string[]> {
   push(process.env.ZW_STEAM_ROOT);
   push(await regQuery("HKCU\\Software\\Valve\\Steam", "SteamPath"));
   push(await regQuery("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"));
-  for (const d of COMMON_STEAM_DIRS) push(d);
+  for (const d of commonSteamDirs(process.platform, os.homedir())) push(d);
   return roots;
 }
 
