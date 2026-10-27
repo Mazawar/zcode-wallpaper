@@ -459,8 +459,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path8, errorMaps, issueData } = params;
-      const fullPath = [...path8, ...issueData.path || []];
+      const { data, path: path11, errorMaps, issueData } = params;
+      const fullPath = [...path11, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -768,11 +768,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path8, key) {
+      constructor(parent, value, path11, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path8;
+        this._path = path11;
         this._key = key;
       }
       get path() {
@@ -7374,8 +7374,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path8) {
-      let input = path8;
+    function removeDotSegments(path11) {
+      let input = path11;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -7449,11 +7449,11 @@ var require_utils = __commonJS({
       }
       return output.join("");
     }
-    function removeDotSegmentsRelative(path8) {
-      if (path8 === "" || path8[0] === "/") {
-        return removeDotSegments(path8);
+    function removeDotSegmentsRelative(path11) {
+      if (path11 === "" || path11[0] === "/") {
+        return removeDotSegments(path11);
       }
-      const segments = path8.split("/");
+      const segments = path11.split("/");
       const last = segments.length - 1;
       const output = [];
       let trailingDirectory = false;
@@ -7816,8 +7816,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path8 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path8 && path8 !== "/" ? path8 : void 0;
+        const path11 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path11 && path11 !== "/" ? path11 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -11354,12 +11354,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f2;
     };
-    function addFormats(ajv, list, fs11, exportName) {
+    function addFormats(ajv, list, fs16, exportName) {
       var _a;
       var _b;
       (_a = (_b = ajv.opts.code).formats) !== null && _a !== void 0 ? _a : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f2 of list)
-        ajv.addFormat(f2, fs11[f2]);
+        ajv.addFormat(f2, fs16[f2]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -11377,17 +11377,53 @@ var init_zod = __esm({
   }
 });
 
+// src/core/paths.ts
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+function liveDir() {
+  return path.join(pluginRoot, "live");
+}
+function engineFile() {
+  const candidates = [
+    process.env.ZW_ENGINE_FILE,
+    path.join(pluginRoot, "vendor", "webwallgl.global.min.js"),
+    path.join(pluginRoot, "node_modules", "webwallgl", "webwallgl.global.min.js")
+  ].filter(Boolean);
+  return candidates.find((p2) => fs.existsSync(p2));
+}
+var pluginRoot;
+var init_paths = __esm({
+  "src/core/paths.ts"() {
+    "use strict";
+    pluginRoot = (() => {
+      let dir = path.dirname(fileURLToPath(import.meta.url));
+      for (let i2 = 0; i2 < 4; i2++) {
+        if (fs.existsSync(path.join(dir, ".zcode-plugin")) || fs.existsSync(path.join(dir, "live"))) return dir;
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+      return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+    })();
+  }
+});
+
 // src/core/cdp.ts
 var cdp_exports = {};
 __export(cdp_exports, {
   CdpConnection: () => CdpConnection,
   CdpError: () => CdpError,
-  buildBootstrapScript: () => buildBootstrapScript,
+  buildClearWallpaperScript: () => buildClearWallpaperScript,
+  buildPanelLoader: () => buildPanelLoader,
   buildResetScript: () => buildResetScript,
+  buildThinBootstrap: () => buildThinBootstrap,
   injectIntoTarget: () => injectIntoTarget,
   listTargets: () => listTargets,
-  pickRendererTargets: () => pickRendererTargets
+  pickRendererTargets: () => pickRendererTargets,
+  readAgentCode: () => readAgentCode
 });
+import fs2 from "node:fs";
 async function listTargets(port, host = "127.0.0.1") {
   let res;
   try {
@@ -11405,87 +11441,27 @@ function pickRendererTargets(targets) {
   );
   return main.length > 0 ? main : pages.filter((t2) => !t2.url.includes("devtools://"));
 }
-async function injectIntoTarget(target, payload) {
-  const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
-  try {
-    await conn.send("Page.enable");
-    await conn.send("Runtime.enable");
-    await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => void 0);
-    const bootstrap = buildBootstrapScript(payload);
-    await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap });
-    await conn.send("Runtime.evaluate", {
-      expression: bootstrap,
-      returnByValue: true
-    });
-  } finally {
-    conn.close();
-  }
-}
-function buildBootstrapScript(payload) {
-  const marker = payload.marker ?? "zcode-wallpaper";
-  const videoSrc = payload.videoSrc ?? "";
-  const liveSrc = payload.liveSrc ?? "";
-  const apiPort = payload.apiPort ?? 28257;
-  const tspdMs = { fast: 260, normal: 600, slow: 1100 }[payload.transitionSpeed ?? "normal"] ?? 600;
-  return `(function(){
-  var MARKER = ${JSON.stringify(marker)};
+function buildThinBootstrap(payload, opts) {
+  const api = `http://127.0.0.1:${opts.apiPort}`;
+  const loader = "src" in opts.agent ? `var s = document.createElement('script');
+  s.id = MARKER + '-agent';
+  s.src = ${JSON.stringify(opts.agent.src)};
+  s.async = true;
+  (document.head || document.documentElement).appendChild(s);` : `try { ${opts.agent.code} } catch (e) {}`;
+  return `(function () {
+  var MARKER = 'zcode-wallpaper';
+  var GEN = ${JSON.stringify(opts.gen)};
+  var API = ${JSON.stringify(api)};
   if (!window.__zw) window.__zw = {};
   var S = window.__zw;
+  // Supersession: when a NEWER registration has already run on this page, an
+  // older replay (stale serve generation) stands down instead of fighting it.
+  if (typeof S.bootGen === 'number' && S.bootGen > GEN) return;
+  S.bootGen = GEN;
 
-  // Flight recorder: layer lifecycle, visibility, engine messages, heartbeat
-  // verdicts \u2014 a ring buffer read after an incident instead of guessing.
-  if (!window.__zwRec) {
-    window.__zwLog = [];
-    window.__zwRec = function (tag, d) {
-      try {
-        window.__zwLog.push({ t: new Date().toISOString().slice(11, 23), tag: tag, d: d === undefined ? '' : String(d).slice(0, 160) });
-        if (window.__zwLog.length > 800) window.__zwLog.shift();
-      } catch (e) {}
-    };
-    try {
-      new MutationObserver(function (muts) {
-        muts.forEach(function (mu) {
-          if (mu.removedNodes) Array.prototype.forEach.call(mu.removedNodes, function (n) {
-            if (n.id && String(n.id).indexOf(MARKER) === 0) window.__zwRec('REMOVE', n.id + ' @ ' + (mu.target.id || mu.target.tagName));
-          });
-          if (mu.addedNodes) Array.prototype.forEach.call(mu.addedNodes, function (n) {
-            if (n.id && String(n.id).indexOf(MARKER) === 0) window.__zwRec('ADD', n.id);
-          });
-          if (mu.type === 'attributes' && mu.target.id && String(mu.target.id).indexOf(MARKER) === 0) window.__zwRec('ATTR', mu.target.id + '.' + mu.attributeName);
-        });
-      }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'src'] });
-      document.addEventListener('visibilitychange', function () { window.__zwRec('VIS', document.hidden ? 'hidden' : 'visible'); });
-      window.addEventListener('message', function (ev) {
-        if (!ev.data || !ev.data.zwEvent) return;
-        var d = ev.data;
-        if (d.zwEvent === 'hb2') {
-          window.__zwRec('ENGINE', 'fps=' + d.fps + ' paused=' + d.paused + ' poster=' + d.poster);
-        } else {
-          window.__zwRec('MSG', d.zwEvent + (d.message ? ' ' + String(d.message).slice(0, 80) : ''));
-        }
-      });
-      // Periodic state snapshot: silent changes (css rewrites, style attr
-      // churn) leave no mutation trail \u2014 poll the invariants.
-      setInterval(function () {
-        var st = document.getElementById(MARKER + '-style');
-        var lv = document.getElementById(MARKER + '-live');
-        var bd = document.getElementById(MARKER + '-backdrop');
-        window.__zwRec('SNAP', 'css=' + (st ? st.textContent.length : 0) + ' live=' + (lv ? getComputedStyle(lv).opacity : '-') + ' bd=' + (bd ? bd.dataset.on : '-'));
-      }, 3000);
-      window.addEventListener('error', function (e) { window.__zwRec('PAGEERR', (e.message || '') + ' @' + (e.lineno || 0)); });
-    } catch (e2) { /* recorder must never break the bootstrap */ }
-    window.__zwRec('BOOT', 'bootstrap v' + ${JSON.stringify(payload.transition ?? "fade")} + ' installed');
-  }
-  var VIDEO_SRC = ${JSON.stringify(videoSrc)};
-  var LIVE_SRC = ${JSON.stringify(liveSrc)};
-  var TRANS = ${JSON.stringify(payload.transition === "cut" ? "cut" : payload.transition ?? "fade")};
-  var TSPD = ${JSON.stringify(tspdMs)};
-  if (S.cssText === ${JSON.stringify(payload.css)} && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
-  S.cssText = ${JSON.stringify(payload.css)};
-  S.videoSrc = VIDEO_SRC;
-  S.liveSrc = LIVE_SRC;
-  S.trans = TRANS;
-
+  // Critical CSS first \u2014 synchronous, pre-paint: without the transparency
+  // overrides the app's opaque surfaces cover the wallpaper for a moment on
+  // every reload. This is the one part that cannot wait for a network fetch.
   var style = document.getElementById(MARKER + '-style');
   if (!style) {
     style = document.createElement('style');
@@ -11494,486 +11470,33 @@ function buildBootstrapScript(payload) {
   }
   style.textContent = ${JSON.stringify(payload.css)};
 
-  var wp = document.getElementById(MARKER + '-wallpaper');
-  if (${JSON.stringify(Boolean(payload.wallpaperDataUri))} || VIDEO_SRC || LIVE_SRC) {
-    if (!wp) {
-      wp = document.createElement('div');
-      wp.id = MARKER + '-wallpaper';
-      document.documentElement.appendChild(wp);
-    }
-  } else if (wp) {
-    wp.remove();
-  }
+  // Head start for the runtime (full payload, embedded). The SSE stream
+  // corrects within milliseconds; the runtime applies this immediately, so a
+  // fresh page shows the right wallpaper without a round trip.
+  window.__zwApiBase = API;
+  window.__zwPayload = ${JSON.stringify(payload)};
 
-  // --- live renderer iframe (WebWallGL) ---------------------------------
-  function queryOf(u) {
-    var out = {};
-    try {
-      var q = new URL(u, location.href).searchParams;
-      ['type', 'src', 'file', 'fit', 'fps', 'muted', 'poster'].forEach(function (k) { out[k] = q.get(k) || ''; });
-    } catch (e) { /* bad url */ }
-    return out;
-  }
-  function liveFrames() {
-    return Array.prototype.slice.call(document.querySelectorAll('#' + MARKER + '-live, #' + MARKER + '-live-next'));
-  }
-  function postAllFrames(msg) {
-    liveFrames().forEach(function (f) {
-      try { f.contentWindow.postMessage(msg, '*'); } catch (e) { /* mid-swap */ }
-    });
-  }
-  /** Promotes a pending transition iframe to be THE live frame immediately. */
-  function promoteNext() {
-    var cur = document.getElementById(MARKER + '-live');
-    var next = document.getElementById(MARKER + '-live-next');
-    if (!next) return;
-    if (cur) cur.remove();
-    next.id = MARKER + '-live';
-    next.style.transition = 'none';
-    next.style.opacity = '1';
-    if (S.tr) { clearTimeout(S.tr.timer); window.removeEventListener('message', S.tr.onMsg); S.tr = null; }
-  }
-  function makeFrame(id, src, extraCss) {
-    var f = document.createElement('iframe');
-    f.id = id;
-    f.setAttribute('allow', 'autoplay');
-    f.setAttribute('referrerpolicy', 'no-referrer');
-    f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;background:transparent;' + (extraCss || '');
-    f.setAttribute('src', src);
-    return f;
-  }
-  function applyLive(src) {
-    // A rapid switch during an in-flight transition: jump to its end first.
-    if (document.getElementById(MARKER + '-live-next')) promoteNext();
-    var cur = document.getElementById(MARKER + '-live');
-    if (!src) {
-      // No live layer wanted (switching to a video/image): fade the engine
-      // out instead of dropping it on the spot. When a VIDEO is incoming,
-      // hold the old visual until the preplay has committed (3s cap) \u2014
-      // fading out early leaves a dark gap while the video assembles.
-      var holdMs = VIDEO_SRC ? 3000 : 0;
-      liveFrames().forEach(function (f) {
-        var fo = f;
-        setTimeout(function () {
-          fo.style.transition = 'opacity .6s ease';
-          fo.style.opacity = '0';
-          setTimeout(function () { fo.remove(); }, 660);
-        }, holdMs);
-      });
-      S.appliedLive = null;
-      return;
-    }
-    if (!cur) {
-      // "cut" transitions swap with no animation at all.
-      if (TRANS === 'cut') {
-        var c0 = makeFrame(MARKER + '-live', src, 'opacity:1;');
-        wp.appendChild(c0);
-        S.appliedLive = src;
-        bindLiveBridge();
-        return;
-      }
-      // First mount (page load, heartbeat self-clean, plugin re-enable):
-      // fade in from the app's own background instead of popping in.
-      var first = makeFrame(MARKER + '-live', src, 'opacity:0;transition:opacity .6s ease;');
-      wp.appendChild(first);
-      S.appliedLive = src;
-      bindLiveBridge();
-      var settled = false;
-      var onFirstReady = function (ev) {
-        if (ev.data && ev.data.zwEvent === 'ready' && first.contentWindow === ev.source) {
-          settled = true;
-          first.style.opacity = '1';
-          window.removeEventListener('message', onFirstReady);
-          clearTimeout(firstTimer);
-        }
-      };
-      window.addEventListener('message', onFirstReady);
-      var firstTimer = setTimeout(function () {
-        if (!settled) { first.style.opacity = '1'; window.removeEventListener('message', onFirstReady); }
-      }, 10000);
-      return;
-    }
-    // Compare against the LAST APPLIED url, not the frame's src attribute:
-    // hot-updates never rewrite the attribute (that would navigate/reload),
-    // so attribute comparison makes the second toggle of a param (e.g. mute
-    // -> unmute -> mute) a silent no-op \u2014 the volume command never ships.
-    var applied = S.appliedLive || cur.getAttribute('src') || '';
-    if (applied === src) { bindLiveBridge(); return; }
-    var a = queryOf(applied);
-    var b = queryOf(src);
-    if (a.src && a.src === b.src && a.type === b.type) {
-      // Same wallpaper, only fit/fps/muted changed: hot-update via postMessage.
-      // (Setting src would reload the iframe and flash.)
-      postAllFrames({ zw: 'cfg', fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === '0' ? 1 : 0 });
-      S.appliedLive = src;
-      bindLiveBridge();
-      return;
-    }
-    // Same-kind switch: IN-PLACE LOAD on the existing frame (dsh's
-    // setWallpaper). The engine reuses its WebGL context \u2014 remounting for
-    // every switch churned destroy/create cycles that lost contexts under
-    // GPU pressure (rapid switching + 4K decode) and blanked the canvas.
-    // A snapshot of the old frame covers the assembly gap; it fades out on
-    // the renderer's ready signal.
-    var oldOverlay = document.getElementById(MARKER + '-fade');
-    if (oldOverlay) oldOverlay.remove();
-    var doLoad = function (overlaySrc) {
-      var overlay = null;
-      if (overlaySrc) {
-        overlay = document.createElement('img');
-        overlay.id = MARKER + '-fade';
-        overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;';
-        overlay.src = overlaySrc;
-        wp.appendChild(overlay);
-        var faded = false;
-        // dsh's effect family: the outgoing snapshot LEAVES with the chosen
-        // effect while the freshly-loaded source sits underneath \u2014 push
-        // slides it away, wipe reveals edge-to-edge, iris opens a circle,
-        // zoom recedes; cut never mounts an overlay at all.
-        var fadeOut = function () {
-          if (faded) return;
-          faded = true;
-          var t = TSPD + 'ms cubic-bezier(.4,0,.2,1)';
-          switch (TRANS) {
-            case 'push':
-              overlay.style.transition = 'transform ' + t;
-              overlay.style.transform = 'translateX(100%)';
-              break;
-            case 'wipe':
-              overlay.style.transition = 'clip-path ' + t;
-              overlay.style.clipPath = 'inset(0 0 0 100%)';
-              break;
-            case 'iris':
-              overlay.style.transition = 'clip-path ' + t;
-              overlay.style.clipPath = 'circle(0% at 50% 50%)';
-              break;
-            case 'zoom':
-              overlay.style.transition = 'transform ' + t + ', opacity ' + t;
-              overlay.style.transform = 'scale(1.18)';
-              overlay.style.opacity = '0';
-              break;
-            default: // fade
-              overlay.style.transition = 'opacity ' + t;
-              overlay.style.opacity = '0';
-          }
-          setTimeout(function () { overlay.remove(); }, TSPD + 80);
-        };
-        var onReady = function (ev) {
-          if (ev.data && ev.data.zwEvent === 'ready' && cur.contentWindow === ev.source) {
-            fadeOut();
-            window.removeEventListener('message', onReady);
-          }
-        };
-        window.addEventListener('message', onReady);
-        setTimeout(fadeOut, 10000); // engine never signaled: uncover anyway
-      }
-      try {
-        cur.contentWindow.postMessage({ zw: 'load', type: b.type, src: b.src, file: b.file || '', fit: b.fit, fps: Number(b.fps) || 30, muted: b.muted, poster: b.poster || '' }, '*');
-      } catch (e) {
-        /* frame gone \u2014 the watchdogs remount */
-      }
-      S.appliedLive = src;
-      bindLiveBridge();
-    };
-    if (TRANS === 'cut') {
-      doLoad('');
-      return;
-    }
-    // Poster fallback: even when the snapshot times out (jpeg-encoding a
-    // 1080p canvas can take >250ms), the NEW wallpaper's poster covers the
-    // assembly \u2014 a switch must never show a bare clearing canvas.
-    var posterAbs = b.poster ? ('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + b.poster) : '';
-    var snapped = false;
-    var onSnap = function (ev) {
-      if (snapped || !ev.data || ev.data.zwEvent !== 'snap' || !cur.contentWindow || ev.source !== cur.contentWindow) return;
-      snapped = true;
-      window.removeEventListener('message', onSnap);
-      clearTimeout(snapTimer);
-      doLoad(ev.data.dataUrl || posterAbs);
-    };
-    var snapTimer = setTimeout(function () {
-      if (snapped) return;
-      snapped = true;
-      window.removeEventListener('message', onSnap);
-      doLoad(posterAbs); // no snapshot in time \u2014 the poster still covers
-    }, 700);
-    window.addEventListener('message', onSnap);
-    try {
-      cur.contentWindow.postMessage({ zw: 'snapshot' }, '*');
-    } catch (e) {
-      clearTimeout(snapTimer);
-      window.removeEventListener('message', onSnap);
-      doLoad(posterAbs);
-    }
-  }
-  applyLive(LIVE_SRC);
-
-  // --- auto-heal opaque surfaces (Zgd03 model) -----------------------------
-  // ZCode updates rename internal classes; our copied-class overrides then
-  // miss and opaque cards cover the wallpaper (the recurring bare-css bug
-  // class). Version-proof DOM-level fallback: scan bg-background surfaces,
-  // force-translucent any opaque one covering >=30% of the viewport (skips
-  // dialogs/menus/popovers), mark with an attr, recycle marks when layouts
-  // change, and report additions to the flight recorder.
-  if (!S.autoHeal) {
-    S.autoHeal = true;
-    var WP_AUTO = "data-zw-auto";
-    var wpHeal = function () {
-      try {
-        var vp = window.innerWidth * window.innerHeight;
-        var nodes = document.querySelectorAll("[class*=bg-background]");
-        var keep = [];
-        for (var i = 0; i < nodes.length; i++) {
-          var n = nodes[i];
-          if (n.closest("[role=dialog],[role=menu],[role=listbox],[data-radix-popper-content-wrapper]")) continue;
-          var r = n.getBoundingClientRect();
-          if (r.width * r.height < vp * 0.3) continue;
-          var bg = getComputedStyle(n).backgroundColor;
-          var opaque = !(bg === "transparent" || bg === "rgba(0, 0, 0, 0)");
-          if (!n.hasAttribute(WP_AUTO) && !opaque) continue;
-          keep.push(n);
-        }
-        var marked = document.querySelectorAll("[" + WP_AUTO + "]");
-        for (var m = 0; m < marked.length; m++) {
-          if (keep.indexOf(marked[m]) === -1) marked[m].removeAttribute(WP_AUTO);
-        }
-        var added = 0;
-        for (var k = 0; k < keep.length; k++) {
-          if (!keep[k].hasAttribute(WP_AUTO)) { keep[k].setAttribute(WP_AUTO, ""); added++; }
-          keep[k].style.setProperty("background-color", "var(--color-background)", "important");
-        }
-        if (added > 0) window.__zwRec && window.__zwRec("AUTOHEAL", added + " surface(s)");
-      } catch (e) { /* never break the bootstrap */ }
-    };
-    wpHeal();
-    setInterval(wpHeal, 5000);
-  }
-
-  // --- loop video layer (dsh's model: a native <video> in the host page) ----
-  // Videos never enter the WebGL engine: engine pause clears the WebCodecs
-  // canvas and its scheduler fast-forwards on wake. A native element pauses
-  // on its last frame and preplays OFFSCREEN (dsh's prepareVideoProbe): the
-  // new video reaches canplay while detached, then commits already playing \u2014
-  // on screen it is a live picture immediately, no reload gap, no burst.
-  var vid = document.getElementById(MARKER + '-video');
-  var VMUTED = ${JSON.stringify(payload.videoMuted !== false)};
-  var VFIT = ${JSON.stringify(payload.fit === "contain" ? "contain" : payload.fit === "stretch" ? "fill" : "cover")};
-  if (VIDEO_SRC) {
-    wp.style.backgroundImage = 'none';
-    if (vid && vid.getAttribute('src') === VIDEO_SRC) {
-      // Self-heal: an element that errored once (e.g. its fetch hit a serve
-      // restart mid-boot) stays dead forever unless load() restarts it.
-      if (vid.error) { vid.load(); }
-      vid.muted = VMUTED; // hot-update: same video, muted/fit tweak
-      vid.style.objectFit = VFIT;
-      vid.play().catch(function() {});
-    } else if (S.videoPrepSrc === VIDEO_SRC) {
-      // A preplay for this exact video is already in flight \u2014 boot pushes
-      // (hold + boot wave) overlap inside the 3s preplay window. Starting a
-      // second one tears the first mount down the moment it commits: the
-      // exact "mounted, suddenly unloaded, remounted" boot artifact.
-    } else {
-      S.videoPrepSrc = VIDEO_SRC;
-      S.videoPrepToken = (S.videoPrepToken || 0) + 1;
-      var myToken = S.videoPrepToken;
-      var nv = document.createElement('video');
-      nv.setAttribute('autoplay', '');
-      nv.setAttribute('loop', '');
-      nv.setAttribute('playsinline', '');
-      nv.muted = VMUTED;
-      nv.src = VIDEO_SRC;
-      nv.load();
-      var committed = false;
-      var commit = function () {
-        if (committed) return;
-        if (S.videoPrepToken !== myToken) return; // superseded by a newer pick
-        committed = true;
-        S.videoPrepSrc = null;
-        // The outgoing video FADES OUT while the preplayed one fades in \u2014
-        // removing it up front leaves a hard black gap under the fade.
-        var old = document.getElementById(MARKER + '-video');
-        if (old) {
-          old.removeAttribute('id');
-          old.style.transition = 'opacity .6s ease';
-          old.style.opacity = '0';
-          setTimeout(function () { old.remove(); }, 660);
-        }
-        nv.id = MARKER + '-video';
-        nv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:' + VFIT + ';opacity:0;transition:opacity .6s ease;';
-        wp.appendChild(nv);
-        nv.play().catch(function() {});
-        requestAnimationFrame(function () { nv.style.opacity = '1'; });
-        setTimeout(function () { if (nv.style) nv.style.transition = 'none'; }, 660);
-      };
-      nv.addEventListener('canplay', commit, { once: true });
-      // A load error (e.g. the fetch hit a serve restart mid-boot) must NOT
-      // commit a dead element \u2014 error 4 never self-heals. Restart the load
-      // once; the 3s timeout commits whatever state remains by then.
-      nv.addEventListener('error', function onErr() {
-        nv.removeEventListener('error', onErr);
-        if (S.videoPrepToken === myToken) setTimeout(function () { nv.load(); }, 800);
-      }, { once: true });
-      setTimeout(commit, 3000);
-      nv.play().catch(function() {});
-    }
-  } else {
-    if (vid) {
-      // Switching away from a video: hold it until the incoming layer is
-      // actually on screen \u2014 for a live source that's the engine's 'ready'
-      // signal (4s cap), otherwise fade at once.
-      var vOut = vid;
-      var startFade = function () {
-        vOut.style.transition = 'opacity .6s ease';
-        vOut.style.opacity = '0';
-        setTimeout(function () { vOut.remove(); }, 660);
-      };
-      if (LIVE_SRC) {
-        var heardR = false;
-        var onR = function (ev) {
-          if (heardR) return;
-          if (ev.data && ev.data.zwEvent === 'ready') {
-            heardR = true;
-            window.removeEventListener('message', onR);
-            clearTimeout(rT);
-            startFade();
-          }
-        };
-        window.addEventListener('message', onR);
-        var rT = setTimeout(function () {
-          if (!heardR) {
-            heardR = true;
-            window.removeEventListener('message', onR);
-            startFade();
-          }
-        }, 4000);
-      } else {
-        startFade();
-      }
-    }
-    if (${JSON.stringify(Boolean(payload.wallpaperDataUri))}) {
-      wp.style.backgroundImage = 'url(' + ${JSON.stringify(payload.wallpaperDataUri ?? "")} + ')';
-    } else if (wp) {
-      wp.style.backgroundImage = 'none';
-    }
-  }
-
-  // --- blurred backdrop: contain framing, and the live underlay -----------
-  // The blurred layer doubles as dsh's ambient underlay: while the engine
-  // assembles (or blanks/reloads), the wallpaper poster shows as a soft
-  // blurred wash instead of a hard-cropped zoomed section of itself.
-  var FIT = ${JSON.stringify(payload.fit ?? "cover")};
-  var bp = document.getElementById(MARKER + '-backdrop');
-  var UNDERLAY = ${JSON.stringify(payload.livePoster ?? "")};
-  if ((FIT === 'contain' && ${JSON.stringify(Boolean(payload.wallpaperDataUri))}) || (LIVE_SRC && UNDERLAY)) {
-    if (!bp) {
-      bp = document.createElement('div');
-      bp.id = MARKER + '-backdrop';
-      document.documentElement.appendChild(bp);
-    }
-    bp.style.backgroundImage = 'url(' + (${JSON.stringify(Boolean(payload.wallpaperDataUri))} ? ${JSON.stringify(payload.wallpaperDataUri ?? "")} : UNDERLAY) + ')';
-    bp.dataset.on = '1';
-  } else if (bp) {
-    bp.dataset.on = '0';
-  }
-
-  // --- media watchdog (video layer) ----------------------------------------
-  if (!S.visBound) {
-    S.visBound = true;
-    document.addEventListener('visibilitychange', function() {
-      var v = document.getElementById(MARKER + '-video');
-      if (v) { if (document.hidden) { v.pause(); } else { v.play().catch(function() {}); } }
-      postAllFrames({ zw: document.hidden ? 'pause' : 'resume' });
-    });
-    var wake = function () {
-      var v = document.getElementById(MARKER + '-video');
-      if (v) v.play().catch(function () {});
-      // Any real window interaction also wakes an auto-paused renderer
-      // (boot can leave it paused under a hidden page; the renderer ignores
-      // this when the user paused it manually).
-      postAllFrames({ zw: 'resume' });
-    };
-    window.addEventListener('focus', wake);
-    document.addEventListener('pointerdown', wake, true);
-    window.addEventListener('pageshow', wake);
-  }
-  if (!S.watchdog) {
-    S.stallCount = 0;
-    S.lastClock = -1;
-    // Kick a frozen video: Chromium can mis-detect transparent Electron
-    // windows as occluded and freeze the media pipeline (paused stays false,
-    // the clock stops, the last frame disappears). Page code cannot lift the
-    // occlusion itself \u2014 only real window interaction can \u2014 but once the
-    // window wakes (any click / focus / visible) we thaw immediately.
-    var kickVideo = function () {
-      var v = document.getElementById(MARKER + '-video');
-      if (!v || document.hidden) return;
-      if (v.ended || (v.paused && v.autoplay)) {
-        S.stallCount = 0;
-        v.play().catch(function () {});
-      } else if (!v.paused && v.readyState >= 2 && S.lastClock === v.currentTime) {
-        S.stallCount++;
-        if (S.stallCount >= 1) { v.load(); }
-        v.play().catch(function () {});
-      } else {
-        S.stallCount = 0;
-      }
-      S.lastClock = v.currentTime;
-    };
-    S.kickVideo = kickVideo;
-    S.watchdog = setInterval(kickVideo, 2000);
-    document.addEventListener('pointerdown', function () { requestAnimationFrame(function(){ kickVideo(); }); }, { capture: true, passive: true });
-    window.addEventListener('focus', function () { requestAnimationFrame(function(){ kickVideo(); }); });
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) requestAnimationFrame(function(){ kickVideo(); });
-    });
-  }
-
-  // --- pointer/wheel bridge into the live iframe(s) ----------------------------
-  function bindLiveBridge() {
-    if (S.boundFrame) return;
-    S.boundFrame = true;
-    var latest = null, queued = false;
-    function flush() {
-      queued = false;
-      if (!latest) return;
-      postAllFrames({ zw: 'ptr', u: latest.u, v: latest.v, buttons: latest.buttons, mods: latest.mods });
-      latest = null;
-    }
-    function coords(e) {
-      return { u: Math.max(0, Math.min(1, e.clientX / Math.max(1, window.innerWidth))),
-               v: Math.max(0, Math.min(1, e.clientY / Math.max(1, window.innerHeight))),
-               buttons: e.buttons, mods: (e.ctrlKey?1:0) | (e.shiftKey?2:0) | (e.altKey?4:0) | (e.metaKey?8:0) };
-    }
-    document.addEventListener('pointermove', function(e) {
-      latest = coords(e);
-      if (!queued) { queued = true; requestAnimationFrame(flush); }
-    }, { capture: true, passive: true });
-    document.addEventListener('pointerdown', function(e) {
-      latest = coords(e);
-      flush();
-    }, { capture: true, passive: true });
-    document.addEventListener('pointerup', function(e) {
-      postAllFrames({ zw: 'ptrup' });
-    }, { capture: true, passive: true });
-    document.addEventListener('wheel', function(e) {
-      postAllFrames({ zw: 'wheel', dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode,
-        mods: (e.ctrlKey?1:0) | (e.shiftKey?2:0) | (e.altKey?4:0) | (e.metaKey?8:0) });
-    }, { capture: true, passive: true });
-    window.addEventListener('blur', function() {
-      postAllFrames({ zw: 'ptrleave' });
-    });
+  // Runtime loader. Guarded by the runtime's own instance flag: recreating
+  // the script element after a failed load or a heartbeat teardown is how the
+  // heal path re-arms it; a live instance never double-runs.
+  if (!window.__zwAgent) {
+    var old = document.getElementById(MARKER + '-agent');
+    if (old) old.remove();
+${loader}
   }
 
   // --- lifecycle heartbeat ------------------------------------------------
   // The serve lives inside the plugin's MCP process. If it disappears
   // (plugin disabled, app closed, hard kill) this page removes the injection
   // itself within ~10s, so the wallpaper follows the plugin's lifecycle.
+  // Lives HERE (not in the runtime): it must keep working when the runtime
+  // failed to load at all.
   if (!S.hb) {
     S.hb = true;
     var hbHard = 0, hbSoft = 0;
     setInterval(function () {
       var t0 = Date.now();
-      fetch('http://127.0.0.1:' + ${JSON.stringify(apiPort)} + '/api/health', { signal: AbortSignal.timeout(8000) })
+      fetch(API + '/api/health', { signal: AbortSignal.timeout(8000) })
         .then(function (r) { return r.json(); })
         .then(function (b) { if (!b || b.service !== 'zcode-wallpaper') throw 0; hbHard = 0; hbSoft = 0; })
         .catch(function () {
@@ -11985,42 +11508,100 @@ function buildBootstrapScript(payload) {
           if (hard) { hbHard++; hbSoft = 0; } else { hbSoft++; hbHard = 0; }
           if (hbHard < 2 && hbSoft < 6) return;
           hbHard = 0; hbSoft = 0;
-          document.getElementById(MARKER + '-style')?.remove();
-          document.getElementById(MARKER + '-wallpaper')?.remove();
-          document.getElementById(MARKER + '-backdrop')?.remove();
-          document.getElementById('zcode-wallpaper-settings-v6')?.remove();
-          document.getElementById('zcode-wallpaper-settings-2')?.remove();
+          if (window.__zwTeardownAgent) { try { window.__zwTeardownAgent(); } catch (e) {} }
+          if (window.__zwTeardownPanel) { try { window.__zwTeardownPanel(); } catch (e) {} }
+          [MARKER + '-agent', MARKER + '-panel'].forEach(function (id) {
+            var n = document.getElementById(id);
+            if (n) n.remove();
+          });
           try { localStorage.removeItem(MARKER + ':css'); localStorage.removeItem(MARKER + ':wallpaper'); } catch (e) {}
           // allow a clean re-injection if the serve comes back (app restart)
           S.cssText = null; S.videoSrc = null; S.liveSrc = null; S.appliedLive = null;
+          window.__zwAgent = null; window.__zwPanel = null;
         });
     }, 5000);
   }
-
-  // Persist for the panel's self-heal path (best effort; large wallpapers may
-  // exceed the localStorage quota, in which case only the CSS is saved).
+})();`;
+}
+function readAgentCode() {
+  return fs2.readFileSync(`${liveDir()}/agent.js`.replace(/\\/g, "/"), "utf8");
+}
+async function injectIntoTarget(target, payload) {
+  const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
   try {
-    localStorage.setItem(MARKER + ':css', ${JSON.stringify(payload.css)});
-    localStorage.setItem(MARKER + ':wallpaper', ${JSON.stringify(payload.wallpaperDataUri ?? "")});
-  } catch (e) {}
+    await conn.send("Page.enable");
+    await conn.send("Runtime.enable");
+    await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => void 0);
+    const bootstrap = buildThinBootstrap(payload, {
+      apiPort: payload.apiPort ?? 28257,
+      gen: Date.now(),
+      agent: { code: readAgentCode() }
+    });
+    await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap });
+    await conn.send("Runtime.evaluate", {
+      expression: bootstrap,
+      returnByValue: true
+    });
+  } finally {
+    conn.close();
+  }
+}
+function buildPanelLoader(apiPort) {
+  const api = `http://127.0.0.1:${apiPort}`;
+  return `(function () {
+  var API = ${JSON.stringify(api)};
+  window.__zwApiBase = API;
+  // Inline-string era builds (<=0.2.0) arbiter by __zwSettingsBoot; a higher
+  // flag makes their scan() stand down permanently.
+  window.__zwSettingsBoot = 31;
+  if (window.__zwPanel) return; // current panel owns the page
+  ['zcode-wallpaper-settings-v6', 'zcode-wallpaper-settings-2', 'zcode-wallpaper-settings'].forEach(function (id) {
+    var e = document.getElementById(id);
+    if (e) e.remove();
+  });
+  var s = document.createElement('script');
+  s.id = 'zcode-wallpaper-panel';
+  s.src = API + '/panel.js';
+  s.async = true;
+  (document.head || document.documentElement).appendChild(s);
+})();`;
+}
+function buildClearWallpaperScript(marker = "zcode-wallpaper") {
+  return `(function(){
+  if (window.__zwTeardownAgent) { try { window.__zwTeardownAgent(); } catch (e) {} }
+  var n = document.getElementById(${JSON.stringify(marker)} + '-agent');
+  if (n) n.remove();
+  try { localStorage.removeItem(${JSON.stringify(marker)} + ':css'); localStorage.removeItem(${JSON.stringify(marker)} + ':wallpaper'); } catch (e) {}
+  window.__zwAgent = null;
 })();`;
 }
 function buildResetScript(marker = "zcode-wallpaper") {
   return `(function(){
-  document.getElementById(${JSON.stringify(marker)} + '-style')?.remove();
-  document.getElementById(${JSON.stringify(marker)} + '-wallpaper')?.remove();
-  document.getElementById(${JSON.stringify(marker)} + '-backdrop')?.remove();
+  if (window.__zwTeardownAgent) { try { window.__zwTeardownAgent(); } catch (e) {} }
+  if (window.__zwTeardownPanel) { try { window.__zwTeardownPanel(); } catch (e) {} }
+  [${JSON.stringify(marker)} + '-style', ${JSON.stringify(marker)} + '-wallpaper', ${JSON.stringify(marker)} + '-backdrop',
+   ${JSON.stringify(marker)} + '-agent', ${JSON.stringify(marker)} + '-panel'].forEach(function (id) {
+    var n = document.getElementById(id);
+    if (n) n.remove();
+  });
   // Panel sections: current id + legacy ids from older builds.
-  document.getElementById('zcode-wallpaper-settings-v6')?.remove();
-  document.getElementById('zcode-wallpaper-settings-2')?.remove();
-  document.getElementById('zcode-wallpaper-settings')?.remove();
-  if (window.__zw) { window.__zw.cssText = null; window.__zw.videoSrc = null; window.__zw.liveSrc = null; window.__zw.boundFrame = null; }
+  ['zcode-wallpaper-settings-v6', 'zcode-wallpaper-settings-2', 'zcode-wallpaper-settings'].forEach(function (id) {
+    var n = document.getElementById(id);
+    if (n) n.remove();
+  });
+  try { localStorage.removeItem(${JSON.stringify(marker)} + ':css'); localStorage.removeItem(${JSON.stringify(marker)} + ':wallpaper'); } catch (e) {}
+  window.__zwAgent = null; window.__zwPanel = null; window.__zwSettingsBoot = null;
+  if (window.__zw) {
+    window.__zw.cssText = null; window.__zw.videoSrc = null; window.__zw.liveSrc = null;
+    window.__zw.boundFrame = null; window.__zw.bootGen = null;
+  }
 })();`;
 }
 var CdpError, CdpConnection;
 var init_cdp = __esm({
   "src/core/cdp.ts"() {
     "use strict";
+    init_paths();
     CdpError = class extends Error {
     };
     CdpConnection = class _CdpConnection {
@@ -17672,7 +17253,7 @@ var require_gifframe = __commonJS({
 var require_gifutil = __commonJS({
   "node_modules/gifwrap/src/gifutil.js"(exports) {
     "use strict";
-    var fs11 = __require("fs");
+    var fs16 = __require("fs");
     var ImageQ = require_image_q();
     var BitmapImage2 = require_bitmapimage();
     var { GifFrame: GifFrame2 } = require_gifframe();
@@ -17787,14 +17368,14 @@ var require_gifutil = __commonJS({
       jimpImage.bitmap.data = bitmapImageToShare.bitmap.data;
       return jimpImage;
     };
-    exports.write = function(path8, frames, spec, encoder) {
+    exports.write = function(path11, frames, spec, encoder) {
       encoder = encoder || defaultCodec;
-      const matches = path8.match(/\.[a-zA-Z]+$/);
+      const matches = path11.match(/\.[a-zA-Z]+$/);
       if (matches !== null && INVALID_SUFFIXES.includes(matches[0].toLowerCase())) {
-        throw new Error(`GIF '${path8}' has an unexpected suffix`);
+        throw new Error(`GIF '${path11}' has an unexpected suffix`);
       }
       return encoder.encodeGif(frames, spec).then((gif2) => {
-        return _writeBinary(path8, gif2.buffer).then(() => {
+        return _writeBinary(path11, gif2.buffer).then(() => {
           return gif2;
         });
       });
@@ -17866,9 +17447,9 @@ var require_gifutil = __commonJS({
         }
       }
     }
-    function _readBinary(path8) {
+    function _readBinary(path11) {
       return new Promise((resolve, reject) => {
-        fs11.readFile(path8, (err, buffer) => {
+        fs16.readFile(path11, (err, buffer) => {
           if (err) {
             return reject(err);
           }
@@ -17876,9 +17457,9 @@ var require_gifutil = __commonJS({
         });
       });
     }
-    function _writeBinary(path8, buffer) {
+    function _writeBinary(path11, buffer) {
       return new Promise((resolve, reject) => {
-        fs11.writeFile(path8, buffer, (err) => {
+        fs16.writeFile(path11, buffer, (err) => {
           if (err) {
             return reject(err);
           }
@@ -19889,9 +19470,9 @@ var require_decoder = __commonJS({
         return a2 < 0 ? 0 : a2 > 255 ? 255 : a2;
       }
       constructor.prototype = {
-        load: function load(path8) {
+        load: function load(path11) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path8, true);
+          xhr.open("GET", path11, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = (function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -31949,13 +31530,13 @@ var require_await_to_js_umd = __commonJS({
 });
 
 // node_modules/@jimp/file-ops/dist/esm/index.js
-import { promises as fs } from "fs";
+import { promises as fs3 } from "fs";
 import { existsSync } from "fs";
 var readFile, writeFile;
 var init_esm13 = __esm({
   "node_modules/@jimp/file-ops/dist/esm/index.js"() {
-    readFile = fs.readFile;
-    writeFile = fs.writeFile;
+    readFile = fs3.readFile;
+    writeFile = fs3.writeFile;
   }
 });
 
@@ -31997,11 +31578,11 @@ var require_Mime = __commonJS({
         }
       }
     };
-    Mime.prototype.getType = function(path8) {
-      path8 = String(path8);
-      let last = path8.replace(/^.*[/\\]/, "").toLowerCase();
+    Mime.prototype.getType = function(path11) {
+      path11 = String(path11);
+      let last = path11.replace(/^.*[/\\]/, "").toLowerCase();
       let ext = last.replace(/^.*\./, "").toLowerCase();
-      let hasPath = last.length < path8.length;
+      let hasPath = last.length < path11.length;
       let hasDot = ext.length < last.length - 1;
       return (hasDot || !hasPath) && this._types[ext] || null;
     };
@@ -34549,9 +34130,9 @@ var NotRegularFileError;
 var init_NotRegularFileError = __esm({
   "node_modules/strtok3/lib/NotRegularFileError.js"() {
     NotRegularFileError = class extends Error {
-      constructor(path8) {
-        super(`Not a regular file: ${path8}`);
-        this.path = path8;
+      constructor(path11) {
+        super(`Not a regular file: ${path11}`);
+        this.path = path11;
         this.name = "NotRegularFileError";
       }
     };
@@ -34560,7 +34141,7 @@ var init_NotRegularFileError = __esm({
 
 // node_modules/strtok3/lib/FileTokenizer.js
 import { constants as constants2 } from "node:fs";
-import fs2, {} from "node:fs/promises";
+import fs4, {} from "node:fs/promises";
 var FileTokenizer;
 var init_FileTokenizer = __esm({
   "node_modules/strtok3/lib/FileTokenizer.js"() {
@@ -34579,7 +34160,7 @@ var init_FileTokenizer = __esm({
         getMaxBufferSize(options);
         throwIfAborted(options?.abortSignal);
         const flags = options?.regularFileOnly ? constants2.O_RDONLY | constants2.O_NONBLOCK : "r";
-        const fileHandle = await fs2.open(sourceFilePath, flags);
+        const fileHandle = await fs4.open(sourceFilePath, flags);
         try {
           const stat = await fileHandle.stat();
           if (options?.regularFileOnly && !stat.isFile()) {
@@ -38751,7 +38332,7 @@ __export(file_type_exports, {
 });
 import { ReadableStream as WebReadableStream } from "node:stream/web";
 import { pipeline, PassThrough, Readable } from "node:stream";
-import fs3 from "node:fs/promises";
+import fs5 from "node:fs/promises";
 import { constants as fileSystemConstants } from "node:fs";
 function isTokenizerStreamBoundsError(error2) {
   if (!(error2 instanceof RangeError) || error2.message !== "offset is out of bounds" || typeof error2.stack !== "string") {
@@ -38759,8 +38340,8 @@ function isTokenizerStreamBoundsError(error2) {
   }
   return /strtok3[/\\]lib[/\\]stream[/\\]/.test(error2.stack);
 }
-async function fileTypeFromFile(path8, options) {
-  return new FileTypeParser2(options).fromFile(path8, options);
+async function fileTypeFromFile(path11, options) {
+  return new FileTypeParser2(options).fromFile(path11, options);
 }
 async function fileTypeFromStream(stream, options) {
   return new FileTypeParser2(options).fromStream(stream);
@@ -38791,9 +38372,9 @@ var init_file_type = __esm({
           }
         }
       }
-      async fromFile(path8) {
+      async fromFile(path11) {
         this.options.signal?.throwIfAborted();
-        const fileHandle = await fs3.open(path8, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
+        const fileHandle = await fs5.open(path11, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
         const fileStat = await fileHandle.stat();
         if (!fileStat.isFile()) {
           await fileHandle.close();
@@ -38802,7 +38383,7 @@ var init_file_type = __esm({
         const tokenizer = new FileTokenizer(fileHandle, {
           ...this.getTokenizerOptions(),
           fileInfo: {
-            path: path8,
+            path: path11,
             size: fileStat.size
           }
         });
@@ -39137,9 +38718,9 @@ function createJimp({ plugins: pluginsArg, formats: formatsArg } = {}) {
      * await image.write("test/output.png");
      * ```
      */
-    async write(path8, options) {
-      const mimeType = import_lite.default.getType(path8);
-      await writeFile(path8, await this.getBuffer(mimeType, options));
+    async write(path11, options) {
+      const mimeType = import_lite.default.getType(path11);
+      await writeFile(path11, await this.getBuffer(mimeType, options));
     }
     /**
      * Clone the image into a new Jimp instance.
@@ -55258,30 +54839,30 @@ __export(launch_exports, {
 });
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import fs4 from "node:fs";
+import fs6 from "node:fs";
 import os from "node:os";
-import path from "node:path";
+import path2 from "node:path";
 function dataDir() {
-  return process.env.ZW_DATA_DIR ?? path.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
+  return process.env.ZW_DATA_DIR ?? path2.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
 }
 function configFile() {
-  return path.join(dataDir(), "config.json");
+  return path2.join(dataDir(), "config.json");
 }
 function loadConfig() {
   try {
-    return JSON.parse(fs4.readFileSync(configFile(), "utf8"));
+    return JSON.parse(fs6.readFileSync(configFile(), "utf8"));
   } catch {
     return {};
   }
 }
 function saveConfig(config2) {
-  fs4.mkdirSync(dataDir(), { recursive: true });
-  fs4.writeFileSync(configFile(), JSON.stringify(config2, null, 2));
+  fs6.mkdirSync(dataDir(), { recursive: true });
+  fs6.writeFileSync(configFile(), JSON.stringify(config2, null, 2));
 }
 function findZcodeExecutable() {
   return ZCODE_EXE_CANDIDATES.map((p2) => p2).find((p2) => {
     try {
-      return fs4.statSync(p2).isFile();
+      return fs6.statSync(p2).isFile();
     } catch {
       return false;
     }
@@ -55348,25 +54929,25 @@ var init_launch = __esm({
     "use strict";
     init_cdp();
     ZCODE_EXE_CANDIDATES = process.platform === "win32" ? [
-      process.env.ZCODE_WINDOWS_APP_INSTALL_DIR ? path.join(process.env.ZCODE_WINDOWS_APP_INSTALL_DIR, "ZCode.exe") : void 0,
+      process.env.ZCODE_WINDOWS_APP_INSTALL_DIR ? path2.join(process.env.ZCODE_WINDOWS_APP_INSTALL_DIR, "ZCode.exe") : void 0,
       "C:\\Program Files\\ZCode\\ZCode.exe",
-      path.join(os.homedir(), "AppData", "Local", "Programs", "ZCode", "ZCode.exe")
+      path2.join(os.homedir(), "AppData", "Local", "Programs", "ZCode", "ZCode.exe")
     ].filter(Boolean) : process.platform === "darwin" ? ["/Applications/ZCode.app/Contents/MacOS/ZCode"] : ["/usr/bin/zcode", "/opt/ZCode/zcode"];
     execFileAsync = promisify(execFile);
   }
 });
 
 // src/core/wallpaperType.ts
-import fs5 from "node:fs";
-import path2 from "node:path";
+import fs7 from "node:fs";
+import path3 from "node:path";
 function detectWallpaperType(input) {
-  const ext = path2.extname(input).toLowerCase();
+  const ext = path3.extname(input).toLowerCase();
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
   if (VIDEO_EXTENSIONS.has(ext)) return "video";
   if (ext === ".pkg") return "scene";
   let stat;
   try {
-    stat = fs5.statSync(input);
+    stat = fs7.statSync(input);
   } catch {
     return "unknown";
   }
@@ -55374,12 +54955,12 @@ function detectWallpaperType(input) {
   return detectDirectoryType(input);
 }
 function detectDirectoryType(dir) {
-  const project = readProjectJson(path2.join(dir, "project.json"));
+  const project = readProjectJson(path3.join(dir, "project.json"));
   const declared = typeof project?.type === "string" ? project.type.toLowerCase() : "";
   if (declared === "scene" || declared === "video" || declared === "web") {
     return declared;
   }
-  const entryExt = path2.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
+  const entryExt = path3.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
   if (SCENE_ENTRY_EXTENSIONS.has(entryExt)) return "scene";
   if (VIDEO_EXTENSIONS.has(entryExt)) return "video";
   if (entryExt === ".html" || entryExt === ".htm") return "web";
@@ -55387,7 +54968,7 @@ function detectDirectoryType(dir) {
 }
 function readProjectJson(file) {
   try {
-    return JSON.parse(fs5.readFileSync(file, "utf8"));
+    return JSON.parse(fs7.readFileSync(file, "utf8"));
   } catch {
     return void 0;
   }
@@ -55395,20 +54976,20 @@ function readProjectJson(file) {
 function detectFromDirectoryContents(dir) {
   let entries;
   try {
-    entries = fs5.readdirSync(dir);
+    entries = fs7.readdirSync(dir);
   } catch {
     return "unknown";
   }
   let nested = [];
   if (entries.some((e2) => e2.toLowerCase() === "files")) {
     try {
-      nested = fs5.readdirSync(path2.join(dir, "files")).map((e2) => path2.join("files", e2));
+      nested = fs7.readdirSync(path3.join(dir, "files")).map((e2) => path3.join("files", e2));
     } catch {
     }
   }
   for (const name of [...entries, ...nested]) {
     const lower = name.toLowerCase();
-    const ext = path2.extname(lower);
+    const ext = path3.extname(lower);
     if (lower === "scene.pkg" || lower === "scene.json") return "scene";
     if (ext === ".html" || ext === ".htm") return "web";
     if (VIDEO_EXTENSIONS.has(ext)) return "video";
@@ -55428,8 +55009,8 @@ var init_wallpaperType = __esm({
 // src/core/steam.ts
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
-import fs6 from "node:fs";
-import path3 from "node:path";
+import fs8 from "node:fs";
+import path4 from "node:path";
 async function regQuery(key, value) {
   if (process.platform !== "win32") return void 0;
   try {
@@ -55449,7 +55030,7 @@ async function findSteamRoots() {
   const push = (p2) => {
     if (!p2) return;
     try {
-      if (!fs6.existsSync(path3.join(p2, "steamapps"))) return;
+      if (!fs8.existsSync(path4.join(p2, "steamapps"))) return;
     } catch {
       return;
     }
@@ -55466,7 +55047,7 @@ async function findSteamRoots() {
 function parseLibraryFolders(vdfPath) {
   let text;
   try {
-    text = fs6.readFileSync(vdfPath, "utf8");
+    text = fs8.readFileSync(vdfPath, "utf8");
   } catch {
     return [];
   }
@@ -55483,7 +55064,7 @@ async function steamLibraries(roots) {
   const push = (p2) => {
     if (!p2) return;
     try {
-      fs6.accessSync(path3.join(p2, "steamapps"));
+      fs8.accessSync(path4.join(p2, "steamapps"));
     } catch {
       return;
     }
@@ -55493,21 +55074,21 @@ async function steamLibraries(roots) {
   };
   for (const root of roots) {
     push(root);
-    for (const lib of parseLibraryFolders(path3.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
+    for (const lib of parseLibraryFolders(path4.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
   }
   return libs;
 }
 async function findWallpaperEngine(libraries) {
   for (const lib of libraries) {
     for (const name of WE_DIR_CANDIDATES) {
-      const dir = path3.join(lib, "steamapps", "common", name);
+      const dir = path4.join(lib, "steamapps", "common", name);
       try {
-        fs6.accessSync(dir);
+        fs8.accessSync(dir);
       } catch {
         continue;
       }
-      const classic = fs6.existsSync(path3.join(dir, "wallpaper32.exe")) || fs6.existsSync(path3.join(dir, "wallpaper64.exe"));
-      const modern = fs6.existsSync(path3.join(dir, "distribution", "version.json"));
+      const classic = fs8.existsSync(path4.join(dir, "wallpaper32.exe")) || fs8.existsSync(path4.join(dir, "wallpaper64.exe"));
+      const modern = fs8.existsSync(path4.join(dir, "distribution", "version.json"));
       if (classic || modern) return { root: dir };
     }
   }
@@ -55517,14 +55098,14 @@ function dirSize(dir) {
   let total = 0;
   let entries;
   try {
-    entries = fs6.readdirSync(dir, { withFileTypes: true });
+    entries = fs8.readdirSync(dir, { withFileTypes: true });
   } catch {
     return 0;
   }
   for (const e2 of entries) {
     try {
-      if (e2.isDirectory()) total += dirSize(path3.join(dir, e2.name));
-      else total += fs6.statSync(path3.join(dir, e2.name)).size;
+      if (e2.isDirectory()) total += dirSize(path4.join(dir, e2.name));
+      else total += fs8.statSync(path4.join(dir, e2.name)).size;
     } catch {
     }
   }
@@ -55532,7 +55113,7 @@ function dirSize(dir) {
 }
 function readProject(dir) {
   try {
-    return JSON.parse(fs6.readFileSync(path3.join(dir, "project.json"), "utf8"));
+    return JSON.parse(fs8.readFileSync(path4.join(dir, "project.json"), "utf8"));
   } catch {
     return void 0;
   }
@@ -55540,7 +55121,7 @@ function readProject(dir) {
 function entryFromDir(dir, id, origin, workshopId) {
   let stat;
   try {
-    stat = fs6.statSync(dir);
+    stat = fs8.statSync(dir);
   } catch {
     return void 0;
   }
@@ -55548,9 +55129,9 @@ function entryFromDir(dir, id, origin, workshopId) {
   const project = readProject(dir);
   const type = detectWallpaperType(dir);
   if (type === "unknown" && !project) return void 0;
-  const title = typeof project?.title === "string" && project.title.trim() || path3.basename(dir);
+  const title = typeof project?.title === "string" && project.title.trim() || path4.basename(dir);
   const previewDeclared = typeof project?.preview === "string" ? project.preview : void 0;
-  const preview = previewDeclared && fs6.existsSync(path3.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs6.existsSync(path3.join(dir, p2)));
+  const preview = previewDeclared && fs8.existsSync(path4.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs8.existsSync(path4.join(dir, p2)));
   return {
     id,
     dir,
@@ -55573,15 +55154,15 @@ async function enumerateWallpapers(force = false) {
   const wallpapers = [];
   const seen = /* @__PURE__ */ new Set();
   for (const lib of libraries) {
-    const workshopDir = path3.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
+    const workshopDir = path4.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
     let ids;
     try {
-      ids = fs6.readdirSync(workshopDir);
+      ids = fs8.readdirSync(workshopDir);
     } catch {
       continue;
     }
     for (const id of ids) {
-      const dir = path3.join(workshopDir, id);
+      const dir = path4.join(workshopDir, id);
       if (seen.has(pathKey(dir))) continue;
       seen.add(pathKey(dir));
       const entry = entryFromDir(dir, `ws-${id}`, "workshop", id);
@@ -55593,15 +55174,15 @@ async function enumerateWallpapers(force = false) {
       ["defaultprojects", "default"],
       ["myprojects", "myprojects"]
     ]) {
-      const base = path3.join(we.root, "projects", sub);
+      const base = path4.join(we.root, "projects", sub);
       let names3;
       try {
-        names3 = fs6.readdirSync(base);
+        names3 = fs8.readdirSync(base);
       } catch {
         continue;
       }
       for (const name of names3) {
-        const dir = path3.join(base, name);
+        const dir = path4.join(base, name);
         if (seen.has(pathKey(dir))) continue;
         seen.add(pathKey(dir));
         const entry = entryFromDir(dir, `we-${origin}-${name}`, origin);
@@ -55631,8 +55212,8 @@ var init_steam = __esm({
     execFileAsync2 = promisify2(execFile2);
     WE_APP_ID = "431960";
     COMMON_STEAM_DIRS = [
-      path3.join("C:", "Program Files (x86)", "Steam"),
-      path3.join("C:", "Program Files", "Steam")
+      path4.join("C:", "Program Files (x86)", "Steam"),
+      path4.join("C:", "Program Files", "Steam")
     ];
     WE_DIR_CANDIDATES = ["WallpaperEngine", "wallpaper_engine", "Wallpaper Engine"];
     PREVIEW_FALLBACKS = ["preview.gif", "preview.jpg", "preview.jpeg", "preview.png"];
@@ -55640,950 +55221,20 @@ var init_steam = __esm({
   }
 });
 
-// src/panel/panelScript.ts
-function buildPanelScript(apiPort) {
-  return `(function () {
-  var API = 'http://127.0.0.1:${apiPort}';
-  var MARKER = 'zcode-wallpaper-settings-v6';
-  var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
-  var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
-  var PAGE_SIZE = 16;
-  var V = 30;
-  // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
-  // version redeploy is a no-op on a live page (flag already set), and the
-  // older registration keeps running with the stale logic.
-  var flag = window.__zwSettingsBoot;
-  if (flag === V) return;            // same build already running
-  if (typeof flag === 'number' && flag > V) return; // a newer build owns the page
-  window.__zwSettingsBoot = V;
-
-  // --- counter-observer for pre-1.0.0 builds ---------------------------------
-  // Those builds mount on their own ids and actively remove anything else.
-  // Mutation callbacks run before paint, so their sections never flash.
-  var neutralize = new MutationObserver(function (muts) {
-    for (var i = 0; i < muts.length; i++) {
-      var added = muts[i].addedNodes;
-      for (var j = 0; j < added.length; j++) {
-        var n = added[j];
-        if (n && n.id && LEGACY_IDS.indexOf(n.id) >= 0) n.remove();
-      }
-    }
-  });
-  function sweepLegacy() {
-    LEGACY_IDS.forEach(function (id) {
-      var e = document.getElementById(id);
-      if (e) e.remove();
-    });
-  }
-
-  var state = { cfg: null, lib: null, page: 0, filter: '', typeF: 'all', gridH: 0 };
-  var ui = { libBox: null, pagerBox: null, badge: null, search: null };
-  var mountObserver = null;
-
-  function fetchJson(url, opts) {
-    return fetch(API + url, opts).then(function (r) { return r.json(); });
-  }
-  function post(path, body) {
-    return fetchJson(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
-  }
-
-  // --- the Appearance settings page, only while it is the active tab --------
-  // Other settings pages (e.g. scheduled-task settings) carry their own visible
-  // "\u5916\u89C2" heading in an identical layout, so the heading alone is not enough:
-  // the real Appearance page also contains the \u754C\u9762\u4E3B\u9898 (theme) control.
-  function appearanceSectionList() {
-    var h2 = Array.prototype.find.call(document.querySelectorAll('h2'), function (h) {
-      return H2_TEXT.test((h.textContent || '').trim()) && h.offsetParent !== null;
-    });
-    if (!h2) return null;
-    var main = h2.closest('main');
-    var col = main && main.querySelector('.max-w-4xl');
-    if (!col || !col.contains(h2)) return null;
-    if (!/(\u754C\u9762\u4E3B\u9898|Interface theme|\u754C\u9762\u4E3B\u984C)/.test(col.textContent || '')) return null;
-    return col.querySelector('.space-y-8') || col;
-  }
-
-  // --- class strings captured from ZCode's own settings UI ---------------------
-  var CLS = {
-    section: 'min-w-0 space-y-3',
-    title: 'text-ui-lg font-semibold text-foreground',
-    desc: 'mt-1 text-ui-base leading-6 text-foreground-subtle',
-    card: 'group/card flex flex-col gap-4 overflow-hidden rounded-xl text-ui-base/relaxed text-foreground border border-border bg-card py-0 shadow-none',
-    content: 'space-y-0 px-0',
-    row: 'border-t border-border px-4 py-3 first:border-t-0',
-    grid: 'grid items-center gap-4 grid-cols-[minmax(0,1fr)_192px]',
-    label: 'text-ui-base font-medium text-foreground',
-    rowDesc: 'mt-1 text-ui-base leading-6 text-foreground-subtle',
-    ctrl: 'flex w-full flex-nowrap items-center justify-end gap-2',
-    btn: 'cursor-pointer border border-input-border bg-background text-foreground hover:border-input-border-hover hover:bg-input rounded-lg h-8 px-3 text-sm outline-none transition-colors',
-    btnIcon: 'cursor-pointer inline-flex items-center justify-center gap-1 border border-input-border bg-background text-foreground hover:border-input-border-hover hover:bg-input rounded-md h-6 px-1.5 text-xs outline-none transition-colors',
-    trigger: 'flex items-center justify-between gap-1.5 border whitespace-nowrap transition-colors outline-none border-input-border bg-input text-foreground hover:border-input-border-hover focus-visible:border-input-border-focused focus-visible:bg-input-focused focus-visible:ring-0 h-8 rounded-lg pl-3 pr-2 text-ui-base w-full',
-    menu: 'z-[60] min-w-32 max-h-60 overflow-y-auto rounded-lg border border-popover-border bg-menu p-1 text-foreground shadow-md',
-    item: 'relative flex min-h-7 w-full cursor-default items-center gap-2 rounded-md px-2 py-1 text-ui-base/relaxed text-foreground outline-none select-none data-[highlighted=true]:bg-menu-hover',
-    input: 'border border-input-border bg-input text-foreground placeholder:text-foreground-subtlest hover:border-input-border-hover focus-visible:border-input-border-focused rounded-lg h-8 px-3 text-sm outline-none transition-colors',
-    switch: 'p-px group/switch relative inline-flex shrink-0 items-center rounded-full transition-all outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-input-border-focused/30 data-[size=default]:h-[18px] data-[size=default]:w-[32px] data-checked:bg-primary data-unchecked:bg-primary/30',
-    switchThumb: 'pointer-events-none block rounded-full bg-primary-foreground ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=default]/switch:data-unchecked:translate-x-0',
-    stat: 'text-ui-base leading-6 text-foreground-subtle',
-    badge: 'text-xs px-1.5 py-px rounded-full border border-border text-foreground-subtle'
-  };
-  var TYPE_LABEL = { scene: '\u573A\u666F', video: '\u89C6\u9891', web: '\u7F51\u9875', image: '\u56FE\u7247', unknown: '\u672A\u77E5' };
-  var ORIGIN_LABEL = { workshop: '\u5DE5\u574A\u8BA2\u9605', custom: '\u672C\u673A\u5BFC\u5165', default: 'WE \u5185\u7F6E', myprojects: 'WE \u5DE5\u7A0B' };
-
-  function el(tag, cls, text) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
-  function svgChevron(down) {
-    var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    s.setAttribute('viewBox', '0 0 24 24');
-    s.setAttribute('fill', 'none');
-    s.setAttribute('stroke', 'currentColor');
-    s.setAttribute('stroke-width', '2');
-    s.setAttribute('stroke-linecap', 'round');
-    s.setAttribute('stroke-linejoin', 'round');
-    s.classList.add('shrink-0', 'size-4', 'text-foreground-subtle');
-    var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('d', down ? 'm6 9 6 6 6-6' : 'm18 15-6-6-6 6');
-    s.appendChild(p);
-    return s;
-  }
-
-  function row(labelText, descText) {
-    var r = el('div', CLS.row);
-    var g = el('div', CLS.grid);
-    var left = el('div', 'min-w-0');
-    left.appendChild(el('div', CLS.label, labelText));
-    if (descText) left.appendChild(el('div', CLS.rowDesc, descText));
-    var right = el('div', CLS.ctrl);
-    g.appendChild(left); g.appendChild(right);
-    r.appendChild(g);
-    return { r: r, right: right };
-  }
-
-  // --- Radix-look select ---------------------------------------------------------
-  function dropdown(options, value, onChange) {
-    var wrap = el('div', 'relative w-full');
-    var trigger = el('button', CLS.trigger);
-    trigger.type = 'button';
-    var valueSpan = el('span', 'line-clamp-1 truncate');
-    var currentLabel = '';
-    options.forEach(function (o) { if (String(o[0]) === String(value)) currentLabel = o[1]; });
-    valueSpan.textContent = currentLabel;
-    trigger.appendChild(valueSpan);
-    trigger.appendChild(svgChevron(true));
-
-    var menu = el('div', CLS.menu);
-    menu.style.cssText = 'display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;';
-
-    function close() {
-      menu.style.display = 'none';
-      trigger.setAttribute('data-state', 'closed');
-      document.removeEventListener('pointerdown', onDocDown, true);
-    }
-    function onDocDown(e) { if (!wrap.contains(e.target)) close(); }
-    trigger.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (menu.style.display === 'none') {
-        menu.style.display = 'block';
-        trigger.setAttribute('data-state', 'open');
-        document.addEventListener('pointerdown', onDocDown, true);
-      } else close();
-    });
-    trigger.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-
-    options.forEach(function (o) {
-      var item = el('div', CLS.item, o[1]);
-      item.setAttribute('role', 'option');
-      if (String(o[0]) === String(value)) item.setAttribute('aria-selected', 'true');
-      item.addEventListener('mouseenter', function () {
-        Array.prototype.forEach.call(menu.children, function (c) { c.removeAttribute('data-highlighted'); });
-        item.setAttribute('data-highlighted', 'true');
-      });
-      item.addEventListener('click', function () {
-        valueSpan.textContent = o[1];
-        Array.prototype.forEach.call(menu.children, function (c) { c.removeAttribute('data-highlighted'); c.removeAttribute('aria-selected'); });
-        item.setAttribute('aria-selected', 'true');
-        close();
-        onChange(o[0]);
-      });
-      menu.appendChild(item);
-    });
-    wrap.appendChild(trigger);
-    wrap.appendChild(menu);
-    return wrap;
-  }
-
-  // ZCode-style switch (classes captured from its native [data-slot=switch]).
-  function setSwitch(btn, checked) {
-    btn.setAttribute('data-state', checked ? 'checked' : 'unchecked');
-    btn.setAttribute('aria-checked', checked ? 'true' : 'false');
-    // ZCode's switch CSS keys on data-checked / data-unchecked ATTRIBUTES on
-    // BOTH the track (group) and the thumb \u2014 without them the track never
-    // recolors and the thumb never slides.
-    var parts = [btn, btn.firstElementChild];
-    for (var i = 0; i < parts.length; i++) {
-      var n = parts[i];
-      if (!n) continue;
-      if (checked) {
-        n.setAttribute('data-checked', 'true');
-        n.removeAttribute('data-unchecked');
-      } else {
-        n.setAttribute('data-unchecked', 'true');
-        n.removeAttribute('data-checked');
-      }
-    }
-  }
-  function makeSwitch(checked, onChange, labelText, key) {
-    var wrap = el('label', 'inline-flex items-center gap-2 cursor-pointer');
-    var btn = el('button', CLS.switch);
-    btn.type = 'button';
-    btn.setAttribute('role', 'switch');
-    btn.setAttribute('data-size', 'default');
-    if (key) btn.setAttribute('data-k', key);
-    var cur = !!checked;
-    setSwitch(btn, cur);
-    btn.appendChild(el('span', CLS.switchThumb));
-    btn.addEventListener('click', function () {
-      cur = !cur;
-      setSwitch(btn, cur);
-      onChange(cur);
-    });
-    wrap.appendChild(btn);
-    if (labelText) wrap.appendChild(el('span', 'text-sm text-foreground-subtle', labelText));
-    return wrap;
-  }
-
-  function button(text, onClick, title, cls) {
-    var b = el('button', cls || CLS.btn, text);
-    b.type = 'button';
-    if (title) b.title = title;
-    b.addEventListener('click', onClick);
-    return b;
-  }
-
-  // --- custom slider (dsh-style thin track + filled progress) -------------------
-  // ZCode's compiled CSS has no accent-* utility for range inputs \u2014 left alone
-  // they render as chunky native Chromium widgets. A tiny stylesheet plus a
-  // --zw-fill custom property gives the filled-track look; --color-primary is
-  // the theme accent (white in this dark theme, black in light).
-  function ensureSliderStyle() {
-    if (document.getElementById(MARKER + '-range-style')) return;
-    var st = document.createElement('style');
-    st.id = MARKER + '-range-style';
-    st.textContent =
-      'input.zw-range{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:9999px;margin:0;' +
-      'background:linear-gradient(to right,var(--color-primary,#fff) var(--zw-fill,50%),rgba(127,127,127,.28) var(--zw-fill,50%));' +
-      'outline:none;cursor:pointer;}' +
-      'input.zw-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;' +
-      'background:var(--color-primary,#fff);border:2px solid var(--color-background,#161616);box-shadow:0 1px 3px rgba(0,0,0,.35);}';
-    (document.head || document.documentElement).appendChild(st);
-  }
-  function paintRange(i) {
-    var min = Number(i.min) || 0;
-    var max = Number(i.max) || 100;
-    var pct = ((Number(i.value) - min) / (max - min)) * 100;
-    i.style.setProperty('--zw-fill', Math.max(0, Math.min(100, pct)) + '%');
-  }
-  /** Read-back for refresh(): input value, chip text, fill level. */
-  function syncRange(f, k, val, unit) {
-    var i = f.querySelector('[data-k=' + k + ']');
-    if (!i) return;
-    i.value = String(val);
-    var chip = f.querySelector('[data-k=' + k + 'v]');
-    if (chip) chip.textContent = val + (unit || '');
-    paintRange(i);
-  }
-
-  // --- segmented control (dsh's \u500D\u901F / \u5E27\u7387 / \u9002\u914D rows) --------------------------
-  // Dropdowns hide the choices; a segment row shows them. Active segment =
-  // bg-input pill with a hairline inset border, verified classes + inline only.
-  function makeSeg(options, value, onChange, key, fill) {
-    var wrap = el('div', 'inline-flex items-center gap-1 rounded-lg');
-    // Inline border: borrowed host utility classes (border border-border)
-    // can lose the race with the host's async stylesheet \u2014 our chrome defines
-    // its own look, like dsh ships its own styles instead of borrowing.
-    wrap.style.border = '1px solid var(--color-border,#ffffff1a)';
-    wrap.style.cssText += fill
-      ? 'padding:3px;display:flex;flex-wrap:nowrap;width:100%;'
-      : 'padding:3px;flex-wrap:wrap;row-gap:2px;';
-    wrap.setAttribute('role', 'radiogroup');
-    if (key) wrap.setAttribute('data-k', key);
-    wrap.setAttribute('data-value', String(value));
-    wrap.__zwPaint = function () {
-      var cur = String(wrap.getAttribute('data-value'));
-      Array.prototype.forEach.call(wrap.children, function (b) {
-        var on = b.getAttribute('data-v') === cur;
-        b.style.background = on ? 'var(--color-input,#2b2b2b)' : 'transparent';
-        b.style.color = on ? 'var(--color-foreground,#eee)' : 'var(--color-foreground-subtle,#999)';
-        b.style.fontWeight = on ? '500' : '400';
-        b.style.boxShadow = on ? 'inset 0 0 0 1px var(--color-input-border,#ffffff1a)' : 'none';
-      });
-    };
-    options.forEach(function (o) {
-      var b = el('button', 'h-7 rounded-md text-xs cursor-pointer outline-none transition-colors');
-      b.type = 'button';
-      b.style.cssText = fill ? 'flex:1 1 0;padding:0 8px;' : 'padding:0 12px;';
-      b.textContent = o[1];
-      b.setAttribute('data-v', String(o[0]));
-      b.addEventListener('click', function () {
-        wrap.setAttribute('data-value', String(o[0]));
-        wrap.__zwPaint();
-        onChange(o[0]);
-      });
-      wrap.appendChild(b);
-    });
-    wrap.__zwPaint();
-    return wrap;
-  }
-  function setSeg(f, key, val) {
-    var w = f && f.querySelector('[data-k=' + key + ']');
-    if (!w || !w.__zwPaint) return;
-    w.setAttribute('data-value', String(val));
-    w.__zwPaint();
-  }
-
-  // Full-width play-pane row (label + description left, control right). The
-  // native 192px control column only fits dropdowns \u2014 segments need width.
-  function prow(labelText, descText) {
-    var r = el('div', 'border-t border-border');
-    r.style.cssText = 'padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;';
-    var left = el('div', 'min-w-0');
-    left.appendChild(el('div', 'text-sm font-medium text-foreground', labelText));
-    if (descText) left.appendChild(el('div', 'text-xs text-foreground-subtle', descText));
-    var right = el('div', 'inline-flex items-center');
-    right.style.cssText = 'gap:12px;flex-wrap:wrap;justify-content:flex-end;';
-    r.appendChild(left);
-    r.appendChild(right);
-    return { r: r, right: right };
-  }
-  function groupLabel(t) {
-    // dsh section heading: big, bold, white \u2014 the visual anchor of a group.
-    var g = el('div', 'text-sm font-semibold text-foreground');
-    g.style.cssText = 'padding:16px 16px 8px;font-size:15px;';
-    g.textContent = t;
-    return g;
-  }
-
-  function pushConfig(patch) {
-    post('/api/config', patch).catch(function () {});
-  }
-  // Debounced+merged push for slider drags: 'input' fires at pointer
-  // frequency and every undebounced push costs the serve a CDP evaluate \u2014
-  // a drag used to storm the queue and freeze the UI until it drained.
-  var soonTimer = null;
-  var soonPatch = {};
-  function pushConfigSoon(patch) {
-    for (var k in patch) soonPatch[k] = patch[k];
-    if (soonTimer) return;
-    soonTimer = setTimeout(function () {
-      soonTimer = null;
-      var body = soonPatch;
-      soonPatch = {};
-      pushConfig(body);
-    }, 180);
-  }
-
-  // Transient feedback (2.5s, auto-dismiss) \u2014 the library has no permanent
-  // status line; failures would otherwise be completely silent.
-  function toast(text) {
-    var host = document.body || document.documentElement;
-    var t = el('div', 'fixed right-4 bottom-4 z-[2147483647] rounded-lg bg-card px-3 py-2 text-sm text-foreground shadow-md');
-    t.style.border = '1px solid var(--color-border,#ffffff1a)';
-    t.textContent = text;
-    host.appendChild(t);
-    setTimeout(function () { t.remove(); }, 2500);
-  }
-
-  // --- library (searchable, paginated, fixed height) --------------------------
-  function filteredList(list) {
-    var q = (state.filter || '').trim().toLowerCase();
-    var t = state.typeF || 'all';
-    return list.filter(function (w) {
-      if (t !== 'all' && String(w.type || '') !== t) return false;
-      if (!q) return true;
-      var hay = ((w.title || '') + ' ' + (w.id || '') + ' ' + (TYPE_LABEL[w.type] || w.type || '') + ' ' + (ORIGIN_LABEL[w.origin] || w.origin || '')).toLowerCase();
-      return hay.indexOf(q) >= 0;
-    });
-  }
-
-  function renderLibrary(list, currentId) {
-    ui.libBox.textContent = '';
-    ui.pagerBox.textContent = '';
-    if (!list || !list.length) {
-      ui.libBox.appendChild(el('div', CLS.stat, '\u672A\u53D1\u73B0 Wallpaper Engine \u58C1\u7EB8\u3002\u6CA1\u6709\u5B89\u88C5 Steam / Wallpaper Engine \u4E5F\u53EF\u4EE5\uFF1A\u70B9\u300C\u5BFC\u5165\u58C1\u7EB8\u2026\u300D\u5BFC\u5165 .zw.zip \u8D44\u6E90\u5305\u3001.pkg \u573A\u666F\u6216\u89C6\u9891\u6587\u4EF6\u3002'));
-      return;
-    }
-    var all = filteredList(list);
-    if (!all.length) {
-      ui.libBox.appendChild(el('div', CLS.stat, '\u6CA1\u6709\u5339\u914D\u300C' + state.filter + '\u300D\u7684\u58C1\u7EB8'));
-      return;
-    }
-    var pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
-    if (state.page >= pages) state.page = pages - 1;
-    var slice = all.slice(state.page * PAGE_SIZE, state.page * PAGE_SIZE + PAGE_SIZE);
-
-    // Poster grid (dsh picker): 16:9 image cards, title overlaid at the
-    // bottom, type tag top-left, export/delete chips top-right. Inline styles
-    // throughout \u2014 aspect-ratio & gradient utilities aren't in the app CSS.
-    var grid = el('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;';
-    grid.style.alignContent = 'start';
-    slice.forEach(function (w) {
-      var sel = w.id === currentId;
-      var card = el('div');
-      card.style.cssText = 'position:relative;aspect-ratio:16/9;border-radius:8px;overflow:hidden;cursor:pointer;' +
-        'background:rgba(0,0,0,.3);border:1px solid ' + (sel ? 'var(--color-primary,#fff)' : 'var(--color-border,#ffffff1a)') + ';' +
-        (sel ? 'box-shadow:0 0 0 1px var(--color-primary,#fff);' : '');
-      var img = el('img');
-      img.loading = 'lazy';
-      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
-      if (w.previewUrl) img.src = API + w.previewUrl;
-      card.appendChild(img);
-      var tag = el('span', null, TYPE_LABEL[w.type] || w.type || '');
-      tag.style.cssText = 'position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;';
-      card.appendChild(tag);
-      if (sel) {
-        var use = el('span', null, '\u4F7F\u7528\u4E2D');
-        use.style.cssText = 'position:absolute;top:6px;right:6px;background:var(--color-primary,#fff);color:var(--color-primary-foreground,#000);font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;';
-        card.appendChild(use);
-      } else {
-        var chips = el('div');
-        chips.style.cssText = 'position:absolute;top:6px;right:6px;display:flex;gap:4px;';
-        var mini = function (t, title, fn) {
-          var mb = el('button', null, t);
-          mb.type = 'button';
-          mb.title = title;
-          mb.style.cssText = 'background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;padding:3px 6px;border-radius:4px;border:0;cursor:pointer;';
-          mb.addEventListener('click', function (e) { e.stopPropagation(); fn(); });
-          return mb;
-        };
-        chips.appendChild(mini('\u5BFC\u51FA', '\u6253\u5305\u4E3A .zw.zip\uFF0C\u53EF\u5728\u53E6\u4E00\u53F0\u7535\u8111\u5BFC\u5165', function () {
-          var a = el('a');
-          a.href = API + '/api/export?id=' + encodeURIComponent(w.id);
-          a.download = '';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        }));
-        if (w.origin === 'custom') {
-          chips.appendChild(mini('\u5220\u9664', '\u4ECE\u5E93\u4E2D\u5220\u9664\uFF08\u6B63\u5728\u4F7F\u7528\u4F1A\u81EA\u52A8\u5207\u6362\uFF09', function () {
-            post('/api/delete-source', { id: w.id }).then(function (r) {
-              if (r.error) { toast('\u5220\u9664\u5931\u8D25\uFF1A' + r.error); return; }
-              toast('\u5DF2\u5220\u9664\u300C' + (w.title || w.id) + '\u300D' + (r.switchedTo ? '\uFF0C\u5DF2\u5207\u6362\u5230\u300C' + r.switchedTo + '\u300D' : ''));
-              state.page = 0;
-              refresh();
-            }).catch(function (err) { toast('\u5220\u9664\u5931\u8D25\uFF1A' + (err && err.message ? err.message : '\u7F51\u7EDC\u9519\u8BEF')); });
-          }));
-        }
-        card.appendChild(chips);
-      }
-      var name = el('div', null, w.title || w.id);
-      name.style.cssText = 'position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;color:#fff;font-size:12px;' +
-        'background:linear-gradient(transparent,rgba(0,0,0,.78));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-      card.appendChild(name);
-      var lastApply = 0;
-      card.addEventListener('click', function () {
-        // Rapid card clicks queue heavy scene loads on the engine \u2014 swallow
-        // anything within 600ms of the last one (a drag over cards should
-        // not fire a dozen loads).
-        if (Date.now() - lastApply < 600) return;
-        lastApply = Date.now();
-        post('/api/apply-source', { sourceId: w.id }).then(function (r) {
-          if (!r.error) refresh();
-        }).catch(function () {});
-      });
-      grid.appendChild(card);
-    });
-    ui.libBox.appendChild(grid);
-    // Fixed height: remember the natural height of a FULL page and keep it for
-    // short pages too, so the last page never collapses the section. Skipped
-    // while the pane is hidden (offsetHeight 0 would poison the memory).
-    requestAnimationFrame(function () {
-      if (!grid.firstChild) return;
-      if (!grid.offsetParent) return;
-      if (slice.length === PAGE_SIZE && pages > 1) {
-        state.gridH = grid.offsetHeight;
-      }
-      if (state.gridH) grid.style.minHeight = state.gridH + 'px';
-      else {
-        var rows = Math.ceil(PAGE_SIZE / 4);
-        grid.style.minHeight = (rows * grid.firstChild.offsetHeight + (rows - 1) * 8) + 'px';
-      }
-    });
-
-    var pager = el('div', 'flex items-center justify-end gap-2 mt-2');
-    var prev = button('\u4E0A\u4E00\u9875', function () { if (state.page > 0) { state.page--; renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current); } }, null, CLS.btnIcon);
-    if (state.page === 0) { prev.disabled = true; prev.classList.add('opacity-50', 'cursor-not-allowed'); }
-    pager.appendChild(prev);
-    pager.appendChild(el('span', 'text-sm text-foreground-subtle', (state.page + 1) + ' / ' + pages + ' \u9875 \xB7 \u5171 ' + all.length + ' \u9879' + (all.length !== list.length ? '\uFF08\u7B5B\u9009\u81EA ' + list.length + '\uFF09' : '')));
-    var next = button('\u4E0B\u4E00\u9875', function () { if (state.page < pages - 1) { state.page++; renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current); } }, null, CLS.btnIcon);
-    if (state.page >= pages - 1) { next.disabled = true; next.classList.add('opacity-50', 'cursor-not-allowed'); }
-    pager.appendChild(next);
-    ui.pagerBox.appendChild(pager);
-  }
-
-  // Current-wallpaper strip on the library tab: poster + title + badge.
-  function renderCurrent(d) {
-    if (!ui.curTitle) return;
-    var cur = null;
-    if (d && d.current && d.wallpapers) {
-      for (var i = 0; i < d.wallpapers.length; i++) if (d.wallpapers[i].id === d.current) { cur = d.wallpapers[i]; break; }
-    }
-    if (cur) {
-      ui.curTitle.textContent = cur.title || cur.id;
-      ui.curMeta.textContent = (TYPE_LABEL[cur.type] || cur.type || '') + ' \xB7 ' + (ORIGIN_LABEL[cur.origin] || cur.origin || '');
-      ui.curBadge.textContent = '\u4F7F\u7528\u4E2D';
-      ui.curBadge.style.display = '';
-      if (cur.previewUrl) { ui.curPoster.src = API + cur.previewUrl; ui.curPoster.style.display = ''; }
-      else ui.curPoster.style.display = 'none';
-    } else if (state.cfg && state.cfg.wallpaperSet) {
-      ui.curTitle.textContent = '\u56FE\u7247\u58C1\u7EB8';
-      ui.curMeta.textContent = '\u901A\u8FC7\u300C\u5BFC\u5165\u58C1\u7EB8\u2026\u300D\u8BBE\u7F6E\u7684\u9759\u6001\u56FE\u7247';
-      ui.curBadge.textContent = '\u4F7F\u7528\u4E2D';
-      ui.curBadge.style.display = '';
-      ui.curPoster.style.display = 'none';
-    } else {
-      ui.curTitle.textContent = '\u672A\u8BBE\u7F6E\u58C1\u7EB8';
-      ui.curMeta.textContent = '\u4ECE\u4E0B\u65B9\u58C1\u7EB8\u5E93\u9009\u62E9\uFF0C\u6216\u70B9\u300C\u5BFC\u5165\u58C1\u7EB8\u2026\u300D';
-      ui.curBadge.style.display = 'none';
-      ui.curPoster.style.display = 'none';
-    }
-  }
-
-  function refresh() {
-    fetchJson('/api/config').then(function (c) {
-      state.cfg = c;
-      if (ui.badge) {
-        ui.badge.textContent = c.mediaType === 'live' ? '\u5B9E\u65F6\u573A\u666F' : c.mediaType === 'video' ? '\u89C6\u9891\u58C1\u7EB8' : (c.wallpaperSet ? '\u56FE\u7247' : '\u672A\u8BBE\u7F6E');
-      }
-      var f = document.getElementById(MARKER);
-      if (!f) return;
-      var q = function (k) { return f.querySelector('[data-k=' + k + ']'); };
-      var blur = syncRange(f, 'blur', c.blur, 'px');
-      var dim = syncRange(f, 'dim', c.dim, '%');
-      var monet = q('monet'); if (monet) setSwitch(monet, !!c.monet);
-      var vis = q('vis'); if (vis) setSwitch(vis, !!c.wallpaperVisible);
-      var mute = q('mute'); if (mute) setSwitch(mute, c.liveMuted !== false);
-      syncRange(f, 'bright', c.wallBrightness == null ? 100 : c.wallBrightness, '%');
-      syncRange(f, 'contrast', c.wallContrast == null ? 100 : c.wallContrast, '%');
-      syncRange(f, 'saturate', c.wallSaturate == null ? 100 : c.wallSaturate, '%');
-      syncRange(f, 'opacity', c.wallOpacity == null ? 0 : c.wallOpacity, '%');
-      syncRange(f, 'posx', c.posX == null ? 50 : c.posX, '');
-      syncRange(f, 'posy', c.posY == null ? 50 : c.posY, '');
-      syncRange(f, 'scale', c.layerScale == null ? 100 : c.layerScale, '%');
-      var flip = q('flip'); if (flip) setSwitch(flip, !!c.flip);
-      var rot = q('rot'); if (rot) setSwitch(rot, !!c.rotationEnabled);
-      setSeg(f, 'fit', c.fit || 'cover');
-      setSeg(f, 'fps', String(c.liveFps || 30));
-      setSeg(f, 'trans', c.switchTransition || 'fade');
-      setSeg(f, 'tspd', c.switchTransitionSpeed || 'normal');
-      setSeg(f, 'rotmin', String(c.rotationMinutes || 30));
-      setSeg(f, 'rotord', c.rotationOrder === 'random' ? 'random' : 'sequence');
-    }).catch(function () {});
-    fetchJson('/api/wallpapers').then(function (d) {
-      state.lib = d;
-      renderCurrent(d);
-      if (ui.libBox) renderLibrary(d.wallpapers, d.current);
-    }).catch(function () {});
-  }
-  window.__zwPanelRefresh = refresh;
-
-  function buildSection() {
-    var section = el('div', CLS.section);
-    section.id = MARKER;
-
-    var head = el('div', 'flex flex-wrap items-center justify-between gap-2');
-    var headText = el('div');
-    headText.appendChild(el('h3', CLS.title, '\u58C1\u7EB8\u5F15\u64CE'));
-    headText.appendChild(el('p', CLS.desc, '\u4F7F\u7528 Wallpaper Engine \u8BA2\u9605\u7684\u58C1\u7EB8\uFF1A\u573A\u666F\u4E3A\u5B9E\u65F6\u6E32\u67D3\uFF08\u4FDD\u7559\u7C92\u5B50\u3001\u811A\u672C\u4E0E\u9F20\u6807\u89C6\u5DEE\uFF09\uFF0C\u56FE\u7247\u4E0E\u89C6\u9891\u4EA6\u53EF\u4F5C\u4E3A\u80CC\u666F\u3002'));
-    head.appendChild(headText);
-    ui.badge = el('span', CLS.badge, '\u2026');
-    head.appendChild(ui.badge);
-    section.appendChild(head);
-
-    var card = el('div', CLS.card);
-    card.setAttribute('data-slot', 'card');
-    var content = el('div', CLS.content);
-    content.setAttribute('data-slot', 'card-content');
-
-    // --- full-width tab strip (dsh: equal tabs in one bordered container) -------
-    ensureSliderStyle();
-    var tabBar = el('div', 'rounded-lg');
-    tabBar.style.cssText = 'display:flex;gap:2px;padding:3px;margin:12px 16px 2px;border:1px solid var(--color-border,#ffffff1a);';
-    function tabBtn(label) {
-      var b = el('button', 'h-8 rounded-md text-sm outline-none transition-colors cursor-pointer');
-      b.type = 'button';
-      b.style.cssText = 'flex:1 1 0;';
-      b.textContent = label;
-      tabBar.appendChild(b);
-      return b;
-    }
-    var tabLibBtn = tabBtn('\u58C1\u7EB8\u5E93');
-    var tabPlayBtn = tabBtn('\u753B\u9762\u4E0E\u64AD\u653E');
-    content.appendChild(tabBar);
-    var tabLib = el('div');
-    var tabPlay = el('div');
-    tabPlay.style.display = 'none';
-    content.appendChild(tabLib);
-    content.appendChild(tabPlay);
-    function showTab(t) {
-      var isLib = t !== 'play';
-      tabLib.style.display = isLib ? '' : 'none';
-      tabPlay.style.display = isLib ? 'none' : '';
-      Array.prototype.forEach.call([tabLibBtn, tabPlayBtn], function (b, idx) {
-        var on = (idx === 0) === isLib;
-        b.style.background = on ? 'var(--color-input,#2b2b2b)' : 'transparent';
-        b.style.color = on ? 'var(--color-foreground,#eee)' : 'var(--color-foreground-subtle,#999)';
-        b.style.fontWeight = on ? '500' : '400';
-        b.style.boxShadow = on ? 'inset 0 0 0 1px var(--color-input-border,#ffffff1a)' : 'none';
-      });
-      state.tab = isLib ? 'lib' : 'play';
-      try { localStorage.setItem('zw-panel-tab', state.tab); } catch (e) { /* private mode */ }
-    }
-    tabLibBtn.addEventListener('click', function () { showTab('lib'); });
-    tabPlayBtn.addEventListener('click', function () { showTab('play'); });
-    showTab((function () { try { return localStorage.getItem('zw-panel-tab') || 'lib'; } catch (e) { return 'lib'; } })());
-
-    tabLib.appendChild(groupLabel('\u5F53\u524D\u58C1\u7EB8'));
-    // Current wallpaper strip: poster + title + meta + badge.
-    var curCard = el('div', 'border-t border-border');
-    curCard.style.cssText = 'padding:12px 16px;display:flex;align-items:center;gap:14px;';
-    ui.curPoster = el('img');
-    ui.curPoster.loading = 'lazy';
-    ui.curPoster.style.cssText = 'width:120px;height:68px;border-radius:8px;object-fit:cover;background:rgba(0,0,0,.25);flex:none;';
-    var curInfo = el('div', 'min-w-0 flex-1');
-    ui.curTitle = el('div', 'text-sm font-medium text-foreground truncate', '\u2026');
-    ui.curMeta = el('div', 'text-xs text-foreground-subtle truncate');
-    curInfo.appendChild(ui.curTitle);
-    curInfo.appendChild(ui.curMeta);
-    ui.curBadge = el('span', CLS.badge, '\u2026');
-    curCard.appendChild(ui.curPoster);
-    curCard.appendChild(curInfo);
-    curCard.appendChild(ui.curBadge);
-    tabLib.appendChild(curCard);
-
-    // \u2500\u2500 picture pane: two columns of slider rows (user preference). Each cell
-    // keeps the label \xB7 slider \xB7 chip anatomy; the grid supplies the gutter. \u2500\u2500
-    tabPlay.appendChild(groupLabel('\u753B\u9762'));
-
-    function sliderRow(k, cfgKey, labelText, min, max, unit, def) {
-      var r = el('div', 'border-t border-border');
-      r.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;';
-      var lab = el('span', 'text-sm text-foreground-subtle', labelText);
-      lab.style.cssText = 'flex:none;width:48px;';
-      r.appendChild(lab);
-      var i = el('input');
-      i.type = 'range';
-      i.className = 'zw-range';
-      i.min = String(min);
-      i.max = String(max);
-      i.value = String(def);
-      i.style.flex = '1 1 0';
-      i.style.minWidth = '0';
-      i.setAttribute('data-k', k);
-      var v = el('span', 'text-xs text-foreground-subtle');
-      v.setAttribute('data-k', k + 'v');
-      v.style.cssText = 'flex:none;min-width:46px;text-align:right;border:1px solid var(--color-border,#ffffff1a);border-radius:6px;padding:2px 6px;font-variant-numeric:tabular-nums;';
-      v.textContent = def + unit;
-      i.addEventListener('input', function () {
-        v.textContent = i.value + unit;
-        paintRange(i);
-        var p = {};
-        p[cfgKey] = Number(i.value);
-        pushConfig(p);
-      });
-      paintRange(i);
-      r.appendChild(i);
-      r.appendChild(v);
-      return r;
-    }
-    var knobs = el('div');
-    knobs.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;';
-    knobs.appendChild(sliderRow('blur', 'blur', '\u6A21\u7CCA', 0, 40, 'px', 0));
-    knobs.appendChild(sliderRow('dim', 'dim', '\u538B\u6697', 0, 100, '%', 0));
-    knobs.appendChild(sliderRow('bright', 'wallBrightness', '\u4EAE\u5EA6', 40, 160, '%', 100));
-    knobs.appendChild(sliderRow('contrast', 'wallContrast', '\u5BF9\u6BD4\u5EA6', 40, 200, '%', 100));
-    knobs.appendChild(sliderRow('saturate', 'wallSaturate', '\u9971\u548C\u5EA6', 0, 200, '%', 100));
-    knobs.appendChild(sliderRow('opacity', 'wallOpacity', '\u900F\u660E\u5EA6', 0, 90, '%', 0));
-    knobs.appendChild(sliderRow('posx', 'posX', '\u6C34\u5E73', 0, 100, '', 50));
-    knobs.appendChild(sliderRow('posy', 'posY', '\u5782\u76F4', 0, 100, '', 50));
-    knobs.appendChild(sliderRow('scale', 'layerScale', '\u7F29\u653E', 50, 150, '%', 100));
-    tabPlay.appendChild(knobs);
-
-    var rFit = prow('\u9002\u914D', '\u8986\u76D6 = \u88C1\u5207\u94FA\u6EE1 \xB7 \u7559\u8FB9 = \u5B8C\u6574\u663E\u793A \xB7 \u62C9\u4F38 = \u53D8\u5F62\u586B\u6EE1 \xB7 \u667A\u80FD = \u81EA\u52A8\u6784\u56FE\u3002');
-    rFit.right.style.flex = '1 1 0';
-    rFit.right.style.minWidth = '240px';
-    rFit.right.appendChild(makeSeg([['cover', '\u8986\u76D6'], ['contain', '\u7559\u8FB9'], ['stretch', '\u62C9\u4F38'], ['smart', '\u667A\u80FD']], 'cover', function (v) { pushConfig({ fit: v }); }, 'fit', true));
-    tabPlay.appendChild(rFit.r);
-
-    var rLive = prow('\u5E27\u7387\u4E0A\u9650', '\u573A\u666F\u6E32\u67D3\u5E27\u7387\uFF1B\u89C6\u9891\u6309\u6E90\u5E27\u7387\u64AD\u653E\u3002');
-    var fpsSeg = makeSeg([['15', '15'], ['30', '30'], ['60', '60']], '30', function (v) { pushConfig({ liveFps: Number(v) }); }, 'fps', true);
-    fpsSeg.style.maxWidth = '200px';
-    rLive.right.appendChild(fpsSeg);
-    rLive.right.appendChild(makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, '\u9759\u97F3', 'mute'));
-    tabPlay.appendChild(rLive.r);
-
-    var rFlip = prow('\u6C34\u5E73\u7FFB\u8F6C', '\u955C\u50CF\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF0C\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\u3002');
-    rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, '\u7FFB\u8F6C', 'flip'));
-    tabPlay.appendChild(rFlip.r);
-
-    tabPlay.appendChild(groupLabel('\u53D6\u8272'));
-
-    var rTheme = prow('Monet \u52A8\u6001\u53D6\u8272', '\u4ECE\u58C1\u7EB8\u771F\u5B9E\u6E32\u67D3\u50CF\u7D20\u63D0\u53D6 Material Design 3 \u914D\u8272\u9002\u914D\u754C\u9762\uFF1B\u5173\u95ED\u300C\u663E\u793A\u58C1\u7EB8\u300D\u5219\u53EA\u53D6\u8272\u4E0D\u94FA\u56FE\u3002');
-    rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ monet: v }); }, '\u53D6\u8272', 'monet'));
-    rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, '\u663E\u793A\u58C1\u7EB8', 'vis'));
-    tabPlay.appendChild(rTheme.r);
-
-    // library pane \u2014 dsh order: actions under the current card, then \u5207\u6362\u8FC7\u573A /
-    // \u81EA\u52A8\u8F6E\u64AD sections, then the picker (filter row + poster grid + pager).
-    var libRow = tabLib;
-    var actRow = el('div');
-    actRow.style.cssText = 'padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
-    // Instant pause/resume: posted straight into the live renderer iframes in
-    // this page \u2014 no server roundtrip, no config change.
-    var livePaused = false;
-    var pauseBtn = button('\u6682\u505C', function () {
-      livePaused = !livePaused;
-      pauseBtn.textContent = livePaused ? '\u7EE7\u7EED' : '\u6682\u505C';
-      // live scenes: message the renderer iframes; videos: the native element
-      Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
-        if ((f.getAttribute('src') || '').indexOf('/live/index.html') !== -1) {
-          try { f.contentWindow.postMessage({ zw: livePaused ? 'pause' : 'resume', user: true }, '*'); } catch (e) { /* mid-swap */ }
-        }
-      });
-      var v = document.getElementById('zcode-wallpaper-video');
-      if (v) { if (livePaused) { v.pause(); } else { v.play().catch(function () {}); } }
-    }, '\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3');
-    actRow.appendChild(pauseBtn);
-    actRow.appendChild(button('\u5237\u65B0', function () { refresh(); }));
-    // One import entry: a browser file chooser for images, .zw.zip packages,
-    // .pkg scenes and videos \u2014 dispatched by file type. Same chooser UX as
-    // everywhere else in the app; no Wallpaper Engine involved.
-    var importFile = el('input');
-    importFile.type = 'file';
-    importFile.accept = 'image/*,.zip,.pkg,.mp4,.webm';
-    importFile.className = 'hidden';
-    importFile.addEventListener('change', function () {
-      var f = importFile.files && importFile.files[0];
-      if (!f) return;
-      state.page = 0;
-      if (/^image\\//.test(f.type)) {
-        var fr = new FileReader();
-        fr.onload = function () {
-          post('/api/wallpaper', { dataUri: fr.result }).then(function (r) {
-            if (r.error) toast('\u5BFC\u5165\u5931\u8D25\uFF1A' + r.error); else { toast('\u56FE\u7247\u5DF2\u5E94\u7528'); refresh(); }
-          }).catch(function () { toast('\u5BFC\u5165\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF'); });
-        };
-        fr.readAsDataURL(f);
-      } else {
-        fetch(API + '/api/upload-wallpaper?apply=1', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream', 'X-ZW-Filename': encodeURIComponent(f.name) },
-          body: f,
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (r) {
-            if (r.error) { toast('\u5BFC\u5165\u5931\u8D25\uFF1A' + r.error); return; }
-            toast('\u5DF2\u5BFC\u5165\u300C' + (r.title || f.name) + '\u300D' + (r.mediaType === 'live' ? '\uFF08\u5B9E\u65F6\u6E32\u67D3\uFF09' : ''));
-            refresh();
-          })
-          .catch(function () { toast('\u5BFC\u5165\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF'); });
-      }
-      importFile.value = '';
-    });
-    actRow.appendChild(button('\u5BFC\u5165\u58C1\u7EB8\u2026', function () { importFile.click(); }, '\u652F\u6301\uFF1A\u56FE\u7247\u3001.zw.zip \u8D44\u6E90\u5305\u3001.pkg \u573A\u666F\u3001.mp4/.webm \u89C6\u9891\uFF08\u65E0\u9700 Wallpaper Engine\uFF09'));
-    actRow.appendChild(importFile);
-    libRow.appendChild(actRow);
-
-    libRow.appendChild(groupLabel('\u5207\u6362\u8FC7\u573A'));
-    var rTrans = prow('\u8FC7\u573A\u52A8\u753B', '\u5207\u6362\u65F6\u65E7\u753B\u9762\u9000\u573A\u7684\u6548\u679C\uFF08\u65B0\u753B\u9762\u5728\u4E0B\u65B9\u63A5\u66FF\uFF09\u3002');
-    rTrans.right.appendChild(makeSeg([['fade', '\u6DE1\u5165'], ['push', '\u63A8\u79FB'], ['wipe', '\u64E6\u9664'], ['iris', '\u5149\u5708'], ['zoom', '\u7F29\u653E'], ['cut', '\u76F4\u63A5']], 'fade', function (v) { pushConfig({ switchTransition: v }); }, 'trans'));
-    rTrans.right.appendChild(makeSeg([['fast', '\u5FEB'], ['normal', '\u6807\u51C6'], ['slow', '\u6162']], 'normal', function (v) { pushConfig({ switchTransitionSpeed: v }); }, 'tspd'));
-    libRow.appendChild(rTrans.r);
-
-    libRow.appendChild(groupLabel('\u81EA\u52A8\u8F6E\u64AD'));
-    var rRot = prow('\u81EA\u52A8\u8F6E\u8F6C', '\u6309\u95F4\u9694\u5728\u58C1\u7EB8\u5E93\uFF08\u8BA2\u9605 + \u672C\u673A\u5BFC\u5165\uFF09\u4E2D\u81EA\u52A8\u5207\u6362\u3002');
-    rRot.right.appendChild(makeSeg([['sequence', '\u987A\u5E8F'], ['random', '\u968F\u673A']], 'sequence', function (v) { pushConfig({ rotationOrder: v }); }, 'rotord'));
-    rRot.right.appendChild(makeSeg([['5', '5 \u5206'], ['15', '15 \u5206'], ['30', '30 \u5206'], ['60', '1 \u5C0F\u65F6'], ['120', '2 \u5C0F\u65F6']], '30', function (v) { pushConfig({ rotationMinutes: Number(v) }); }, 'rotmin'));
-    rRot.right.appendChild(makeSwitch(false, function (v) { pushConfig({ rotationEnabled: v }); }, '\u8F6E\u64AD', 'rot'));
-    libRow.appendChild(rRot.r);
-
-    libRow.appendChild(groupLabel('\u58C1\u7EB8\u5E93'));
-
-    // Filter row: search takes the slack, the type filter stays compact.
-    var filterRow = el('div');
-    filterRow.style.cssText = 'padding:2px 16px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
-    var search = el('input', CLS.input);
-    search.type = 'search';
-    search.placeholder = '\u641C\u7D22\u58C1\u7EB8\uFF08\u540D\u79F0 / \u7C7B\u578B / \u6765\u6E90\uFF09';
-    search.value = state.filter || '';
-    search.style.cssText = 'flex:1 1 180px;min-width:160px;';
-    var searchTimer = null;
-    search.addEventListener('input', function () {
-      clearTimeout(searchTimer);
-      var v = search.value;
-      searchTimer = setTimeout(function () {
-        state.filter = v;
-        state.page = 0;
-        renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-      }, 200);
-    });
-    ui.search = search;
-    filterRow.appendChild(search);
-    var typeSel = dropdown([['all', '\u5168\u90E8\u7C7B\u578B'], ['scene', '\u573A\u666F'], ['video', '\u89C6\u9891'], ['web', '\u7F51\u9875']], state.typeF || 'all', function (v) {
-      state.typeF = v; state.page = 0;
-      renderLibrary(state.lib && state.lib.wallpapers, state.lib && state.lib.current);
-    });
-    typeSel.style.width = '128px';
-    typeSel.style.flex = 'none';
-    filterRow.appendChild(typeSel);
-    libRow.appendChild(filterRow);
-
-    ui.libBox = el('div');
-    ui.libBox.style.cssText = 'padding:0 16px;';
-    libRow.appendChild(ui.libBox);
-    ui.pagerBox = el('div');
-    ui.pagerBox.style.cssText = 'padding:2px 16px 12px;';
-    libRow.appendChild(ui.pagerBox);
-
-    // footer actions
-    var footRow = el('div', 'px-4 py-3 flex items-center gap-2 justify-end');
-    footRow.appendChild(button('\u6062\u590D\u9ED8\u8BA4\u5916\u89C2', function () {
-      post('/api/reset', {}).then(function () { refresh(); });
-    }));
-    footRow.appendChild(button('\u8FD8\u539F\u4E0A\u6B21\u58C1\u7EB8', function () {
-      post('/api/restore', {}).then(function () { refresh(); });
-    }));
-    content.appendChild(footRow);
-
-    card.appendChild(content);
-    section.appendChild(card);
-    return section;
-  }
-
-  // --- mount loop ----------------------------------------------------------------
-  var scheduled = false;
-  // Leaving the Appearance tab: the shared container keeps foreign children,
-  // so the section must be removed SYNCHRONOUSLY here \u2014 MutationObserver
-  // callbacks run before paint, while the debounced scan (80ms) would leave
-  // the section visible over the new tab for a few frames (visible flash).
-  function onMutations() {
-    var mine = document.getElementById(MARKER);
-    if (mine && !appearanceSectionList()) {
-      mine.remove();
-      ui.libBox = null; ui.pagerBox = null; ui.badge = null; ui.search = null;
-    }
-    schedule();
-  }
-  function scan() {
-    scheduled = false;
-    if (hbRetired) return; // serve is gone \u2014 no stale panel without data
-    // Retire when a newer build has taken over the page.
-    if (typeof window.__zwSettingsBoot === 'number' && window.__zwSettingsBoot > V) {
-      if (mountObserver) mountObserver.disconnect();
-      neutralize.disconnect();
-      return;
-    }
-    var mine = document.getElementById(MARKER);
-    var host = appearanceSectionList();
-    if (!host) {
-      // Belt and braces (the synchronous path in onMutations usually got here
-      // first): never leak into another settings tab.
-      if (mine) mine.remove();
-      ui.libBox = null; ui.pagerBox = null; ui.badge = null; ui.search = null;
-      return;
-    }
-    if (mine) return; // mounted and current
-    sweepLegacy();
-    ui.libBox = null; ui.pagerBox = null; ui.badge = null; ui.search = null;
-    state.page = 0;
-    var section = buildSection();
-    host.appendChild(section);
-    refresh();
-  }
-  function schedule() {
-    if (scheduled) return;
-    scheduled = true;
-    setTimeout(scan, 80);
-  }
-  // Lifecycle heartbeat \u2014 same hard/soft contract as the theme bootstrap:
-  //   hard = connection REFUSED (fast reject): the serve process is really
-  //   gone (plugin disabled / crash) \u2192 retire the section within ~10s.
-  //   soft = timeout while the serve is alive but busy (Monet decode, sync
-  //   library enumeration block its loop for seconds) \u2192 tolerated, never
-  //   retires. Latched on first success: cold start (page up before the
-  //   serve) doesn't count. If health returns after a retire (serve
-  //   respawned), the panel revives itself.
-  var hbHard = 0;
-  var hbSoft = 0;
-  var hbSeen = false;
-  var hbRetired = false;
-  setInterval(function () {
-    var t0 = Date.now();
-    fetch(API + '/api/health', { signal: AbortSignal.timeout(2500) })
-      .then(function (r) { return r.json(); })
-      .then(function (b) {
-        if (!b || b.service !== 'zcode-wallpaper') throw 0;
-        var revive = hbRetired || !hbSeen;
-        hbSeen = true;
-        hbHard = 0;
-        hbSoft = 0;
-        hbRetired = false;
-        if (revive) schedule(); // serve just came up (or back) \u2014 (re)mount
-      })
-      .catch(function () {
-        if (!hbSeen) return; // cold-start race: keep waiting for the serve
-        var hard = (Date.now() - t0) < 150;
-        if (hard) { hbHard++; hbSoft = 0; } else { hbSoft++; hbHard = 0; }
-        if (hbHard < 2 && hbSoft < 6) return;
-        hbHard = 0;
-        hbSoft = 0;
-        hbRetired = true;
-        var mine = document.getElementById(MARKER);
-        if (mine) mine.remove();
-      });
-  }, 5000);
-
-  mountObserver = new MutationObserver(onMutations);
-  mountObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
-  neutralize.observe(document.body || document.documentElement, { childList: true, subtree: true });
-  // Safety rescan: React re-renders of the settings page can transiently
-  // replace the host container, taking the section with it; when the
-  // appearance page is back but the section is not, requiring another DOM
-  // mutation (a user click) to remount reads as "the box disappeared until I
-  // clicked somewhere". Poll for that state instead.
-  setInterval(function () {
-    if (hbRetired) return;
-    if (document.getElementById(MARKER)) return;
-    if (!appearanceSectionList()) return;
-    schedule();
-  }, 2000);
-  sweepLegacy();
-  scan();
-})();`;
-}
-var init_panelScript = __esm({
-  "src/panel/panelScript.ts"() {
-    "use strict";
-  }
-});
-
 // src/core/media.ts
-import fs8 from "node:fs";
+import fs10 from "node:fs";
 import crypto from "node:crypto";
-import path5 from "node:path";
+import path6 from "node:path";
 function sendStaticFile(req, res, filePath, opts = {}) {
   const isHead = req.method === "HEAD";
   let stat;
   try {
-    stat = fs8.statSync(filePath);
+    stat = fs10.statSync(filePath);
   } catch {
     return false;
   }
   if (!stat.isFile()) return false;
-  const type = MIME[path5.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+  const type = MIME[path6.extname(filePath).toLowerCase()] ?? "application/octet-stream";
   const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}-${crypto.createHash("sha1").update(filePath).digest("hex").slice(0, 12)}"`;
   const baseHeaders = {
     "Content-Type": type,
@@ -56603,7 +55254,7 @@ function sendStaticFile(req, res, filePath, opts = {}) {
   });
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
   const pipe2 = (opts2) => {
-    const stream = opts2 ? fs8.createReadStream(filePath, opts2) : fs8.createReadStream(filePath);
+    const stream = opts2 ? fs10.createReadStream(filePath, opts2) : fs10.createReadStream(filePath);
     stream.on("error", () => {
       try {
         res.destroy();
@@ -56653,9 +55304,9 @@ function sendStaticFile(req, res, filePath, opts = {}) {
 function safeJoin(root, rel) {
   const clean = rel.replace(/\\/g, "/").split("/").filter((s2) => s2 && s2 !== "." && s2 !== "..").join("/");
   if (!clean) return root;
-  const target = path5.resolve(root, clean);
-  const relFromRoot = path5.relative(path5.resolve(root), target);
-  if (relFromRoot.startsWith("..") || path5.isAbsolute(relFromRoot)) return void 0;
+  const target = path6.resolve(root, clean);
+  const relFromRoot = path6.relative(path6.resolve(root), target);
+  if (relFromRoot.startsWith("..") || path6.isAbsolute(relFromRoot)) return void 0;
   return target;
 }
 var MIME;
@@ -56684,6 +55335,219 @@ var init_media = __esm({
       ".tex": "application/octet-stream",
       ".mdl": "application/octet-stream"
     };
+  }
+});
+
+// src/core/configApi.ts
+import fs11 from "node:fs";
+import path7 from "node:path";
+function storedCustomSources() {
+  const stored = loadConfig();
+  return Array.isArray(stored.customSources) ? stored.customSources : [];
+}
+function currentConfig(cdpPort, apiPort) {
+  const stored = loadConfig();
+  return {
+    ...DEFAULT_CONFIG,
+    ...stored,
+    port: cdpPort,
+    apiPort,
+    customSources: storedCustomSources()
+  };
+}
+function persisted(config2) {
+  const stored = loadConfig();
+  const out = { ...config2, port: stored.port, apiPort: stored.apiPort };
+  out.customSources = storedCustomSources();
+  if (out.port === void 0) delete out.port;
+  if (out.apiPort === void 0) delete out.apiPort;
+  return out;
+}
+function backupFile() {
+  return path7.join(dataDir(), "config.backup.json");
+}
+function hasBackup() {
+  return fs11.existsSync(backupFile());
+}
+function readBackup() {
+  return JSON.parse(fs11.readFileSync(backupFile(), "utf8"));
+}
+function writeBackup(config2) {
+  fs11.mkdirSync(dataDir(), { recursive: true });
+  fs11.writeFileSync(backupFile(), JSON.stringify(config2));
+}
+function publicConfig(config2) {
+  return {
+    blur: config2.blur,
+    dim: config2.dim,
+    monet: config2.monet,
+    wallpaperVisible: config2.wallpaperVisible,
+    fit: config2.fit,
+    wallpaperSet: Boolean(
+      config2.wallpaperPath && fs11.existsSync(config2.wallpaperPath) || config2.sceneVideoUrl || config2.live
+    ),
+    mediaType: config2.mediaType ?? "image",
+    live: config2.live ?? null,
+    liveFps: config2.liveFps ?? 30,
+    liveMuted: config2.liveMuted ?? true,
+    wallBrightness: config2.wallBrightness ?? 100,
+    wallContrast: config2.wallContrast ?? 100,
+    wallSaturate: config2.wallSaturate ?? 100,
+    wallOpacity: config2.wallOpacity ?? 0,
+    posX: config2.posX ?? 50,
+    posY: config2.posY ?? 50,
+    layerScale: config2.layerScale ?? 100,
+    flip: config2.flip === true,
+    switchTransition: config2.switchTransition ?? "fade",
+    switchTransitionSpeed: config2.switchTransitionSpeed ?? "normal",
+    rotationEnabled: config2.rotationEnabled === true,
+    rotationMinutes: config2.rotationMinutes ?? 30,
+    rotationOrder: config2.rotationOrder === "random" ? "random" : "sequence",
+    hasBackup: hasBackup(),
+    cdpPort: config2.port,
+    apiPort: config2.apiPort
+  };
+}
+function sanitize(body) {
+  const out = {};
+  if (typeof body?.blur === "number" && body.blur >= 0 && body.blur <= 100) out.blur = body.blur;
+  if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
+  if (typeof body?.monet === "boolean") out.monet = body.monet;
+  if (typeof body?.wallpaperVisible === "boolean") out.wallpaperVisible = body.wallpaperVisible;
+  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
+  if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
+  if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
+  if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
+  if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
+  if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
+  if (typeof body?.wallOpacity === "number") out.wallOpacity = Math.min(90, Math.max(0, Math.round(body.wallOpacity)));
+  if (typeof body?.posX === "number") out.posX = Math.min(100, Math.max(0, Math.round(body.posX)));
+  if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
+  if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
+  if (typeof body?.flip === "boolean") out.flip = body.flip;
+  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
+  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
+  if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
+  if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
+  if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
+  return out;
+}
+var init_configApi = __esm({
+  "src/core/configApi.ts"() {
+    "use strict";
+    init_inject();
+    init_launch();
+  }
+});
+
+// src/core/assets.ts
+import fs12 from "node:fs";
+function invalidateAssets() {
+  cachedAssets = void 0;
+  lastGoodAssets = void 0;
+}
+function primeAssets(file, assets) {
+  cachedAssets = { file, mtimeMs: fs12.statSync(file).mtimeMs, assets };
+  lastGoodAssets = assets;
+}
+async function getAssets(config2, allowDecode = true) {
+  const sourcePath = config2.monetSourcePath;
+  if (!sourcePath || !fs12.existsSync(sourcePath)) return void 0;
+  const mtimeMs = fs12.statSync(sourcePath).mtimeMs;
+  if (cachedAssets?.file === sourcePath && cachedAssets.mtimeMs === mtimeMs) {
+    return cachedAssets.assets;
+  }
+  if (!allowDecode) return void 0;
+  try {
+    const assets = await loadWallpaper(sourcePath);
+    cachedAssets = { file: sourcePath, mtimeMs, assets };
+    lastGoodAssets = assets;
+    return assets;
+  } catch {
+    return void 0;
+  }
+}
+function getLastGoodAssets() {
+  return lastGoodAssets;
+}
+var cachedAssets, lastGoodAssets;
+var init_assets = __esm({
+  "src/core/assets.ts"() {
+    "use strict";
+    init_monet();
+  }
+});
+
+// src/core/payload.ts
+async function buildRuntimePayload(config2, allowDecode = true) {
+  const assets = await getAssets(config2, allowDecode) ?? getLastGoodAssets();
+  const payload = buildPayload(config2, assets, {
+    liveUrl: buildLiveUrl(config2)
+  });
+  payload.apiPort = config2.apiPort;
+  return payload;
+}
+var init_payload = __esm({
+  "src/core/payload.ts"() {
+    "use strict";
+    init_inject();
+    init_assets();
+  }
+});
+
+// src/core/broadcast.ts
+function currentRuntimePayload() {
+  return currentPayload;
+}
+async function publishConfig(config2, allowDecode = true) {
+  const payload = await buildRuntimePayload(config2, allowDecode);
+  currentPayload = payload;
+  hub.publish("cfg", payload);
+}
+var SseHub, hub, currentPayload;
+var init_broadcast = __esm({
+  "src/core/broadcast.ts"() {
+    "use strict";
+    init_payload();
+    SseHub = class {
+      clients = /* @__PURE__ */ new Set();
+      /** Upgrades a request to an event stream and sends the current payload. */
+      subscribe(req, res, initial) {
+        try {
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-store, no-transform",
+            Connection: "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "X-Accel-Buffering": "no"
+          });
+          res.write(": zw\n\n");
+        } catch {
+          return;
+        }
+        this.clients.add(res);
+        req.on("close", () => this.clients.delete(res));
+        res.on("error", () => this.clients.delete(res));
+        if (initial !== void 0) this.send(res, "cfg", initial);
+      }
+      send(res, event, data) {
+        try {
+          res.write(`event: ${event}
+data: ${JSON.stringify(data)}
+
+`);
+        } catch {
+          this.clients.delete(res);
+        }
+      }
+      publish(event, data) {
+        for (const res of [...this.clients]) this.send(res, event, data);
+      }
+      get size() {
+        return this.clients.size;
+      }
+    };
+    hub = new SseHub();
   }
 });
 
@@ -57020,25 +55884,25 @@ var require_utils2 = __commonJS({
       }
       mkdirSync(folder);
     };
-    Utils.prototype.writeFileTo = function(path8, content, overwrite, attr) {
+    Utils.prototype.writeFileTo = function(path11, content, overwrite, attr) {
       const self2 = this;
-      if (self2.fs.existsSync(path8)) {
+      if (self2.fs.existsSync(path11)) {
         if (!overwrite) return false;
-        var stat = self2.fs.statSync(path8);
+        var stat = self2.fs.statSync(path11);
         if (stat.isDirectory()) {
           return false;
         }
       }
-      var folder = pth.dirname(path8);
+      var folder = pth.dirname(path11);
       if (!self2.fs.existsSync(folder)) {
         self2.makeDir(folder);
       }
       var fd;
       try {
-        fd = self2.fs.openSync(path8, "w", 438);
+        fd = self2.fs.openSync(path11, "w", 438);
       } catch (e2) {
-        self2.fs.chmodSync(path8, 438);
-        fd = self2.fs.openSync(path8, "w", 438);
+        self2.fs.chmodSync(path11, 438);
+        fd = self2.fs.openSync(path11, "w", 438);
       }
       if (fd) {
         try {
@@ -57047,22 +55911,22 @@ var require_utils2 = __commonJS({
           self2.fs.closeSync(fd);
         }
       }
-      self2.fs.chmodSync(path8, attr || 438);
+      self2.fs.chmodSync(path11, attr || 438);
       return true;
     };
-    Utils.prototype.writeFileToAsync = function(path8, content, overwrite, attr, callback) {
+    Utils.prototype.writeFileToAsync = function(path11, content, overwrite, attr, callback) {
       if (typeof attr === "function") {
         callback = attr;
         attr = void 0;
       }
       const self2 = this;
-      self2.fs.exists(path8, function(exist) {
+      self2.fs.exists(path11, function(exist) {
         if (exist && !overwrite) return callback(false);
-        self2.fs.stat(path8, function(err, stat) {
+        self2.fs.stat(path11, function(err, stat) {
           if (exist && stat && stat.isDirectory()) {
             return callback(false);
           }
-          var folder = pth.dirname(path8);
+          var folder = pth.dirname(path11);
           self2.fs.exists(folder, function(exists) {
             if (!exists) {
               try {
@@ -57075,16 +55939,16 @@ var require_utils2 = __commonJS({
               self2.fs.write(fd, content, 0, content.length, 0, function(writeErr) {
                 self2.fs.close(fd, function() {
                   if (writeErr) return callback(false);
-                  self2.fs.chmod(path8, attr || 438, function() {
+                  self2.fs.chmod(path11, attr || 438, function() {
                     callback(true);
                   });
                 });
               });
             };
-            self2.fs.open(path8, "w", 438, function(err2, fd) {
+            self2.fs.open(path11, "w", 438, function(err2, fd) {
               if (err2) {
-                self2.fs.chmod(path8, 438, function() {
-                  self2.fs.open(path8, "w", 438, function(retryErr, fd2) {
+                self2.fs.chmod(path11, 438, function() {
+                  self2.fs.open(path11, "w", 438, function(retryErr, fd2) {
                     if (retryErr || !fd2) return callback(false);
                     writeToFd(fd2);
                   });
@@ -57120,10 +55984,10 @@ var require_utils2 = __commonJS({
         if (stat.isSymbolicLink()) throw Errors.FILE_IN_THE_WAY(`"${cur}"`);
       }
     };
-    Utils.prototype.findFiles = function(path8) {
+    Utils.prototype.findFiles = function(path11) {
       const self2 = this;
       const canLstat = typeof self2.fs.lstatSync === "function";
-      const rootReal = self2.fs.realpathSync(path8);
+      const rootReal = self2.fs.realpathSync(path11);
       function escapesRoot(p2) {
         if (!canLstat) return false;
         if (!self2.fs.lstatSync(p2).isSymbolicLink()) return false;
@@ -57142,23 +56006,23 @@ var require_utils2 = __commonJS({
         }
         let files = [];
         self2.fs.readdirSync(dir).forEach(function(file) {
-          const path9 = pth.join(dir, file);
-          if (escapesRoot(path9)) return;
-          const stat = self2.fs.statSync(path9);
-          if (!pattern || pattern.test(path9)) {
-            files.push(pth.normalize(path9) + (stat.isDirectory() ? self2.sep : ""));
+          const path12 = pth.join(dir, file);
+          if (escapesRoot(path12)) return;
+          const stat = self2.fs.statSync(path12);
+          if (!pattern || pattern.test(path12)) {
+            files.push(pth.normalize(path12) + (stat.isDirectory() ? self2.sep : ""));
           }
           if (stat.isDirectory() && recursive) {
-            const realDir = self2.fs.realpathSync(path9);
+            const realDir = self2.fs.realpathSync(path12);
             if (!visited.has(realDir)) {
               visited.add(realDir);
-              files = files.concat(findSync(path9, pattern, recursive, visited));
+              files = files.concat(findSync(path12, pattern, recursive, visited));
             }
           }
         });
         return files;
       }
-      return findSync(path8, void 0, true, /* @__PURE__ */ new Set([rootReal]));
+      return findSync(path11, void 0, true, /* @__PURE__ */ new Set([rootReal]));
     };
     Utils.prototype.findFilesAsync = function(dir, cb) {
       const self2 = this;
@@ -57255,14 +56119,14 @@ var require_utils2 = __commonJS({
           return "UNSUPPORTED (" + method + ")";
       }
     };
-    Utils.canonical = function(path8) {
-      if (!path8) return "";
-      const safeSuffix = pth.posix.normalize("/" + path8.split("\\").join("/"));
+    Utils.canonical = function(path11) {
+      if (!path11) return "";
+      const safeSuffix = pth.posix.normalize("/" + path11.split("\\").join("/"));
       return pth.join(".", safeSuffix);
     };
-    Utils.zipnamefix = function(path8) {
-      if (!path8) return "";
-      const safeSuffix = pth.posix.normalize("/" + path8.split("\\").join("/"));
+    Utils.zipnamefix = function(path11) {
+      if (!path11) return "";
+      const safeSuffix = pth.posix.normalize("/" + path11.split("\\").join("/"));
       return pth.posix.join(".", safeSuffix);
     };
     Utils.findLast = function(arr, callback) {
@@ -57279,9 +56143,9 @@ var require_utils2 = __commonJS({
       prefix = pth.resolve(pth.normalize(prefix));
       var parts = name.split("/");
       for (var i2 = 0, l2 = parts.length; i2 < l2; i2++) {
-        var path8 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
-        if (path8 === prefix || path8.startsWith(prefix + pth.sep)) {
-          return path8;
+        var path11 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
+        if (path11 === prefix || path11.startsWith(prefix + pth.sep)) {
+          return path11;
         }
       }
       return pth.normalize(pth.join(prefix, pth.basename(name)));
@@ -57331,8 +56195,8 @@ var require_utils2 = __commonJS({
 var require_fattr = __commonJS({
   "node_modules/adm-zip/util/fattr.js"(exports, module) {
     var pth = __require("path");
-    module.exports = function(path8, { fs: fs11 }) {
-      var _path = path8 || "", _obj = newAttr(), _stat = null;
+    module.exports = function(path11, { fs: fs16 }) {
+      var _path = path11 || "", _obj = newAttr(), _stat = null;
       function newAttr() {
         return {
           directory: false,
@@ -57343,8 +56207,8 @@ var require_fattr = __commonJS({
           atime: 0
         };
       }
-      if (_path && fs11.existsSync(_path)) {
-        _stat = fs11.statSync(_path);
+      if (_path && fs16.existsSync(_path)) {
+        _stat = fs16.statSync(_path);
         _obj.directory = _stat.isDirectory();
         _obj.mtime = _stat.mtime;
         _obj.atime = _stat.atime;
@@ -59516,6 +58380,346 @@ var require_adm_zip = __commonJS({
   }
 });
 
+// src/core/sources.ts
+import fs13 from "node:fs";
+import path8 from "node:path";
+import crypto2 from "node:crypto";
+function findVideoInDir(dir) {
+  for (const subdir of ["", "files"]) {
+    const base = path8.join(dir, subdir);
+    let entries;
+    try {
+      entries = fs13.readdirSync(base);
+    } catch {
+      continue;
+    }
+    const hit = entries.find((e2) => /\.(mp4|webm)$/i.test(e2));
+    if (hit) return path8.join(base, hit);
+  }
+  return void 0;
+}
+function toRel(dir, file) {
+  return path8.relative(dir, file).replace(/\\/g, "/");
+}
+function liveFrameFile(sourceId) {
+  const safe = sourceId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return path8.join(dataDir(), `live-frame-${safe}.jpg`);
+}
+async function applySource(id, config2, apply = true) {
+  const entry = await resolveSourceDir(id, storedCustomSources());
+  if (!entry) throw new Error(`unknown wallpaper source: ${id}`);
+  const type = entry.type === "scene" || entry.type === "web" ? entry.type : detectWallpaperType(entry.dir);
+  let next;
+  if (type === "scene" || type === "web") {
+    next = {
+      ...config2,
+      mediaType: "live",
+      live: { sourceId: id, kind: type, title: entry.title, poster: entry.preview },
+      sceneVideoUrl: void 0,
+      wallpaperPath: void 0,
+      monetSourcePath: entry.preview ? path8.join(entry.dir, entry.preview) : config2.monetSourcePath
+    };
+  } else if (type === "video") {
+    const video = findVideoInDir(entry.dir);
+    if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
+    const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
+    next = {
+      ...config2,
+      mediaType: "video",
+      sceneVideoUrl: `http://127.0.0.1:${config2.apiPort}/files/${id}/${file}`,
+      live: void 0,
+      wallpaperPath: void 0,
+      monetSourcePath: entry.preview ? path8.join(entry.dir, entry.preview) : config2.monetSourcePath
+    };
+  } else {
+    throw new Error(`unsupported wallpaper type (${type}): ${entry.title}`);
+  }
+  if (apply) {
+    saveConfig(persisted(next));
+    await publishConfig(next, false).catch(() => void 0);
+    void publishConfig(next, true).catch(() => void 0);
+  }
+  return { entry, mediaType: next.mediaType === "video" ? "video" : "live", config: next };
+}
+async function migrateLegacyVideo() {
+  const stored = loadConfig();
+  const live = stored.live;
+  if (!live || live.kind !== "video" || !live.file) return;
+  const next = {
+    ...DEFAULT_CONFIG,
+    ...stored,
+    mediaType: "video",
+    live: void 0,
+    sceneVideoUrl: `http://127.0.0.1:${stored.apiPort ?? DEFAULT_API_PORT}/files/${live.sourceId}/${live.file}`
+  };
+  saveConfig(persisted(next));
+  console.log(`serve: video wallpaper moved back to the native layer (${live.sourceId})`);
+}
+function resolveSceneInput(input) {
+  let stat;
+  try {
+    stat = fs13.statSync(input);
+  } catch {
+    return input;
+  }
+  if (stat.isDirectory()) return input;
+  if (input.toLowerCase().endsWith(".pkg")) return path8.dirname(path8.resolve(input));
+  let dir = path8.dirname(path8.resolve(input));
+  for (let hop = 0; hop < 4; hop++) {
+    if (fs13.existsSync(path8.join(dir, "project.json"))) return dir;
+    const parent = path8.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path8.dirname(path8.resolve(input));
+}
+function registerCustomSource(input) {
+  const dir = path8.resolve(resolveSceneInput(input));
+  if (!fs13.existsSync(dir) || !fs13.statSync(dir).isDirectory()) {
+    throw new Error(`not a wallpaper directory: ${dir}`);
+  }
+  const id = `custom-${crypto2.createHash("sha1").update(dir.toLowerCase()).digest("hex").slice(0, 10)}`;
+  const sources = storedCustomSources().filter((c3) => c3.id !== id);
+  let name;
+  try {
+    const p2 = JSON.parse(fs13.readFileSync(path8.join(dir, "project.json"), "utf8"));
+    if (typeof p2?.title === "string") name = p2.title;
+  } catch {
+  }
+  sources.push({ id, dir, name });
+  saveConfig({ ...loadConfig(), customSources: sources });
+  return { id, dir, name };
+}
+async function importPackageFromFile(zipPath, config2, apply) {
+  const { default: AdmZip } = await Promise.resolve().then(() => __toESM(require_adm_zip(), 1));
+  const zip = new AdmZip(zipPath);
+  const dest = path8.join(dataDir(), "packages", `pkg-${Date.now()}`);
+  fs13.mkdirSync(dest, { recursive: true });
+  zip.extractAllTo(dest, true);
+  let root = dest;
+  for (let i2 = 0; i2 < 2; i2++) {
+    const entries = fs13.readdirSync(root, { withFileTypes: true });
+    if (entries.length === 1 && entries[0].isDirectory()) root = path8.join(root, entries[0].name);
+    else break;
+  }
+  if (!fs13.existsSync(path8.join(root, "project.json")) && !fs13.existsSync(path8.join(root, "scene.pkg"))) {
+    throw new Error("package contains no project.json / scene.pkg \u2014 not a wallpaper package");
+  }
+  const { id } = registerCustomSource(root);
+  const result = await applySource(id, config2, apply);
+  return { id, ...result };
+}
+async function deleteSource(id, config2) {
+  const sources = storedCustomSources();
+  const hit = sources.find((c3) => c3.id === id);
+  if (!hit) throw new Error(`not a custom source: ${id}`);
+  const inUse = config2.live?.sourceId === id || config2.mediaType === "video" && (config2.sceneVideoUrl ?? "").includes(`/files/${id}/`);
+  let switchedTo = null;
+  if (inUse) {
+    const lib = await enumerateWallpapers();
+    const candidate = lib.wallpapers.find((w) => w.id !== id && (w.type === "scene" || w.type === "web"));
+    if (candidate) {
+      await applySource(candidate.id, config2);
+      switchedTo = candidate.title;
+    } else {
+      saveConfig({
+        ...loadConfig(),
+        mediaType: void 0,
+        live: void 0,
+        sceneVideoUrl: void 0,
+        monetSourcePath: void 0
+      });
+      await publishConfig(config2).catch(() => void 0);
+    }
+  }
+  const packagesRoot = path8.join(dataDir(), "packages");
+  const rel = path8.relative(packagesRoot, path8.resolve(hit.dir));
+  const managed = rel !== "" && !rel.startsWith("..") && !path8.isAbsolute(rel);
+  saveConfig({ ...loadConfig(), customSources: storedCustomSources().filter((c3) => c3.id !== id) });
+  const frameFile = liveFrameFile(id);
+  void (async () => {
+    for (let i2 = 0; i2 < 8; i2++) {
+      await new Promise((r2) => setTimeout(r2, 750 * (i2 + 1)));
+      try {
+        if (managed) fs13.rmSync(hit.dir, { recursive: true, force: true });
+        fs13.rmSync(frameFile, { force: true });
+        return;
+      } catch {
+      }
+    }
+    console.warn(`delete-source: could not fully remove ${hit.dir} (locked); it stays unregistered`);
+  })();
+  return { ok: true, filesRemoved: managed, switchedTo };
+}
+var init_sources = __esm({
+  "src/core/sources.ts"() {
+    "use strict";
+    init_steam();
+    init_wallpaperType();
+    init_launch();
+    init_inject();
+    init_configApi();
+    init_broadcast();
+  }
+});
+
+// src/core/sessions.ts
+function heldWindowCount() {
+  return held.size;
+}
+function withTimeout(p2, ms) {
+  return Promise.race([p2, new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))]);
+}
+async function bootstrapScriptFor(config2, apiPort) {
+  const payload = await buildRuntimePayload(config2, true);
+  return buildThinBootstrap(payload, {
+    apiPort,
+    gen: Date.now(),
+    agent: { src: `http://127.0.0.1:${apiPort}/agent.js` }
+  });
+}
+async function holdSession(target, config2, apiPort) {
+  if (!target.webSocketDebuggerUrl) return;
+  const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
+  await conn.send("Page.enable");
+  await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => void 0);
+  const bootstrap = await bootstrapScriptFor(config2, apiPort);
+  const { identifier: bootstrapId } = await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap });
+  await conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+  const panel = buildPanelLoader(apiPort);
+  const { identifier: panelId } = await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: panel });
+  await conn.send("Runtime.evaluate", { expression: panel, returnByValue: true });
+  held.set(target.id, { conn, bootstrapId, panelId });
+}
+async function poll(config2, apiPort) {
+  try {
+    const targets = pickRendererTargets(await listTargets(config2.port));
+    const current = new Set(targets.map((t2) => t2.id));
+    for (const t2 of targets) {
+      if (!held.has(t2.id)) {
+        try {
+          await holdSession(t2, config2, apiPort);
+          console.log(`serve: panel + wallpaper runtime injected into "${t2.title}" (${t2.id})`);
+        } catch {
+        }
+      }
+    }
+    for (const id of [...held.keys()]) {
+      if (!current.has(id)) {
+        held.get(id).conn.close();
+        held.delete(id);
+      }
+    }
+  } catch {
+  }
+}
+async function resetSessions() {
+  for (const [id, session] of held) {
+    try {
+      await session.conn.send("Runtime.evaluate", { expression: buildClearWallpaperScript() });
+      if (session.bootstrapId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.bootstrapId }).catch(() => {
+        });
+        session.bootstrapId = void 0;
+      }
+    } catch {
+      session.conn.close();
+      held.delete(id);
+    }
+  }
+}
+async function rearmSessions(config2, apiPort) {
+  const bootstrap = await bootstrapScriptFor(config2, apiPort).catch(() => void 0);
+  if (!bootstrap) return;
+  for (const [id, session] of held) {
+    try {
+      if (session.bootstrapId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.bootstrapId }).catch(() => {
+        });
+      }
+      const { identifier } = await session.conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap });
+      session.bootstrapId = identifier;
+      await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+    } catch {
+      session.conn.close();
+      held.delete(id);
+    }
+  }
+}
+async function shutdownSessions() {
+  for (const [, session] of held) {
+    try {
+      await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
+      if (session.bootstrapId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.bootstrapId }).catch(() => {
+        });
+      }
+      if (session.panelId) {
+        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelId }).catch(() => {
+        });
+      }
+      session.conn.close();
+    } catch {
+    }
+  }
+  held.clear();
+}
+async function startSessionLoop(getConfig, apiPort) {
+  await withTimeout(poll(getConfig(), apiPort), 2e4).catch(
+    (err) => console.error(`serve: initial poll failed \u2014 ${err.message}`)
+  );
+  let healTick = 0;
+  for (; ; ) {
+    await new Promise((r2) => setTimeout(r2, POLL_MS));
+    await withTimeout(poll(getConfig(), apiPort), 2e4).catch(
+      (err) => console.error(`serve: poll tick failed \u2014 ${err.message}`)
+    );
+    if (++healTick % 20 !== 0) continue;
+    const config2 = getConfig();
+    const wantLayer = config2.wallpaperVisible && Boolean(config2.live || config2.sceneVideoUrl || config2.wallpaperPath);
+    const wantLive = config2.wallpaperVisible && config2.mediaType === "live";
+    const bootstrap = await bootstrapScriptFor(config2, apiPort).catch(() => null);
+    if (!bootstrap) continue;
+    for (const [id, session] of held) {
+      try {
+        const r2 = await withTimeout(
+          session.conn.send("Runtime.evaluate", {
+            expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
+            returnByValue: true
+          }),
+          8e3
+        );
+        const st = JSON.parse(r2?.result?.value ?? "{}");
+        const broken = wantLayer && !st.layer || wantLive && !st.live || !wantLayer && st.layer || !st.css || !st.stale;
+        if (broken) {
+          await withTimeout(
+            session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true }),
+            8e3
+          );
+          console.log(`serve: self-heal re-injected window ${id}`);
+        }
+      } catch (err) {
+        console.error(`serve: heal tick dropped session ${id} \u2014 ${err.message}`);
+        held.delete(id);
+        try {
+          session.conn.close();
+        } catch {
+        }
+      }
+    }
+  }
+}
+var POLL_MS, held;
+var init_sessions = __esm({
+  "src/core/sessions.ts"() {
+    "use strict";
+    init_cdp();
+    init_payload();
+    POLL_MS = 1500;
+    held = /* @__PURE__ */ new Map();
+  }
+});
+
 // src/core/exec.ts
 import { execFile as execFile3 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
@@ -59533,19 +58737,19 @@ var shortcuts_exports = {};
 __export(shortcuts_exports, {
   ensureShortcutsHaveCdpFlag: () => ensureShortcutsHaveCdpFlag
 });
-import fs9 from "node:fs";
-import path6 from "node:path";
-import { fileURLToPath } from "node:url";
+import fs14 from "node:fs";
+import path9 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 function shortcutDirs() {
   const home = process.env.USERPROFILE ?? "";
   const appData = process.env.APPDATA ?? "";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
-    path6.join(home, "Desktop"),
-    ...process.env.OneDrive ? [path6.join(process.env.OneDrive, "Desktop")] : [],
-    path6.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
-    path6.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
-    path6.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
+    path9.join(home, "Desktop"),
+    ...process.env.OneDrive ? [path9.join(process.env.OneDrive, "Desktop")] : [],
+    path9.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
+    path9.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
+    path9.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
   ];
 }
 async function ensureShortcutsHaveCdpFlag(port) {
@@ -59553,15 +58757,15 @@ async function ensureShortcutsHaveCdpFlag(port) {
   const result = { updated: [], skipped: [], failed: [] };
   const links = [];
   const collect = (dir) => {
-    links.push(...fs9.readdirSync(dir).filter((f2) => /^zcode/i.test(f2) && f2.endsWith(".lnk")).map((f2) => path6.join(dir, f2)));
+    links.push(...fs14.readdirSync(dir).filter((f2) => /^zcode/i.test(f2) && f2.endsWith(".lnk")).map((f2) => path9.join(dir, f2)));
   };
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs9.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs14.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path6.join(dir, sub.name));
+          collect(path9.join(dir, sub.name));
         } catch {
         }
       }
@@ -59581,7 +58785,18 @@ try {
   $meta = Get-Content -Raw '${launcher.meta.replace(/'/g, "''")}' -ErrorAction SilentlyContinue | ConvertFrom-Json
   $zcode = $null
   if ($s.TargetPath -match 'ZCode.exe$') { $zcode = $s.TargetPath }
-  elseif ($s.TargetPath -match 'wscript.exe$' -and ([string]$s.Arguments) -like '*zw-launch.vbs*' -and $meta) { $zcode = $meta.zcode }
+  elseif ($s.TargetPath -match 'wscript.exe$' -and ([string]$s.Arguments) -match 'zw-launch.vbs') {
+    # A wrapper from ANY install generation (the shortcut can be pinned to a
+    # plugin-cache path that a later update prunes). Its sibling meta json
+    # names the ZCode exe; ours is the fallback.
+    $vbsArg = ([regex]::Match([string]$s.Arguments, '"([^"]+zw-launch.vbs)"')).Groups[1].Value
+    if (-not $vbsArg) { $vbsArg = (([string]$s.Arguments -split ' ')[0] -replace '^"|"$','') }
+    if ($vbsArg -and (Test-Path $vbsArg)) {
+      $metaPath = Join-Path (Split-Path $vbsArg -Parent) 'zw-launch.json'
+      if (Test-Path $metaPath) { try { $zcode = (Get-Content -Raw $metaPath | ConvertFrom-Json).zcode } catch {} }
+    }
+    if (-not $zcode -and $meta) { $zcode = $meta.zcode }
+  }
   if (-not $zcode) { Write-Output 'ok|not-zcode'; exit }
   if (-not (Test-Path $zcode)) { Write-Output 'ok|zcode-missing'; exit }
   $anti = @('${antiOcclusion.join("', '")}')
@@ -59616,18 +58831,20 @@ try {
   return result;
 }
 function discoverLauncher() {
-  let dir = path6.dirname(fileURLToPath(import.meta.url));
+  let dir = path9.dirname(fileURLToPath2(import.meta.url));
   for (let i2 = 0; i2 < 6; i2++) {
-    if (fs9.existsSync(path6.join(dir, "dist", "cli.js"))) break;
-    dir = path6.dirname(dir);
+    if (fs14.existsSync(path9.join(dir, "dist", "cli.js"))) break;
+    dir = path9.dirname(dir);
   }
-  return { vbs: path6.join(dir, "zw-launch.vbs"), meta: path6.join(dir, "zw-launch.json") };
+  const home = dataDir();
+  fs14.mkdirSync(home, { recursive: true });
+  return { vbs: path9.join(home, "zw-launch.vbs"), meta: path9.join(home, "zw-launch.json"), root: dir };
 }
 function writeEarlyLaunchWrapper(port, zcode, launcher) {
   const anti = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"];
-  const cli = path6.join(path6.dirname(launcher.vbs), "dist", "cli.js");
+  const cli = path9.join(launcher.root, "dist", "cli.js");
   const node = process.execPath;
-  if (!fs9.existsSync(cli) || !fs9.existsSync(node)) return;
+  if (!fs14.existsSync(cli) || !fs14.existsSync(node)) return;
   const DQ = String.fromCharCode(34);
   const vbq = (v) => DQ + DQ + v + DQ + DQ;
   const serveCmd = [vbq(node), vbq(cli), "serve", "--early", "--port", String(port), "--api-port", String(port + 1)].join(" ");
@@ -59641,10 +58858,10 @@ function writeEarlyLaunchWrapper(port, zcode, launcher) {
     DQ + zcodeCmd + DQ + ", 1, False"
   ];
   try {
-    const prev = fs9.existsSync(launcher.meta) ? JSON.parse(fs9.readFileSync(launcher.meta, "utf8")) : {};
-    fs9.writeFileSync(launcher.meta, JSON.stringify({ ...prev, zcode, port }, null, 1));
+    const prev = fs14.existsSync(launcher.meta) ? JSON.parse(fs14.readFileSync(launcher.meta, "utf8")) : {};
+    fs14.writeFileSync(launcher.meta, JSON.stringify({ ...prev, zcode, port }, null, 1));
     const crlf = String.fromCharCode(13, 10);
-    fs9.writeFileSync(launcher.vbs, lines.join(crlf) + crlf, { encoding: "utf8" });
+    fs14.writeFileSync(launcher.vbs, lines.join(crlf) + crlf, { encoding: "utf8" });
   } catch {
   }
 }
@@ -59652,6 +58869,7 @@ var init_shortcuts = __esm({
   "src/core/shortcuts.ts"() {
     "use strict";
     init_exec();
+    init_launch();
   }
 });
 
@@ -59664,334 +58882,11 @@ __export(server_exports, {
   startServe: () => startServe
 });
 import http from "node:http";
-import fs10 from "node:fs";
+import fs15 from "node:fs";
 import os2 from "node:os";
-import path7 from "node:path";
-import crypto2 from "node:crypto";
+import path10 from "node:path";
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-function liveDir() {
-  return path7.join(pluginRoot, "live");
-}
-function engineFile() {
-  const candidates = [
-    process.env.ZW_ENGINE_FILE,
-    path7.join(pluginRoot, "vendor", "webwallgl.global.min.js"),
-    path7.join(pluginRoot, "node_modules", "webwallgl", "webwallgl.global.min.js")
-  ].filter(Boolean);
-  return candidates.find((p2) => fs10.existsSync(p2));
-}
-async function getAssets(config2, allowDecode = true) {
-  const sourcePath = config2.monetSourcePath;
-  if (!sourcePath || !fs10.existsSync(sourcePath)) return void 0;
-  const mtimeMs = fs10.statSync(sourcePath).mtimeMs;
-  if (cachedAssets?.file === sourcePath && cachedAssets.mtimeMs === mtimeMs) {
-    return cachedAssets.assets;
-  }
-  if (!allowDecode) return void 0;
-  try {
-    const assets = await loadWallpaper(sourcePath);
-    cachedAssets = { file: sourcePath, mtimeMs, assets };
-    lastGoodAssets = assets;
-    return assets;
-  } catch {
-    return void 0;
-  }
-}
-function storedCustomSources() {
-  const stored = loadConfig();
-  return Array.isArray(stored.customSources) ? stored.customSources : [];
-}
-function currentConfig(cdpPort, apiPort) {
-  const stored = loadConfig();
-  return {
-    ...DEFAULT_CONFIG,
-    ...stored,
-    port: cdpPort,
-    apiPort,
-    customSources: storedCustomSources()
-  };
-}
-function persisted(config2) {
-  const stored = loadConfig();
-  const out = { ...config2, port: stored.port, apiPort: stored.apiPort };
-  out.customSources = storedCustomSources();
-  if (out.port === void 0) delete out.port;
-  if (out.apiPort === void 0) delete out.apiPort;
-  return out;
-}
-function backupFile() {
-  return path7.join(dataDir(), "config.backup.json");
-}
-function hasBackup() {
-  return fs10.existsSync(backupFile());
-}
-function publicConfig(config2) {
-  return {
-    blur: config2.blur,
-    dim: config2.dim,
-    monet: config2.monet,
-    wallpaperVisible: config2.wallpaperVisible,
-    fit: config2.fit,
-    wallpaperSet: Boolean(
-      config2.wallpaperPath && fs10.existsSync(config2.wallpaperPath) || config2.sceneVideoUrl || config2.live
-    ),
-    mediaType: config2.mediaType ?? "image",
-    live: config2.live ?? null,
-    liveFps: config2.liveFps ?? 30,
-    liveMuted: config2.liveMuted ?? true,
-    wallBrightness: config2.wallBrightness ?? 100,
-    wallContrast: config2.wallContrast ?? 100,
-    wallSaturate: config2.wallSaturate ?? 100,
-    wallOpacity: config2.wallOpacity ?? 0,
-    posX: config2.posX ?? 50,
-    posY: config2.posY ?? 50,
-    layerScale: config2.layerScale ?? 100,
-    flip: config2.flip === true,
-    switchTransition: config2.switchTransition ?? "fade",
-    switchTransitionSpeed: config2.switchTransitionSpeed ?? "normal",
-    rotationEnabled: config2.rotationEnabled === true,
-    rotationMinutes: config2.rotationMinutes ?? 30,
-    rotationOrder: config2.rotationOrder === "random" ? "random" : "sequence",
-    hasBackup: hasBackup(),
-    cdpPort: config2.port,
-    apiPort: config2.apiPort
-  };
-}
-function sanitize(body) {
-  const out = {};
-  if (typeof body?.blur === "number" && body.blur >= 0 && body.blur <= 100) out.blur = body.blur;
-  if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
-  if (typeof body?.monet === "boolean") out.monet = body.monet;
-  if (typeof body?.wallpaperVisible === "boolean") out.wallpaperVisible = body.wallpaperVisible;
-  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
-  if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
-  if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
-  if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
-  if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
-  if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
-  if (typeof body?.wallOpacity === "number") out.wallOpacity = Math.min(90, Math.max(0, Math.round(body.wallOpacity)));
-  if (typeof body?.posX === "number") out.posX = Math.min(100, Math.max(0, Math.round(body.posX)));
-  if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
-  if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
-  if (typeof body?.flip === "boolean") out.flip = body.flip;
-  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
-  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
-  if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
-  if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
-  if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
-  return out;
-}
-function findVideoInDir(dir) {
-  for (const subdir of ["", "files"]) {
-    const base = path7.join(dir, subdir);
-    let entries;
-    try {
-      entries = fs10.readdirSync(base);
-    } catch {
-      continue;
-    }
-    const hit = entries.find((e2) => /\.(mp4|webm)$/i.test(e2));
-    if (hit) return path7.join(base, hit);
-  }
-  return void 0;
-}
-function toRel(dir, file) {
-  return path7.relative(dir, file).replace(/\\/g, "/");
-}
-async function applySource(id, config2, apply = true) {
-  const entry = await resolveSourceDir(id, storedCustomSources());
-  if (!entry) throw new Error(`unknown wallpaper source: ${id}`);
-  const type = entry.type === "scene" || entry.type === "web" ? entry.type : detectWallpaperType(entry.dir);
-  let next;
-  if (type === "scene" || type === "web") {
-    next = {
-      ...config2,
-      mediaType: "live",
-      live: { sourceId: id, kind: type, title: entry.title, poster: entry.preview },
-      sceneVideoUrl: void 0,
-      wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path7.join(entry.dir, entry.preview) : config2.monetSourcePath
-    };
-  } else if (type === "video") {
-    const video = findVideoInDir(entry.dir);
-    if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
-    const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
-    next = {
-      ...config2,
-      mediaType: "video",
-      sceneVideoUrl: `http://127.0.0.1:${config2.apiPort}/files/${id}/${file}`,
-      live: void 0,
-      wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path7.join(entry.dir, entry.preview) : config2.monetSourcePath
-    };
-  } else {
-    throw new Error(`unsupported wallpaper type (${type}): ${entry.title}`);
-  }
-  let windows = 0;
-  if (apply) {
-    saveConfig(persisted(next));
-    windows = await pushConfigToSessions(next, false).catch(() => 0);
-    void (async () => {
-      await getAssets(next, true).catch(() => void 0);
-      await pushConfigToSessions(next, true).catch(() => 0);
-    })();
-  }
-  return { entry, mediaType: next.mediaType === "video" ? "video" : "live", config: next, windows };
-}
-async function migrateLegacyVideo() {
-  const stored = loadConfig();
-  const live = stored.live;
-  if (!live || live.kind !== "video" || !live.file) return;
-  const next = {
-    ...DEFAULT_CONFIG,
-    ...stored,
-    mediaType: "video",
-    live: void 0,
-    sceneVideoUrl: `http://127.0.0.1:${stored.apiPort ?? DEFAULT_API_PORT}/files/${live.sourceId}/${live.file}`
-  };
-  saveConfig(persisted(next));
-  console.log(`serve: video wallpaper moved back to the native layer (${live.sourceId})`);
-}
-function resolveSceneInput(input) {
-  let stat;
-  try {
-    stat = fs10.statSync(input);
-  } catch {
-    return input;
-  }
-  if (stat.isDirectory()) return input;
-  if (input.toLowerCase().endsWith(".pkg")) return path7.dirname(path7.resolve(input));
-  let dir = path7.dirname(path7.resolve(input));
-  for (let hop = 0; hop < 4; hop++) {
-    if (fs10.existsSync(path7.join(dir, "project.json"))) return dir;
-    const parent = path7.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return path7.dirname(path7.resolve(input));
-}
-function registerCustomSource(input) {
-  const dir = path7.resolve(resolveSceneInput(input));
-  if (!fs10.existsSync(dir) || !fs10.statSync(dir).isDirectory()) {
-    throw new Error(`not a wallpaper directory: ${dir}`);
-  }
-  const id = `custom-${crypto2.createHash("sha1").update(dir.toLowerCase()).digest("hex").slice(0, 10)}`;
-  const sources = storedCustomSources().filter((c3) => c3.id !== id);
-  let name;
-  try {
-    const p2 = JSON.parse(fs10.readFileSync(path7.join(dir, "project.json"), "utf8"));
-    if (typeof p2?.title === "string") name = p2.title;
-  } catch {
-  }
-  sources.push({ id, dir, name });
-  saveConfig({ ...loadConfig(), customSources: sources });
-  return { id, dir, name };
-}
-async function importPackageFromFile(zipPath, config2, apply) {
-  const { default: AdmZip } = await Promise.resolve().then(() => __toESM(require_adm_zip(), 1));
-  const zip = new AdmZip(zipPath);
-  const dest = path7.join(dataDir(), "packages", `pkg-${Date.now()}`);
-  fs10.mkdirSync(dest, { recursive: true });
-  zip.extractAllTo(dest, true);
-  let root = dest;
-  for (let i2 = 0; i2 < 2; i2++) {
-    const entries = fs10.readdirSync(root, { withFileTypes: true });
-    if (entries.length === 1 && entries[0].isDirectory()) root = path7.join(root, entries[0].name);
-    else break;
-  }
-  if (!fs10.existsSync(path7.join(root, "project.json")) && !fs10.existsSync(path7.join(root, "scene.pkg"))) {
-    throw new Error("package contains no project.json / scene.pkg \u2014 not a wallpaper package");
-  }
-  const { id } = registerCustomSource(root);
-  const result = await applySource(id, config2, apply);
-  return { id, ...result };
-}
-function withTimeout(p2, ms) {
-  return Promise.race([p2, new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))]);
-}
-async function registerScript(session, source) {
-  const { identifier } = await session.conn.send("Page.addScriptToEvaluateOnNewDocument", { source });
-  return identifier;
-}
-async function buildBootstrapFor(config2, allowDecode = false) {
-  const assets = await getAssets(config2, allowDecode) ?? lastGoodAssets;
-  const payload = buildPayload(config2, assets, {
-    liveUrl: buildLiveUrl(config2)
-  });
-  payload.apiPort = config2.apiPort;
-  return buildBootstrapScript(payload);
-}
-async function holdSession(target, config2, apiPort) {
-  if (!target.webSocketDebuggerUrl) return;
-  const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
-  await conn.send("Page.enable");
-  await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => void 0);
-  const session = { conn };
-  const bootstrap = await buildBootstrapFor(config2, true);
-  session.themeScriptId = await registerScript(session, bootstrap);
-  await conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
-  const panelScript = buildPanelScript(apiPort);
-  if (session.panelScriptId) {
-    await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId }).catch(() => {
-    });
-  }
-  const { identifier: panelId } = await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: panelScript });
-  session.panelScriptId = panelId;
-  await conn.send("Runtime.evaluate", { expression: panelScript, returnByValue: true });
-  held.set(target.id, session);
-}
-async function pushConfigToSessions(config2, allowDecode = true) {
-  const bootstrap = await buildBootstrapFor(config2, allowDecode);
-  let ok = 0;
-  for (const [id, session] of held) {
-    try {
-      await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
-      void (async () => {
-        try {
-          if (session.themeScriptId) {
-            await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
-            });
-          }
-          session.themeScriptId = await registerScript(session, bootstrap);
-        } catch {
-        }
-      })();
-      await session.conn.send("Runtime.evaluate", {
-        expression: "if (window.__zwPanelRefresh) window.__zwPanelRefresh()",
-        returnByValue: true
-      }).catch(() => void 0);
-      ok++;
-    } catch {
-      session.conn.close();
-      held.delete(id);
-    }
-  }
-  return ok;
-}
-async function poll(config2, apiPort) {
-  try {
-    const targets = pickRendererTargets(await listTargets(config2.port));
-    const current = new Set(targets.map((t2) => t2.id));
-    for (const t2 of targets) {
-      if (!held.has(t2.id)) {
-        try {
-          await holdSession(t2, config2, apiPort);
-          console.log(`serve: panel + wallpaper layer injected into "${t2.title}" (${t2.id})`);
-        } catch {
-        }
-      }
-    }
-    for (const id of [...held.keys()]) {
-      if (!current.has(id)) {
-        held.get(id).conn.close();
-        held.delete(id);
-      }
-    }
-  } catch {
-  }
-}
 function sendJson(res, code, body) {
   try {
     res.writeHead(code, {
@@ -60035,7 +58930,7 @@ function readBody(req) {
 function readBodyToFile(req, dest, maxBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
-    const out = fs10.createWriteStream(dest);
+    const out = fs15.createWriteStream(dest);
     req.on("data", (c3) => {
       size += c3.length;
       if (size > maxBytes) {
@@ -60053,10 +58948,6 @@ function readBodyToFile(req, dest, maxBytes) {
     req.on("error", reject);
     out.on("error", reject);
   });
-}
-function liveFrameFile(sourceId) {
-  const safe = sourceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path7.join(dataDir(), `live-frame-${safe}.jpg`);
 }
 async function pickFileViaDialog() {
   if (process.platform !== "win32") return "";
@@ -60076,22 +58967,7 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
   }
 }
 async function shutdownServe() {
-  for (const [, session] of held) {
-    try {
-      await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
-      if (session.themeScriptId) {
-        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
-        });
-      }
-      if (session.panelScriptId) {
-        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.panelScriptId }).catch(() => {
-        });
-      }
-      session.conn.close();
-    } catch {
-    }
-  }
-  held.clear();
+  await shutdownSessions();
   await new Promise((r2) => activeServer ? activeServer.close(() => r2()) : r2());
 }
 async function startServe(opts) {
@@ -60123,24 +58999,17 @@ async function startServe(opts) {
         sendJson(res, 204, {});
         return;
       }
-      if ((req.method === "GET" || req.method === "HEAD") && (url.pathname === "/live/index.html" || url.pathname === "/live/")) {
-        if (!sendStaticFile(req, res, path7.join(liveDir(), "index.html"), { noStore: true })) {
-          sendJson(res, 404, { error: "renderer page missing (run `npm run build`)" });
+      const staticRoute = (file, noStore = false) => sendStaticFile(req, res, file, { noStore }) || sendJson(res, 404, { error: `missing file: ${path10.basename(file)} (run \`npm run build\`)` });
+      if (req.method === "GET" || req.method === "HEAD") {
+        if (url.pathname === "/agent.js") return void staticRoute(path10.join(liveDir(), "agent.js"), true);
+        if (url.pathname === "/panel.js") return void staticRoute(path10.join(liveDir(), "panel.js"), true);
+        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path10.join(liveDir(), "index.html"), true);
+        if (url.pathname === "/renderer.js") return void staticRoute(path10.join(liveDir(), "renderer.js"));
+        if (url.pathname === "/engine/webwallgl.global.min.js") {
+          const engine = engineFile();
+          if (!engine) return void sendJson(res, 404, { error: "webwallgl engine not installed (npm install webwallgl)" });
+          return void staticRoute(engine);
         }
-        return;
-      }
-      if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/renderer.js") {
-        if (!sendStaticFile(req, res, path7.join(liveDir(), "renderer.js"))) {
-          sendJson(res, 404, { error: "renderer script missing (run `npm run build`)" });
-        }
-        return;
-      }
-      if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/engine/webwallgl.global.min.js") {
-        const engine = engineFile();
-        if (!engine || !sendStaticFile(req, res, engine)) {
-          sendJson(res, 404, { error: "webwallgl engine not installed (npm install webwallgl)" });
-        }
-        return;
       }
       if ((req.method === "GET" || req.method === "HEAD") && url.pathname.startsWith("/files/")) {
         const rest = url.pathname.slice("/files/".length);
@@ -60167,6 +59036,10 @@ async function startServe(opts) {
         sendJson(res, 200, { ok: true });
         return;
       }
+      if (req.method === "GET" && url.pathname === "/api/events") {
+        hub.subscribe(req, res, currentRuntimePayload());
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/api/health") {
         sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
         return;
@@ -60181,8 +59054,8 @@ async function startServe(opts) {
         const config2 = { ...before, ...patch };
         if (patch.rotationEnabled === true && !before.rotationEnabled) lastRotateAt = Date.now();
         saveConfig(persisted(config2));
-        const windows = await pushConfigToSessions(config2).catch(() => 0);
-        sendJson(res, 200, { ok: true, windows, ...publicConfig(config2) });
+        await publishConfig(config2);
+        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(config2) });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/wallpaper") {
@@ -60195,11 +59068,10 @@ async function startServe(opts) {
           throw new Error(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
         }
         const config2 = runtimeConfig();
-        fs10.mkdirSync(dataDir(), { recursive: true });
-        const dest = path7.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
-        fs10.writeFileSync(dest, bytes);
-        cachedAssets = { file: dest, mtimeMs: fs10.statSync(dest).mtimeMs, assets: await loadWallpaper(dest) };
-        lastGoodAssets = cachedAssets.assets;
+        fs15.mkdirSync(dataDir(), { recursive: true });
+        const dest = path10.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
+        fs15.writeFileSync(dest, bytes);
+        primeAssets(dest, await loadWallpaper(dest));
         const next = {
           ...config2,
           mediaType: "image",
@@ -60209,29 +59081,16 @@ async function startServe(opts) {
           monetSourcePath: dest
         };
         saveConfig(persisted(next));
-        const windows = await pushConfigToSessions(next).catch(() => 0);
-        sendJson(res, 200, { ok: true, windows, ...publicConfig(next) });
+        await publishConfig(next);
+        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/reset") {
         const stored = loadConfig();
         if (stored.wallpaperPath || stored.live || stored.sceneVideoUrl) {
-          fs10.mkdirSync(dataDir(), { recursive: true });
-          fs10.writeFileSync(backupFile(), JSON.stringify(stored));
+          writeBackup(stored);
         }
-        for (const [id, session] of held) {
-          try {
-            if (session.themeScriptId) {
-              await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
-              });
-              session.themeScriptId = void 0;
-            }
-            await session.conn.send("Runtime.evaluate", { expression: buildResetScript() });
-          } catch {
-            session.conn.close();
-            held.delete(id);
-          }
-        }
+        await resetSessions();
         saveConfig({
           ...stored,
           wallpaperPath: void 0,
@@ -60240,21 +59099,22 @@ async function startServe(opts) {
           sceneVideoUrl: void 0,
           monetSourcePath: void 0
         });
-        cachedAssets = void 0;
+        invalidateAssets();
         sendJson(res, 200, { ok: true, hasBackup: true });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/restore") {
         let saved;
         try {
-          saved = JSON.parse(fs10.readFileSync(backupFile(), "utf8"));
+          saved = readBackup();
         } catch {
           throw new Error("no wallpaper backup available");
         }
         const config2 = { ...runtimeConfig(), ...saved };
         saveConfig(persisted(config2));
-        const windows = await pushConfigToSessions(config2).catch(() => 0);
-        sendJson(res, 200, { ok: true, windows, ...publicConfig(config2) });
+        await publishConfig(config2);
+        await rearmSessions(config2, apiPort);
+        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(config2) });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/wallpapers") {
@@ -60304,7 +59164,7 @@ async function startServe(opts) {
         sendJson(res, 200, {
           ...publicConfig(runtimeConfig()),
           ok: true,
-          windows: result.windows,
+          windows: heldWindowCount(),
           mediaType: result.mediaType,
           title: result.entry.title,
           type: result.entry.type
@@ -60315,11 +59175,11 @@ async function startServe(opts) {
         const body = JSON.parse(await readBody(req));
         const input = typeof body?.path === "string" ? body.path.trim() : "";
         if (!input) throw new Error("path is required");
-        const abs = path7.resolve(input);
+        const abs = path10.resolve(input);
         let result;
         let sourceId;
         if (/\.zip$/i.test(abs)) {
-          if (!fs10.existsSync(abs)) throw new Error(`package not found: ${abs}`);
+          if (!fs15.existsSync(abs)) throw new Error(`package not found: ${abs}`);
           const r2 = await importPackageFromFile(abs, runtimeConfig(), true);
           sourceId = r2.id;
           result = r2;
@@ -60331,7 +59191,7 @@ async function startServe(opts) {
         sendJson(res, 200, {
           ...publicConfig(runtimeConfig()),
           ok: true,
-          windows: result.windows,
+          windows: heldWindowCount(),
           sourceId,
           mediaType: result.mediaType,
           title: result.entry.title,
@@ -60355,9 +59215,9 @@ async function startServe(opts) {
         const zip = new AdmZip();
         zip.addLocalFolder(entry.dir);
         const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path7.join(os2.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        const zipPath = path10.join(os2.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
         await zip.writeZipPromise(zipPath);
-        const size = fs10.statSync(zipPath).size;
+        const size = fs15.statSync(zipPath).size;
         res.writeHead(200, {
           "Content-Type": "application/zip",
           "Content-Length": size,
@@ -60365,14 +59225,14 @@ async function startServe(opts) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Expose-Headers": "Content-Disposition"
         });
-        const stream = fs10.createReadStream(zipPath);
+        const stream = fs15.createReadStream(zipPath);
         stream.pipe(res);
-        stream.on("close", () => fs10.rm(zipPath, { force: true }, () => void 0));
+        stream.on("close", () => fs15.rm(zipPath, { force: true }, () => void 0));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/import-package") {
         const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path7.join(os2.tmpdir(), `zw-import-${Date.now()}.zip`);
+        const tempZip = path10.join(os2.tmpdir(), `zw-import-${Date.now()}.zip`);
         await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
         try {
           const r2 = await importPackageFromFile(tempZip, runtimeConfig(), apply);
@@ -60382,43 +59242,43 @@ async function startServe(opts) {
             title: r2.entry.title,
             type: r2.entry.type,
             mediaType: r2.mediaType,
-            windows: r2.windows
+            windows: heldWindowCount()
           });
         } finally {
-          fs10.rmSync(tempZip, { force: true });
+          fs15.rmSync(tempZip, { force: true });
         }
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/upload-wallpaper") {
         const apply = url.searchParams.get("apply") === "1";
         const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
-        const ext = path7.extname(name).toLowerCase();
+        const ext = path10.extname(name).toLowerCase();
         if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
           throw new Error(`unsupported file type: ${ext || "(none)"} \u2014 use .zip / .pkg / .mp4 / .webm`);
         }
-        const tempFile = path7.join(os2.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        const tempFile = path10.join(os2.tmpdir(), `zw-upl-${Date.now()}${ext}`);
         await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
         try {
           const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "\u5BFC\u5165\u7684\u58C1\u7EB8";
           if (ext === ".zip") {
             const r2 = await importPackageFromFile(tempFile, runtimeConfig(), apply);
-            sendJson(res, 200, { ok: true, sourceId: r2.id, title: r2.entry.title, type: r2.entry.type, mediaType: r2.mediaType, windows: r2.windows });
+            sendJson(res, 200, { ok: true, sourceId: r2.id, title: r2.entry.title, type: r2.entry.type, mediaType: r2.mediaType, windows: heldWindowCount() });
             return;
           }
-          const dest = path7.join(dataDir(), "packages", `upl-${Date.now()}`);
-          fs10.mkdirSync(dest, { recursive: true });
+          const dest = path10.join(dataDir(), "packages", `upl-${Date.now()}`);
+          fs15.mkdirSync(dest, { recursive: true });
           if (ext === ".pkg") {
-            fs10.copyFileSync(tempFile, path7.join(dest, "scene.pkg"));
-            fs10.writeFileSync(path7.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
+            fs15.copyFileSync(tempFile, path10.join(dest, "scene.pkg"));
+            fs15.writeFileSync(path10.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
           } else {
-            fs10.copyFileSync(tempFile, path7.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
-            fs10.writeFileSync(path7.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
+            fs15.copyFileSync(tempFile, path10.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
+            fs15.writeFileSync(path10.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
           }
           const { id } = registerCustomSource(dest);
           const result = await applySource(id, runtimeConfig(), apply);
-          sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: result.windows });
+          sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
         } finally {
-          fs10.rmSync(tempFile, { force: true });
+          fs15.rmSync(tempFile, { force: true });
         }
         return;
       }
@@ -60426,47 +59286,8 @@ async function startServe(opts) {
         const body = JSON.parse(await readBody(req));
         const id = typeof body?.id === "string" ? body.id : "";
         if (!id) throw new Error("id is required");
-        const sources = storedCustomSources();
-        const hit = sources.find((c3) => c3.id === id);
-        if (!hit) throw new Error(`not a custom source: ${id}`);
-        const config2 = runtimeConfig();
-        const inUse = config2.live?.sourceId === id || config2.mediaType === "video" && (config2.sceneVideoUrl ?? "").includes(`/files/${id}/`);
-        let switchedTo = null;
-        if (inUse) {
-          const lib = await enumerateWallpapers();
-          const candidate = lib.wallpapers.find((w) => w.id !== id && (w.type === "scene" || w.type === "web"));
-          if (candidate) {
-            await applySource(candidate.id, runtimeConfig());
-            switchedTo = candidate.title;
-          } else {
-            saveConfig({
-              ...loadConfig(),
-              mediaType: void 0,
-              live: void 0,
-              sceneVideoUrl: void 0,
-              monetSourcePath: void 0
-            });
-            await pushConfigToSessions(runtimeConfig()).catch(() => 0);
-          }
-        }
-        const packagesRoot = path7.join(dataDir(), "packages");
-        const rel = path7.relative(packagesRoot, path7.resolve(hit.dir));
-        const managed = rel !== "" && !rel.startsWith("..") && !path7.isAbsolute(rel);
-        saveConfig({ ...loadConfig(), customSources: storedCustomSources().filter((c3) => c3.id !== id) });
-        const frameFile = liveFrameFile(id);
-        void (async () => {
-          for (let i2 = 0; i2 < 8; i2++) {
-            await new Promise((r2) => setTimeout(r2, 750 * (i2 + 1)));
-            try {
-              if (managed) fs10.rmSync(hit.dir, { recursive: true, force: true });
-              fs10.rmSync(frameFile, { force: true });
-              return;
-            } catch {
-            }
-          }
-          console.warn(`delete-source: could not fully remove ${hit.dir} (locked); it stays unregistered`);
-        })();
-        sendJson(res, 200, { ok: true, filesRemoved: managed, switchedTo });
+        const r2 = await deleteSource(id, runtimeConfig());
+        sendJson(res, 200, r2);
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/live-frame") {
@@ -60478,13 +59299,13 @@ async function startServe(opts) {
           return;
         }
         const file = liveFrameFile(source);
-        fs10.mkdirSync(dataDir(), { recursive: true });
-        fs10.writeFileSync(file, Buffer.from(m[1], "base64"));
+        fs15.mkdirSync(dataDir(), { recursive: true });
+        fs15.writeFileSync(file, Buffer.from(m[1], "base64"));
         const config2 = runtimeConfig();
         if (config2.live?.sourceId === source) {
           const next = { ...config2, monetSourcePath: file };
           saveConfig(persisted(next));
-          await pushConfigToSessions(next).catch(() => 0);
+          await publishConfig(next);
         }
         sendJson(res, 200, { ok: true, file });
         return;
@@ -60499,9 +59320,9 @@ async function startServe(opts) {
       if (req.method === "GET" && url.pathname === "/api/library") {
         const images = [];
         try {
-          for (const f2 of fs10.readdirSync(dataDir())) {
+          for (const f2 of fs15.readdirSync(dataDir())) {
             if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f2)) {
-              images.push({ name: f2, path: path7.join(dataDir(), f2) });
+              images.push({ name: f2, path: path10.join(dataDir(), f2) });
             }
           }
         } catch {
@@ -60511,7 +59332,7 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
-        if (typeof body?.path !== "string" || !fs10.existsSync(body.path)) {
+        if (typeof body?.path !== "string" || !fs15.existsSync(body.path)) {
           throw new Error("provide an existing image path");
         }
         const config2 = runtimeConfig();
@@ -60524,8 +59345,8 @@ async function startServe(opts) {
           monetSourcePath: body.path
         };
         saveConfig(persisted(next));
-        const windows = await pushConfigToSessions(next).catch(() => 0);
-        sendJson(res, 200, { ok: true, windows, ...publicConfig(next) });
+        await publishConfig(next);
+        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
         return;
       }
       sendJson(res, 404, { error: "not found" });
@@ -60563,7 +59384,7 @@ async function startServe(opts) {
   if (process.env.ZW_EARLY === "1") {
     let hostSeen = false;
     let lastHostAlive = 0;
-    let startedAt = Date.now();
+    const startedAt = Date.now();
     let zcodeSeenAt = 0;
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
     setInterval(() => {
@@ -60571,7 +59392,6 @@ async function startServe(opts) {
         const zcode = await isZcodeProcessRunning2().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
         const now = Date.now();
-        globalThis.__zwHostAlive = globalThis.__zwHostAlive ?? 0;
         const lastAlive = globalThis.__zwHostAlive ?? 0;
         if (lastAlive > lastHostAlive) {
           lastHostAlive = lastAlive;
@@ -60610,66 +59430,23 @@ async function startServe(opts) {
     if (r2.updated.length) console.log(`serve: ${r2.updated.length} shortcut(s) point at the early launcher`);
   }).catch(() => void 0);
   await migrateLegacyVideo();
-  await withTimeout(poll(runtimeConfig(), apiPort), 2e4).catch(
-    (err) => console.error(`serve: initial poll failed \u2014 ${err.message}`)
-  );
-  const bootWave = () => void pushConfigToSessions(runtimeConfig(), true).catch(() => void 0);
-  setTimeout(bootWave, 1200);
-  setTimeout(bootWave, 4e3);
-  let healTick = 0;
-  for (; ; ) {
-    await new Promise((r2) => setTimeout(r2, POLL_MS));
-    await withTimeout(poll(runtimeConfig(), apiPort), 2e4).catch(
-      (err) => console.error(`serve: poll tick failed \u2014 ${err.message}`)
-    );
-    if (++healTick % 20 !== 0) continue;
-    const config2 = runtimeConfig();
-    const wantLayer = config2.wallpaperVisible && Boolean(config2.live || config2.sceneVideoUrl || config2.wallpaperPath);
-    const wantLive = config2.wallpaperVisible && config2.mediaType === "live";
-    const bootstrap = await buildBootstrapFor(config2, true).catch(() => null);
-    if (!bootstrap) continue;
-    for (const [id, session] of held) {
-      try {
-        const r2 = await withTimeout(
-          session.conn.send("Runtime.evaluate", {
-            expression: `JSON.stringify({layer:!!document.getElementById('zcode-wallpaper-wallpaper'),live:!!document.getElementById('zcode-wallpaper-live'),css:!!document.getElementById('zcode-wallpaper-style'),stale:!!(window.__zw&&window.__zw.cssText)})`,
-            returnByValue: true
-          }),
-          8e3
-        );
-        const st = JSON.parse(r2?.result?.value ?? "{}");
-        const broken = wantLayer && !st.layer || wantLive && !st.live || !wantLayer && st.layer || !st.css || !st.stale;
-        if (broken) {
-          await withTimeout(
-            session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true }),
-            8e3
-          );
-          console.log(`serve: self-heal re-injected window ${id}`);
-        }
-      } catch (err) {
-        console.error(`serve: heal tick dropped session ${id} \u2014 ${err.message}`);
-        held.delete(id);
-        try {
-          session.conn.close();
-        } catch {
-        }
-      }
-    }
-  }
+  await startSessionLoop(runtimeConfig, apiPort);
 }
-var POLL_MS, MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, serveLog, pluginRoot, cachedAssets, held, lastGoodAssets, IMAGE_EXT, activeServer;
+var MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, serveLog, IMAGE_EXT, activeServer;
 var init_server = __esm({
   "src/core/server.ts"() {
     "use strict";
-    init_cdp();
+    init_paths();
     init_inject();
     init_monet();
-    init_panelScript();
     init_launch();
     init_media();
-    init_wallpaperType();
     init_steam();
-    POLL_MS = 1500;
+    init_configApi();
+    init_assets();
+    init_broadcast();
+    init_sources();
+    init_sessions();
     MAX_WALLPAPER_BYTES = 20 * 1024 * 1024;
     MAX_BODY_BYTES = MAX_WALLPAPER_BYTES + 1024 * 1024;
     serveLog = [];
@@ -60684,17 +59461,6 @@ var init_server = __esm({
         orig(...args);
       };
     }
-    pluginRoot = (() => {
-      let dir = path7.dirname(fileURLToPath2(import.meta.url));
-      for (let i2 = 0; i2 < 4; i2++) {
-        if (fs10.existsSync(path7.join(dir, ".zcode-plugin")) || fs10.existsSync(path7.join(dir, "live"))) return dir;
-        const parent = path7.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-      }
-      return path7.resolve(path7.dirname(fileURLToPath2(import.meta.url)), "..", "..");
-    })();
-    held = /* @__PURE__ */ new Map();
     IMAGE_EXT = {
       "image/jpeg": ".jpg",
       "image/png": ".png",
@@ -60900,10 +59666,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path8) {
-  if (!path8)
+function getElementAtPath(obj, path11) {
+  if (!path11)
     return obj;
-  return path8.reduce((acc, key) => acc?.[key], obj);
+  return path11.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -61223,11 +59989,11 @@ function aborted(x2, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path8, issues) {
+function prefixIssues(path11, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path8);
+    iss.path.unshift(path11);
     return iss;
   });
 }
@@ -64638,11 +63404,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path8) {
-  if (path8.length === 0) {
+function getDotPath(path11) {
+  if (path11.length === 0) {
     return "object root";
   }
-  return path8.reduce((acc, seg, index) => {
+  return path11.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -70979,8 +69745,8 @@ init_inject();
 init_launch();
 init_wallpaperType();
 init_steam();
-import fs7 from "node:fs";
-import path4 from "node:path";
+import fs9 from "node:fs";
+import path5 from "node:path";
 function mergedStored() {
   return { ...DEFAULT_CONFIG, ...loadConfig() };
 }
@@ -71032,17 +69798,17 @@ async function reapplyStored(opts = {}) {
 }
 async function directApply(config2) {
   let assets;
-  if (config2.monetSourcePath && fs7.existsSync(config2.monetSourcePath)) {
+  if (config2.monetSourcePath && fs9.existsSync(config2.monetSourcePath)) {
     assets = await loadWallpaper(config2.monetSourcePath).catch(() => void 0);
-  } else if (config2.mediaType === "image" && config2.wallpaperPath && fs7.existsSync(config2.wallpaperPath)) {
+  } else if (config2.mediaType === "image" && config2.wallpaperPath && fs9.existsSync(config2.wallpaperPath)) {
     assets = await loadWallpaper(config2.wallpaperPath).catch(() => void 0);
   }
   if (config2.mediaType === "live") {
-    const preview = config2.monetSourcePath && fs7.existsSync(config2.monetSourcePath) ? config2.monetSourcePath : void 0;
+    const preview = config2.monetSourcePath && fs9.existsSync(config2.monetSourcePath) ? config2.monetSourcePath : void 0;
     const payload2 = buildPayload({ ...config2, mediaType: preview ? "image" : config2.mediaType }, assets);
     if (preview) {
-      const buf = fs7.readFileSync(preview);
-      const ext = path4.extname(preview).toLowerCase() || ".jpg";
+      const buf = fs9.readFileSync(preview);
+      const ext = path5.extname(preview).toLowerCase() || ".jpg";
       const mime2 = ext === ".png" ? "image/png" : "image/jpeg";
       payload2.wallpaperDataUri = `data:${mime2};base64,${buf.toString("base64")}`;
     }
@@ -71053,17 +69819,17 @@ async function directApply(config2) {
   return applyToZCode(config2, payload);
 }
 async function applyWallpaper(imagePath, opts = {}) {
-  const abs = path4.resolve(imagePath);
+  const abs = path5.resolve(imagePath);
   const kind = detectWallpaperType(abs);
   if (kind === "scene" || kind === "video" || kind === "web") {
     const r2 = await applyLiveWallpaper(abs, opts);
     return { windows: r2.windows };
   }
   const config2 = baseConfig(opts, loadConfig());
-  if (!fs7.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
-  fs7.mkdirSync(dataDir(), { recursive: true });
-  const dest = path4.join(dataDir(), "wallpaper" + path4.extname(abs).toLowerCase());
-  if (dest !== abs) fs7.copyFileSync(abs, dest);
+  if (!fs9.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
+  fs9.mkdirSync(dataDir(), { recursive: true });
+  const dest = path5.join(dataDir(), "wallpaper" + path5.extname(abs).toLowerCase());
+  if (dest !== abs) fs9.copyFileSync(abs, dest);
   const next = {
     ...config2,
     mediaType: "image",
@@ -71074,8 +69840,8 @@ async function applyWallpaper(imagePath, opts = {}) {
   };
   saveConfig({ ...next, port: loadConfig().port });
   if (await isServeAlive(next.apiPort)) {
-    const data = await fs7.promises.readFile(dest);
-    const mime2 = `image/${path4.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
+    const data = await fs9.promises.readFile(dest);
+    const mime2 = `image/${path5.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
     const r2 = await serveApi(next.apiPort, "/api/wallpaper", {
       dataUri: `data:${mime2};base64,${data.toString("base64")}`
     });
@@ -71091,7 +69857,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
   const input = sourceOrPath.trim();
   const lib = await enumerateWallpapers();
   const isKnownId = lib.wallpapers.some((w) => w.id === input);
-  const looksLikePath = /[\\/]/.test(input) || fs7.existsSync(input);
+  const looksLikePath = /[\\/]/.test(input) || fs9.existsSync(input);
   const sourceId = isKnownId ? input : looksLikePath ? void 0 : (() => {
     if (/^\d{6,}$/.test(input)) return `ws-${input}`;
     return void 0;
@@ -71100,7 +69866,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
     throw new Error(`unknown wallpaper source: ${input} (pass a source id, a workshop item id, or a filesystem path)`);
   }
   if (await isServeAlive(config2.apiPort)) {
-    const r2 = sourceId ? await serveApi(config2.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config2.apiPort, "/api/import", { path: path4.resolve(input) });
+    const r2 = sourceId ? await serveApi(config2.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config2.apiPort, "/api/import", { path: path5.resolve(input) });
     return {
       windows: Number(r2.windows ?? 0),
       sourceId: String(r2.sourceId ?? sourceId ?? ""),
@@ -71198,7 +69964,7 @@ function bootstrapServe() {
   }
 }
 {
-  const path8 = (() => {
+  const path11 = (() => {
     try {
       return __require("node:path").join(
         process.env.USERPROFILE || process.env.HOME || ".",
@@ -71214,10 +69980,10 @@ function bootstrapServe() {
     }
   })();
   const journal = (kind, detail) => {
-    if (!path8) return;
+    if (!path11) return;
     try {
       __require("node:fs").appendFileSync(
-        path8,
+        path11,
         `${(/* @__PURE__ */ new Date()).toISOString()} pid=${process.pid} ${kind} ${String(detail).slice(0, 800)}
 `
       );
@@ -71232,7 +69998,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.2.0"
+  version: "0.3.0"
 });
 var TOOL_NAMES = [
   "set_background",

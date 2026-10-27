@@ -27,14 +27,17 @@
 
 ```
 Steam 工坊订阅 ──枚举──▶ serve (127.0.0.1:28257)
-   (注册表 → libraryfolders.vdf        ├─ /files/<id>/…     壁纸静态文件（Range + ETag/304，穿越防护）
-    → workshop/content/431960)         ├─ /live/index.html  WebWallGL 渲染页（vendored 引擎）
+   (注册表 → libraryfolders.vdf        ├─ /agent.js /panel.js  页面运行时(真文件,部署即最新)
+    → workshop/content/431960)         ├─ /files/<id>/…     壁纸静态文件（Range + ETag/304，穿越防护）
+                                       ├─ /live/index.html  WebWallGL 渲染页（vendored 引擎）
+                                       ├─ /api/events       SSE 配置通道（所有页面运行时持有）
                                        └─ /api/…            配置 / 壁纸库 / 导入导出 / 删除
-                                              │
-ZCode ◀── CDP 注入 (28256) ── 底层 iframe 壁纸层 ◀── 指针/滚轮桥 ── ZCode UI
+                                              │ SSE 广播配置
+ZCode ◀── CDP 注入 (28256) ── 瘦 bootstrap(关键CSS + 初始载荷 + agent加载器 + 生命周期心跳)
    Page.addScriptToEvaluateOnNewDocument + Page.setBypassCSP
 ```
 
+- **页面侧单一施加者**：CDP 注册的只是一段瘦 bootstrap（同步写入防闪烁的关键 CSS，内嵌初始载荷，加载 `live/agent.js`）；壁纸层状态机、过场、视频、看门狗全部在作为**真实文件**由 serve 供应的 agent 运行时里，配置变更经 SSE 直达 agent —— 不再每次变更都重新生成脚本穿过 CDP（0.2.x 之前的滑杆 CDP 队列风暴 / bare-css 竞态 / 重注册舞蹈整个类别的根因被移除）。设置面板同理（`/panel.js`）。
 - **渲染核心**是开源引擎 [webwallgl](https://github.com/oneincase/webwallgl)（MIT，npm v3）：它的 `httpSource` 只要求把壁纸目录当静态文件供给，其余（解析、装配、渲染循环、脚本沙箱、指针与音频）全部内置。
 - **注入通道**沿用 [zcode-beautify](https://github.com/Logocceai/zcode-beautify)（MIT）的 CDP 方案与 Monet 模块；Steam/WE 发现链路参考了 [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine)（MIT）的宿主契约。
 - 与「开 WE 窗口录屏→ffmpeg 循环」的方案相比：不丢交互、不依赖 WE/ffmpeg 常驻、跨平台、秒级导入。
@@ -71,17 +74,18 @@ node dist/cli.js serve --detach     # 常驻服务（API 28257，注入 CDP 2825
 - 保真度取决于 WebWallGL 对 WE 引擎语义的复刻，个别工坊场景可能与 Wallpaper Engine 本体有差异（引擎诊断打到 serve 控制台 `[live:*]`）。
 - Application 类壁纸（需宿主运行第三方可执行文件）有意不支持。
 - 壁纸自带音频默认静音，可在面板/工具开启。
-- 修改面板脚本后重新部署需递增其内部版本号（页面注册脚本的生命周期长于 serve 进程，协议见源码注释）。
+- 端到端回归闸门：`node scripts/e2e.mjs`（需要 serve 运行中 + ZCode 带 CDP 端口）——注入、SSE 推送、切换、重置/还原全链路断言。
 
 ## 目录结构
 
 ```
-src/core/    steam.ts(发现/枚举) server.ts(serve) cdp.ts(注入) inject.ts(载荷)
-             monet.ts(tokens.ts) media.ts(静态服务) session.ts(CLI/MCP 共用操作)
-src/panel/   设置页区块（注入脚本）
+src/core/    steam.ts(发现/枚举) server.ts(HTTP 路由+生命周期) cdp.ts(连接+瘦 bootstrap)
+             sessions.ts(会话/自愈) broadcast.ts(SSE) sources.ts(应用/导入导出/删除)
+             inject.ts(配置模型+载荷) payload.ts/assets.ts(载荷组装+缓存) monet.ts(tokens.ts)
+             configApi.ts(校验/投影) media.ts(静态服务) session.ts(CLI/MCP 共用操作)
+live/        agent.js(壁纸层运行时) panel.js(设置面板) index.html + renderer.js(WebWallGL 渲染页)
 src/mcp/     MCP 服务器（7 个工具）
-live/        WebWallGL 渲染页（index.html + renderer.js）
-commands/ skills/ scripts/  /wallpaper 命令、技能、构建脚本
+commands/ skills/ scripts/  /wallpaper 命令、技能、构建与 e2e 脚本
 ```
 
 ## 致谢与许可

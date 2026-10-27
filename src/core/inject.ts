@@ -11,7 +11,6 @@
  */
 
 import {
-  buildBootstrapScript as buildBootstrap,
   buildResetScript,
   injectIntoTarget,
   listTargets,
@@ -298,7 +297,7 @@ export async function resetZCode(port: number): Promise<number> {
   return count;
 }
 
-export { buildBootstrap as buildBootstrapScript, buildResetScript };
+export { buildResetScript };
 
 /** Re-export so CLI/MCP can load wallpapers without touching monet internals. */
 export { loadWallpaper };

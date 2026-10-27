@@ -1,6 +1,6 @@
 {
   "name": "zcode-wallpaper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Live Wallpaper Engine wallpapers inside the ZCode desktop client: subscribed workshop scenes are rendered in real time with WebWallGL (no recording), plus Material Design 3 (Monet) dynamic theming via CDP injection.",
   "type": "module",
   "license": "MIT",

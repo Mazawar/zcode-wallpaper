@@ -82,7 +82,18 @@ try {
   $meta = Get-Content -Raw '${launcher.meta.replace(/'/g, "''")}' -ErrorAction SilentlyContinue | ConvertFrom-Json
   $zcode = $null
   if ($s.TargetPath -match 'ZCode\.exe$') { $zcode = $s.TargetPath }
-  elseif ($s.TargetPath -match 'wscript\.exe$' -and ([string]$s.Arguments) -like '*zw-launch.vbs*' -and $meta) { $zcode = $meta.zcode }
+  elseif ($s.TargetPath -match 'wscript\.exe$' -and ([string]$s.Arguments) -match 'zw-launch\.vbs') {
+    # A wrapper from ANY install generation (the shortcut can be pinned to a
+    # plugin-cache path that a later update prunes). Its sibling meta json
+    # names the ZCode exe; ours is the fallback.
+    $vbsArg = ([regex]::Match([string]$s.Arguments, '"([^"]+zw-launch\.vbs)"')).Groups[1].Value
+    if (-not $vbsArg) { $vbsArg = (([string]$s.Arguments -split ' ')[0] -replace '^"|"$','') }
+    if ($vbsArg -and (Test-Path $vbsArg)) {
+      $metaPath = Join-Path (Split-Path $vbsArg -Parent) 'zw-launch.json'
+      if (Test-Path $metaPath) { try { $zcode = (Get-Content -Raw $metaPath | ConvertFrom-Json).zcode } catch {} }
+    }
+    if (-not $zcode -and $meta) { $zcode = $meta.zcode }
+  }
   if (-not $zcode) { Write-Output 'ok|not-zcode'; exit }
   if (-not (Test-Path $zcode)) { Write-Output 'ok|zcode-missing'; exit }
   $anti = @('${antiOcclusion.join("', '")}')

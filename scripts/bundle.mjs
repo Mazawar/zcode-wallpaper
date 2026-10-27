@@ -41,6 +41,14 @@ for (const e of entries) {
   await esbuild.build({ ...common, entryPoints: [e.in], outfile: e.out });
 }
 
+// Syntax-gate the page runtime files: they are plain JS served as-is (not
+// bundled), so this transform only proves they parse — a broken agent.js or
+// panel.js would otherwise surface as a dead wallpaper with no build error.
+for (const f of ["agent.js", "panel.js", "renderer.js"]) {
+  await esbuild.transform(fs.readFileSync(path.join(root, "live", f), "utf8"), { loader: "js" });
+}
+console.log("bundle: live runtime files parse clean (agent.js, panel.js, renderer.js)");
+
 // Vendor the WebWallGL engine build (server resolves vendor/ before node_modules).
 const engineSrc = path.join(root, "node_modules", "webwallgl", "webwallgl.global.min.js");
 const destDir = path.join(root, "vendor");
