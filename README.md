@@ -46,7 +46,9 @@ ZCode ◀── CDP 注入 (28256) ── 瘦 bootstrap(关键CSS + 初始载荷
 
 ### 作为插件安装（推荐）
 
-从 [Releases](../../releases) 下载 `zcode-wallpaper-x.y.z.zip`，按 ZCode 本地插件方式安装（含 `.zcode-plugin/plugin.json`、MCP 服务、`/wallpaper` 命令与技能）。插件随 ZCode 启动自动拉起 serve 与面板。
+- **市场安装**：ZCode 插件市场 → 添加 → 添加插件市场，粘贴本仓库根目录（含 `marketplace.json`；发布后也可直接填 GitHub 仓库地址），随后在 个人 → zcode-wallpaper → ZCode 壁纸引擎 点击安装。装好的插件在 设置 → 插件 管理，随 ZCode 启动自动拉起 serve 与面板。
+- **更新**：市场页齿轮 → 市场源 → 刷新该市场，再到 个人 → 插件详情 → 更新。
+- **离线安装**：从 [Releases](../../releases) 下载 `zcode-wallpaper-x.y.z.zip`，按 ZCode 本地插件方式安装（含 `.zcode-plugin/plugin.json`、MCP 服务、`/wallpaper` 命令与技能）。
 
 ### 从源码运行
 

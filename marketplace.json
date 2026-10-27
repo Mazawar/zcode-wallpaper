@@ -1,23 +1,42 @@
 {
   "name": "zcode-wallpaper",
-  "owner": "Mazawar",
   "plugins": [
     {
       "name": "zcode-wallpaper",
-      "description": "Live Wallpaper Engine scene wallpapers inside ZCode: real-time WebWallGL rendering (particles / SceneScript / mouse parallax, no recording), native settings section, cross-machine .zw.zip packages, Monet dynamic theming.",
-      "version": "0.3.2",
-      "author": "Mazawar",
+      "displayName": "ZCode Wallpaper Engine",
+      "displayName_i18n": {
+        "en": "ZCode Wallpaper Engine",
+        "zh-CN": "ZCode 壁纸引擎"
+      },
+      "description": "Live Wallpaper Engine scene wallpapers inside ZCode: real-time WebWallGL rendering (particles / SceneScript / mouse parallax, no recording), a native settings section, cross-machine .zw.zip packages, and Monet dynamic theming.",
+      "description_i18n": {
+        "en": "Live Wallpaper Engine scene wallpapers inside ZCode: real-time WebWallGL rendering (particles / SceneScript / mouse parallax, no recording), a native settings section, cross-machine .zw.zip packages, and Monet dynamic theming.",
+        "zh-CN": "在 ZCode 桌面客户端内实时渲染 Wallpaper Engine 场景壁纸：WebWallGL 实时渲染（粒子 / SceneScript / 鼠标视差，不录屏），原生设置区块、跨机 .zw.zip 资源包与 Monet 动态取色。"
+      },
+      "version": "0.3.3",
+      "author": {
+        "name": "Mazawar",
+        "url": "https://github.com/Mazawar"
+      },
       "license": "MIT",
+      "homepage": "https://github.com/Mazawar/zcode-wallpaper#readme",
       "source": "./",
-      "category": "themes",
-      "tags": [
+      "category": "utilities",
+      "keywords": [
         "wallpaper",
         "wallpaper-engine",
+        "webwallgl",
         "theme",
         "appearance",
-        "dynamic-color"
+        "dynamic-color",
+        "monet"
+      ],
+      "componentTypes": [
+        "command",
+        "skill",
+        "mcp"
       ]
     }
   ],
-  "version": "0.3.2"
+  "version": "0.3.3"
 }
