@@ -48,7 +48,11 @@ for (const e of entries) {
 }
 
 // Page runtimes: authored as ES modules under live/src, delivered as single
-// iife files (no runtime imports — one <script src> per runtime, D4).
+// iife files (no runtime imports — one <script src> per runtime, D4). The
+// package version is baked in so the panel can show exactly what's running
+// (ends the "which build is this?" class of confusion during updates).
+const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const liveDefine = { define: { __ZW_VERSION__: JSON.stringify(pkg.version) } };
 const liveEntries = [
   { in: path.join(root, "live", "src", "agent", "main.js"), out: path.join(root, "live", "agent.js") },
   { in: path.join(root, "live", "src", "panel", "main.js"), out: path.join(root, "live", "panel.js") },
@@ -64,6 +68,7 @@ for (const e of liveEntries) {
     logLevel: "info",
     entryPoints: [e.in],
     outfile: e.out,
+    ...liveDefine,
   });
 }
 

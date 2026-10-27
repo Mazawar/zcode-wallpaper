@@ -21,6 +21,7 @@ import { MARKER, createMountLoop } from "./mount.js";
   if (window.__zwPanel) return;
   window.__zwPanel = true;
 
+  const PANEL_VERSION = typeof __ZW_VERSION__ === "undefined" ? "dev" : __ZW_VERSION__;
   const API = window.__zwApiBase || "http://127.0.0.1:28257";
   const PAGE_SIZE = 15;
 
@@ -130,7 +131,11 @@ import { MARKER, createMountLoop } from "./mount.js";
     headText.appendChild(el("p", CLS.desc, "使用 Wallpaper Engine 订阅的壁纸：场景为实时渲染（保留粒子、脚本与鼠标视差），图片与视频亦可作为背景。"));
     head.appendChild(headText);
     ui.badge = el("span", CLS.badge, "…");
+    ui.badge.title = "面板构建版本";
     head.appendChild(ui.badge);
+    const verBadge = el("span", CLS.badge, "p" + PANEL_VERSION);
+    verBadge.title = "面板构建版本（对比插件版本可发现未重启的旧面板）";
+    head.appendChild(verBadge);
     section.appendChild(head);
 
     // Live hard-failure banner (D6): honest empty state with a retry, never a
