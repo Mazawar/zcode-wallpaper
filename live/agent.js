@@ -154,8 +154,12 @@
   function createRecorder(reg) {
     if (window.__zwRec) return window.__zwRec;
     window.__zwLog = [];
+    let lastEntry = "";
     window.__zwRec = function(tag, d) {
       try {
+        const line = tag + "|" + (d === void 0 ? "" : String(d));
+        if (line === lastEntry) return;
+        lastEntry = line;
         window.__zwLog.push({ t: (/* @__PURE__ */ new Date()).toISOString().slice(11, 23), tag, d: d === void 0 ? "" : String(d).slice(0, 160) });
         if (window.__zwLog.length > 800) window.__zwLog.shift();
       } catch (e) {
@@ -824,8 +828,9 @@
     function wpRoot() {
       return document.getElementById(MARKER + "-wallpaper");
     }
-    const bridge = createBridge(reg, null, rec);
-    const liveframe = createLiveFrame({ reg, rec, wpRoot, bridge });
+    let liveframe;
+    const bridge = createBridge(reg, () => liveframe.frames(), rec);
+    liveframe = createLiveFrame({ reg, rec, wpRoot, bridge });
     const video = createVideoActor({ reg, rec, wpRoot, onReady: () => machine.fire("VREADY") });
     const ledger = createLedger({
       apiBase: API,

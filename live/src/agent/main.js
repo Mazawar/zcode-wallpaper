@@ -46,8 +46,11 @@ import { createLedger } from "./ledger.js";
 
   function wpRoot() { return document.getElementById(MARKER + "-wallpaper"); }
 
-  const bridge = createBridge(reg, null, rec);
-  const liveframe = createLiveFrame({ reg, rec, wpRoot, bridge });
+  // The bridge posts into the live frames; liveframe needs the bridge to
+  // start() — break the cycle with a lazy getter.
+  let liveframe;
+  const bridge = createBridge(reg, () => liveframe.frames(), rec);
+  liveframe = createLiveFrame({ reg, rec, wpRoot, bridge });
   const video = createVideoActor({ reg, rec, wpRoot, onReady: () => machine.fire("VREADY") });
   const ledger = createLedger({
     apiBase: API,

@@ -9,8 +9,13 @@ export const MARKER = "zcode-wallpaper";
 export function createRecorder(reg) {
   if (window.__zwRec) return window.__zwRec;
   window.__zwLog = [];
+  let lastEntry = ""; // dedupe runs of identical entries (771 identical page
+  // errors once evicted every other diagnostic from the 800-slot ring)
   window.__zwRec = function (tag, d) {
     try {
+      const line = tag + "|" + (d === undefined ? "" : String(d));
+      if (line === lastEntry) return;
+      lastEntry = line;
       window.__zwLog.push({ t: new Date().toISOString().slice(11, 23), tag: tag, d: d === undefined ? "" : String(d).slice(0, 160) });
       if (window.__zwLog.length > 800) window.__zwLog.shift();
     } catch (e) { /* recorder must never break the runtime */ }

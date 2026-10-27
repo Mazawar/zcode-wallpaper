@@ -20,6 +20,7 @@ import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { liveDir, engineFile } from "./paths.js";
@@ -192,9 +193,9 @@ let activeServer: http.Server | undefined;
  * back to its host-timeout heuristics); this is ZCode's private format,
  * parsed best-effort and versioned by try/catch.
  */
-/** Any explicit false for our plugin name (any market) in this file counts:
- *  a global-effect plugin is all-or-nothing, so one visible "off" stops it.
- *  Returns the triggering key for the serve log — one glance explains a stop. */
+/** Conservative fallback (identity unknown — manual/CLI run): disabled only
+ *  when EVERY zcode-wallpaper@* key in this file is explicitly false.
+ *  Returns the triggering keys for the serve log. */
 export function pluginDisabledKeyIn(cfgPath: string): string | null {
   try {
     const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")) as {
@@ -202,12 +203,35 @@ export function pluginDisabledKeyIn(cfgPath: string): string | null {
     };
     const ep = cfg?.plugins?.enabledPlugins;
     if (!ep || typeof ep !== "object") return null;
-    for (const [k, v] of Object.entries(ep)) {
-      if (k.includes("zcode-wallpaper") && v === false) return k;
-    }
-    return null;
+    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
+    return keys.length > 0 && keys.every((k) => ep[k] === false) ? keys.join("+") : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Our own `name@marketplace` id, resolved from ZCode's install records by
+ * matching the install path against this very module's location (works for
+ * cache installs of any market). Null when not installed (CLI/manual run) —
+ * the caller then falls back to the every-key-false rule.
+ */
+export function ownPluginId(): string | undefined {
+  try {
+    const rec = JSON.parse(
+      fs.readFileSync(path.join(os.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8"),
+    ) as { plugins?: Array<{ id: string; name: string; marketplace: string; installPath?: string }> };
+    // dist/core/server.js (bundle) or src/core/server.js (tsc) — walk up to
+    // the plugin root that contains dist/cli.js, like the launcher probe.
+    let dir = path.dirname(fileURLToPath(import.meta.url));
+    for (let i = 0; i < 6; i++) {
+      if (fs.existsSync(path.join(dir, "dist", "cli.js"))) break;
+      dir = path.dirname(dir);
+    }
+    const hit = rec.plugins?.find((p) => p.installPath && path.resolve(dir).startsWith(path.resolve(p.installPath)));
+    return hit ? hit.id : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -244,17 +268,37 @@ export function activeWorkspaceDirs(): string[] {
   }
 }
 
-/** Disabled when ANY visible scope says false — the user config or any open
- *  workspace's config. Observed ZCode behavior (0.4.4 incident): a mid-session
- *  disable writes the record but does NOT kill the plugin host, so the serve
- *  must settle this itself from the files; and with several workspaces open,
- *  "off in the one I toggled" must still stop a layer that cannot be scoped
- *  per window anyway. */
+/**
+ * Disablement for OUR OWN plugin id across both scopes. ZCode's client has
+ * written the toggle to the user file on some clicks and to the workspace
+ * file on others (both observed the same day), so the scopes can disagree —
+ * each recording a different moment of the user's intent. Resolution: the
+ * NEWEST explicit entry for our exact id wins (write history is the only
+ * truthful precedence); ties lean disabled (safe). Without an install record
+ * (manual/CLI run) the identity is unknown — fall back to the conservative
+ * every-zcode-wallpaper-key-false rule.
+ */
 export function pluginDisabledBy(userCfgPath: string): { scope: string; key: string } | null {
-  const userKey = pluginDisabledKeyIn(userCfgPath);
-  if (userKey) return { scope: userCfgPath, key: userKey };
-  for (const ws of activeWorkspaceDirs()) {
-    const p = path.join(ws, ".zcode", "config.json");
+  const ownId = ownPluginId();
+  const scopes = [userCfgPath, ...activeWorkspaceDirs().map((ws) => path.join(ws, ".zcode", "config.json"))];
+  if (ownId) {
+    const id = ownId; // narrowed copy for the closure below
+    const readMine = (p: string): { scope: string; disabled: boolean; mtime: number } | null => {
+      try {
+        const ep = (JSON.parse(fs.readFileSync(p, "utf8")) as { plugins?: { enabledPlugins?: Record<string, boolean> } })
+          ?.plugins?.enabledPlugins;
+        if (!ep || ep[id] === undefined) return null;
+        return { scope: p, disabled: ep[id] === false, mtime: fs.statSync(p).mtimeMs };
+      } catch {
+        return null;
+      }
+    };
+    const mine = scopes.map(readMine).filter((x): x is { scope: string; disabled: boolean; mtime: number } => !!x);
+    if (!mine.length) return null;
+    const newest = mine.reduce((a, b) => (b.mtime >= a.mtime ? b : a));
+    return newest.disabled ? { scope: newest.scope, key: id } : null;
+  }
+  for (const p of scopes) {
     const key = pluginDisabledKeyIn(p);
     if (key) return { scope: p, key };
   }

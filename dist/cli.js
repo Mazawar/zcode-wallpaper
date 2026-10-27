@@ -51994,6 +51994,7 @@ __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
   activeWorkspaceDirs: () => activeWorkspaceDirs,
   existingServePid: () => existingServePid,
+  ownPluginId: () => ownPluginId,
   pluginDisabledBy: () => pluginDisabledBy,
   pluginDisabledKeyIn: () => pluginDisabledKeyIn,
   shutdownServe: () => shutdownServe,
@@ -52003,6 +52004,7 @@ import http from "node:http";
 import fs16 from "node:fs";
 import os2 from "node:os";
 import path11 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
 function sendJson(res, code, body) {
@@ -52089,12 +52091,26 @@ function pluginDisabledKeyIn(cfgPath) {
     const cfg = JSON.parse(fs16.readFileSync(cfgPath, "utf8"));
     const ep = cfg?.plugins?.enabledPlugins;
     if (!ep || typeof ep !== "object") return null;
-    for (const [k, v] of Object.entries(ep)) {
-      if (k.includes("zcode-wallpaper") && v === false) return k;
-    }
-    return null;
+    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
+    return keys.length > 0 && keys.every((k) => ep[k] === false) ? keys.join("+") : null;
   } catch {
     return null;
+  }
+}
+function ownPluginId() {
+  try {
+    const rec = JSON.parse(
+      fs16.readFileSync(path11.join(os2.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
+    );
+    let dir = path11.dirname(fileURLToPath3(import.meta.url));
+    for (let i2 = 0; i2 < 6; i2++) {
+      if (fs16.existsSync(path11.join(dir, "dist", "cli.js"))) break;
+      dir = path11.dirname(dir);
+    }
+    const hit = rec.plugins?.find((p2) => p2.installPath && path11.resolve(dir).startsWith(path11.resolve(p2.installPath)));
+    return hit ? hit.id : void 0;
+  } catch {
+    return void 0;
   }
 }
 function activeWorkspaceDirs() {
@@ -52119,10 +52135,25 @@ function activeWorkspaceDirs() {
   }
 }
 function pluginDisabledBy(userCfgPath) {
-  const userKey = pluginDisabledKeyIn(userCfgPath);
-  if (userKey) return { scope: userCfgPath, key: userKey };
-  for (const ws of activeWorkspaceDirs()) {
-    const p2 = path11.join(ws, ".zcode", "config.json");
+  const ownId = ownPluginId();
+  const scopes = [userCfgPath, ...activeWorkspaceDirs().map((ws) => path11.join(ws, ".zcode", "config.json"))];
+  if (ownId) {
+    const id = ownId;
+    const readMine = (p2) => {
+      try {
+        const ep = JSON.parse(fs16.readFileSync(p2, "utf8"))?.plugins?.enabledPlugins;
+        if (!ep || ep[id] === void 0) return null;
+        return { scope: p2, disabled: ep[id] === false, mtime: fs16.statSync(p2).mtimeMs };
+      } catch {
+        return null;
+      }
+    };
+    const mine = scopes.map(readMine).filter((x2) => !!x2);
+    if (!mine.length) return null;
+    const newest = mine.reduce((a2, b) => b.mtime >= a2.mtime ? b : a2);
+    return newest.disabled ? { scope: newest.scope, key: id } : null;
+  }
+  for (const p2 of scopes) {
     const key = pluginDisabledKeyIn(p2);
     if (key) return { scope: p2, key };
   }
