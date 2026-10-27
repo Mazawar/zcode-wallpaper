@@ -216,5 +216,4 @@ export const WATCHDOGS = [
   { id: "switch-cap", intervalMs: SWITCH_CAP_MS, scope: ["live/switching"], once: true },
   { id: "hidden-pause", event: "visibilitychange", scope: "*" },
   { id: "video-kick", intervalMs: 2000, scope: ["video/shown", "video/prep"] },
-  { id: "opaque-heal", intervalMs: 5000, scope: "*" },
 ];

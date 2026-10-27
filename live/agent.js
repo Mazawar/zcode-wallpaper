@@ -210,69 +210,6 @@
     return rec;
   }
 
-  // live/src/agent/heal.js
-  var WP_AUTO = "data-zw-auto";
-  function createHeal(reg, rec) {
-    let installed = false;
-    function heal() {
-      try {
-        const vp = window.innerWidth * window.innerHeight;
-        const nodes = document.querySelectorAll("[class*=bg-background]");
-        const keep = [];
-        for (let i = 0; i < nodes.length; i++) {
-          const n = nodes[i];
-          if (n.closest("[role=dialog],[role=menu],[role=listbox],[data-radix-popper-content-wrapper]")) continue;
-          const r = n.getBoundingClientRect();
-          if (r.width * r.height < vp * 0.3) continue;
-          const bg = getComputedStyle(n).backgroundColor;
-          const opaque = !(bg === "transparent" || bg === "rgba(0, 0, 0, 0)");
-          if (!n.hasAttribute(WP_AUTO) && !opaque) continue;
-          keep.push(n);
-        }
-        const marked = document.querySelectorAll("[" + WP_AUTO + "]");
-        for (let m = 0; m < marked.length; m++) {
-          if (keep.indexOf(marked[m]) === -1) marked[m].removeAttribute(WP_AUTO);
-        }
-        let added = 0;
-        for (let k = 0; k < keep.length; k++) {
-          if (!keep[k].hasAttribute(WP_AUTO)) {
-            keep[k].setAttribute(WP_AUTO, "");
-            added++;
-          }
-          keep[k].style.setProperty("background-color", "var(--color-background)", "important");
-        }
-        if (added > 0) rec("AUTOHEAL", added + " surface(s)");
-      } catch (e) {
-      }
-    }
-    return {
-      start() {
-        if (installed) return;
-        installed = true;
-        heal();
-        reg.every(heal, 5e3);
-        let pending = null;
-        let last = 0;
-        const schedule = function() {
-          const now = Date.now();
-          if (pending) return;
-          const wait = Math.max(0, 150 - (now - last));
-          pending = setTimeout(function() {
-            pending = null;
-            last = Date.now();
-            requestAnimationFrame(heal);
-          }, wait);
-        };
-        try {
-          const obs = new MutationObserver(schedule);
-          obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
-          reg.observer(obs);
-        } catch (e) {
-        }
-      }
-    };
-  }
-
   // live/src/agent/bridge.js
   function createBridge(reg, frames, rec) {
     let bound = false;
@@ -855,8 +792,7 @@
       rec,
       onVerdict: (reason) => machine.fire("BUDGET_EXHAUSTED", { reason })
     });
-    const heal = createHeal(reg, rec);
-    heal.start();
+    const heal = null;
     const machine = createMachine(function(ev) {
       if (ev.rejected) {
         rec("MACH", "! " + ev.event + " @ " + ev.from + " rejected");

@@ -54740,6 +54740,7 @@ html, body { background: transparent !important; }
     } else if (config2.wallpaperVisible) {
       parts.push(buildTransparencyOverrides({ dim: config2.dim }));
     }
+    parts.push(`[class*="bg-background"] { background-color: var(--color-background) !important; }`);
   }
   const visible = config2.wallpaperVisible;
   const liveSrc = visible && config2.mediaType === "live" ? opts.liveUrl : void 0;
@@ -70274,7 +70275,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.4.7"
+  version: "0.4.8"
 });
 var TOOL_NAMES = [
   "set_background",

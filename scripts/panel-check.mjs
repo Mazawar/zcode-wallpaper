@@ -23,7 +23,6 @@ const artifacts = [
       "/api/events", // SSE subscription
       'MARKER = "zcode-wallpaper"', // the layer id family base (-live, -style…)
       'MARKER + "-live"', // …and its live-frame composition
-      "data-zw-auto", // opaque-surface auto-heal marks
     ],
   },
   {

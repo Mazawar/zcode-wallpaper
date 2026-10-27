@@ -43,8 +43,10 @@
 | 切换超时 | `SWITCH_CAP_MS` | 无 SWITCH_READY → `FAIL_SOFT` | 掀掉覆盖层、按软失败重试 |
 | 隐藏暂停（去抖） | 1.5s | `PAUSE` / `RESUME` | 暂停视频元素与引擎 |
 | 视频解冻 kick | 2s | （video 域） | load()+play()，时钟比对 |
-| 透明面自愈 | 5s | （DOM 域，无相位） | 强制半透明遮罩面 |
 | 引擎内看门狗 | renderer.js 自治 | 自重挂后重发 ready | 相位回 `loading→shown` |
+
+（0.4.8 起「透明面自愈」从看门狗表移除——它不再是 JS 传感器，改为 payload 里的
+一条声明式 CSS 规则，见 DECISIONS D9。）
 
 渲染页内部的存活/尺寸看门狗保持自治（重挂自愈后重发 `ready`，状态机自然回归 `shown`）。
 

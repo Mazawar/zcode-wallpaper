@@ -234,6 +234,14 @@ html, body { background: transparent !important; }
     } else if (config.wallpaperVisible) {
       parts.push(buildTransparencyOverrides({ dim: config.dim }));
     }
+    // Declarative surface transparency (replaces the DOM-mutating auto-heal,
+    // 0.4.8): one stylesheet rule makes EVERY bg-background surface consume
+    // the (already translucent) token — including routes that ship literal
+    // colors instead of the variable (the old heal existed for these; a live
+    // experiment showed the rule covers them with zero dark window and zero
+    // DOM writes). Same gating as the token overrides: wallpaper off ⇒ the
+    // app returns fully opaque.
+    parts.push(`[class*="bg-background"] { background-color: var(--color-background) !important; }`);
   }
 
   const visible = config.wallpaperVisible;

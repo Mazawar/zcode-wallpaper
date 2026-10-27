@@ -10,7 +10,6 @@
 
 import { createMachine, KIND } from "../state.js";
 import { createRecorder, MARKER } from "./recorder.js";
-import { createHeal } from "./heal.js";
 import { createBridge } from "./bridge.js";
 import { createLiveFrame } from "./liveframe.js";
 import { createVideoActor } from "./video.js";
@@ -57,8 +56,7 @@ import { createLedger } from "./ledger.js";
     rec,
     onVerdict: (reason) => machine.fire("BUDGET_EXHAUSTED", { reason }),
   });
-  const heal = createHeal(reg, rec);
-  heal.start();
+  const heal = null; // retired 0.4.8 — declarative CSS rule in the payload (D9)
 
   // ── the machine: every transition is visible; failures carry policy ──────
   const machine = createMachine(function (ev) {

@@ -47630,6 +47630,7 @@ html, body { background: transparent !important; }
     } else if (config.wallpaperVisible) {
       parts.push(buildTransparencyOverrides({ dim: config.dim }));
     }
+    parts.push(`[class*="bg-background"] { background-color: var(--color-background) !important; }`);
   }
   const visible = config.wallpaperVisible;
   const liveSrc = visible && config.mediaType === "live" ? opts.liveUrl : void 0;
