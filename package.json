@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.json --noEmit && node scripts/bundle.mjs",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "node scripts/verify-live-machine.mjs && node scripts/verify-contracts.mjs && node scripts/verify-guard-map.mjs && node scripts/panel-check.mjs"
+    "verify": "node scripts/verify-live-machine.mjs && node scripts/verify-contracts.mjs && node scripts/verify-guard-map.mjs && node scripts/panel-check.mjs",
+    "market": "node scripts/local-market.mjs"
   },
   "dependencies": {
     "@material/material-color-utilities": "^0.3.0",
