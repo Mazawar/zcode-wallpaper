@@ -30,6 +30,8 @@ import {
 import { loadWallpaper } from "./monet.js";
 import { loadConfig, saveConfig, dataDir } from "./launch.js";
 import { safeJoin, sendStaticFile } from "./media.js";
+import { transferBegin, transferChunk, transferSnapshot } from "./ledger.js";
+import { liveFailureOf, recordLiveFailure, clearLiveFailure } from "./livefail.js";
 import { enumerateWallpapers, resolveSourceDir } from "./steam.js";
 import { currentConfig, publicConfig, persisted, sanitize, storedCustomSources, hasBackup, readBackup, writeBackup } from "./configApi.js";
 import { primeAssets, invalidateAssets } from "./assets.js";
@@ -290,7 +292,13 @@ export async function startServe(opts: ServeOptions): Promise<void> {
           return;
         }
         const target = rel ? safeJoin(entry.dir, rel) : undefined;
-        if (!target || !sendStaticFile(req, res, target)) {
+        if (
+          !target ||
+          !sendStaticFile(req, res, target, {
+            onRange: ({ start, end }) => transferBegin(sourceId, rel, start, end),
+            onBytes: (n) => transferChunk(sourceId, rel, n),
+          })
+        ) {
           sendJson(res, 404, { error: "not found" });
         }
         return;
@@ -305,6 +313,40 @@ export async function startServe(opts: ServeOptions): Promise<void> {
 
       if (req.method === "POST" && url.pathname === "/api/host-alive") {
         (globalThis as { __zwHostAlive?: number }).__zwHostAlive = Date.now();
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
+      // Transfer ledger (D7): the live load phase polls this — bytes moving
+      // means "still downloading", never "failing to render".
+      if (req.method === "GET" && url.pathname === "/api/transfer") {
+        sendJson(res, 200, transferSnapshot(String(url.searchParams.get("id") ?? "")));
+        return;
+      }
+
+      // Live verdict (D6): a hard failure reported by the agent persists per
+      // source; the payload rebuild downgrades it to poster-only with the
+      // reason, which flows back over SSE.
+      if (req.method === "POST" && url.pathname === "/api/live-verdict") {
+        const body = JSON.parse(await readBody(req)) as { sourceId?: string; reason?: string };
+        const id = String(body.sourceId ?? "");
+        if (!id) {
+          sendJson(res, 400, { error: "sourceId required" });
+          return;
+        }
+        recordLiveFailure(id, String(body.reason ?? "renderer"));
+        serveLog.push(`[live:fail] ${id} — ${body.reason ?? "renderer"} (downgraded to poster)`);
+        await publishConfig(runtimeConfig());
+        sendJson(res, 200, { ok: true, downgraded: true });
+        return;
+      }
+
+      // Retry (D6): clear the current source's failure memory — explicit user
+      // intent outranks memory — and push the full live payload again.
+      if (req.method === "POST" && url.pathname === "/api/live-retry") {
+        const cfg = runtimeConfig();
+        clearLiveFailure(cfg.live?.sourceId);
+        await publishConfig(cfg);
         sendJson(res, 200, { ok: true });
         return;
       }

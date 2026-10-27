@@ -14,6 +14,7 @@ import {
   type CustomSource,
 } from "./inject.js";
 import { dataDir, loadConfig } from "./launch.js";
+import { liveFailureOf } from "./livefail.js";
 
 export function storedCustomSources(): CustomSource[] {
   const stored = loadConfig();
@@ -88,6 +89,7 @@ export function publicConfig(config: BeautifyConfig) {
     rotationMinutes: config.rotationMinutes ?? 30,
     rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
     hasBackup: hasBackup(),
+    liveFailed: liveFailureOf(config.live?.sourceId),
     cdpPort: config.port,
     apiPort: config.apiPort,
   };

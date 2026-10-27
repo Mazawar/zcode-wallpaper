@@ -459,8 +459,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path11, errorMaps, issueData } = params;
-      const fullPath = [...path11, ...issueData.path || []];
+      const { data, path: path12, errorMaps, issueData } = params;
+      const fullPath = [...path12, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -768,11 +768,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path11, key) {
+      constructor(parent, value, path12, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path11;
+        this._path = path12;
         this._key = key;
       }
       get path() {
@@ -7374,8 +7374,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path11) {
-      let input = path11;
+    function removeDotSegments(path12) {
+      let input = path12;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -7449,11 +7449,11 @@ var require_utils = __commonJS({
       }
       return output.join("");
     }
-    function removeDotSegmentsRelative(path11) {
-      if (path11 === "" || path11[0] === "/") {
-        return removeDotSegments(path11);
+    function removeDotSegmentsRelative(path12) {
+      if (path12 === "" || path12[0] === "/") {
+        return removeDotSegments(path12);
       }
-      const segments = path11.split("/");
+      const segments = path12.split("/");
       const last = segments.length - 1;
       const output = [];
       let trailingDirectory = false;
@@ -7816,8 +7816,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path11 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path11 && path11 !== "/" ? path11 : void 0;
+        const path12 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path12 && path12 !== "/" ? path12 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -11354,12 +11354,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f2;
     };
-    function addFormats(ajv, list, fs16, exportName) {
+    function addFormats(ajv, list, fs17, exportName) {
       var _a;
       var _b;
       (_a = (_b = ajv.opts.code).formats) !== null && _a !== void 0 ? _a : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f2 of list)
-        ajv.addFormat(f2, fs16[f2]);
+        ajv.addFormat(f2, fs17[f2]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -17253,7 +17253,7 @@ var require_gifframe = __commonJS({
 var require_gifutil = __commonJS({
   "node_modules/gifwrap/src/gifutil.js"(exports) {
     "use strict";
-    var fs16 = __require("fs");
+    var fs17 = __require("fs");
     var ImageQ = require_image_q();
     var BitmapImage2 = require_bitmapimage();
     var { GifFrame: GifFrame2 } = require_gifframe();
@@ -17368,14 +17368,14 @@ var require_gifutil = __commonJS({
       jimpImage.bitmap.data = bitmapImageToShare.bitmap.data;
       return jimpImage;
     };
-    exports.write = function(path11, frames, spec, encoder) {
+    exports.write = function(path12, frames, spec, encoder) {
       encoder = encoder || defaultCodec;
-      const matches = path11.match(/\.[a-zA-Z]+$/);
+      const matches = path12.match(/\.[a-zA-Z]+$/);
       if (matches !== null && INVALID_SUFFIXES.includes(matches[0].toLowerCase())) {
-        throw new Error(`GIF '${path11}' has an unexpected suffix`);
+        throw new Error(`GIF '${path12}' has an unexpected suffix`);
       }
       return encoder.encodeGif(frames, spec).then((gif2) => {
-        return _writeBinary(path11, gif2.buffer).then(() => {
+        return _writeBinary(path12, gif2.buffer).then(() => {
           return gif2;
         });
       });
@@ -17447,9 +17447,9 @@ var require_gifutil = __commonJS({
         }
       }
     }
-    function _readBinary(path11) {
+    function _readBinary(path12) {
       return new Promise((resolve, reject) => {
-        fs16.readFile(path11, (err, buffer) => {
+        fs17.readFile(path12, (err, buffer) => {
           if (err) {
             return reject(err);
           }
@@ -17457,9 +17457,9 @@ var require_gifutil = __commonJS({
         });
       });
     }
-    function _writeBinary(path11, buffer) {
+    function _writeBinary(path12, buffer) {
       return new Promise((resolve, reject) => {
-        fs16.writeFile(path11, buffer, (err) => {
+        fs17.writeFile(path12, buffer, (err) => {
           if (err) {
             return reject(err);
           }
@@ -19470,9 +19470,9 @@ var require_decoder = __commonJS({
         return a2 < 0 ? 0 : a2 > 255 ? 255 : a2;
       }
       constructor.prototype = {
-        load: function load(path11) {
+        load: function load(path12) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path11, true);
+          xhr.open("GET", path12, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = (function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -31578,11 +31578,11 @@ var require_Mime = __commonJS({
         }
       }
     };
-    Mime.prototype.getType = function(path11) {
-      path11 = String(path11);
-      let last = path11.replace(/^.*[/\\]/, "").toLowerCase();
+    Mime.prototype.getType = function(path12) {
+      path12 = String(path12);
+      let last = path12.replace(/^.*[/\\]/, "").toLowerCase();
       let ext = last.replace(/^.*\./, "").toLowerCase();
-      let hasPath = last.length < path11.length;
+      let hasPath = last.length < path12.length;
       let hasDot = ext.length < last.length - 1;
       return (hasDot || !hasPath) && this._types[ext] || null;
     };
@@ -34130,9 +34130,9 @@ var NotRegularFileError;
 var init_NotRegularFileError = __esm({
   "node_modules/strtok3/lib/NotRegularFileError.js"() {
     NotRegularFileError = class extends Error {
-      constructor(path11) {
-        super(`Not a regular file: ${path11}`);
-        this.path = path11;
+      constructor(path12) {
+        super(`Not a regular file: ${path12}`);
+        this.path = path12;
         this.name = "NotRegularFileError";
       }
     };
@@ -38340,8 +38340,8 @@ function isTokenizerStreamBoundsError(error2) {
   }
   return /strtok3[/\\]lib[/\\]stream[/\\]/.test(error2.stack);
 }
-async function fileTypeFromFile(path11, options) {
-  return new FileTypeParser2(options).fromFile(path11, options);
+async function fileTypeFromFile(path12, options) {
+  return new FileTypeParser2(options).fromFile(path12, options);
 }
 async function fileTypeFromStream(stream, options) {
   return new FileTypeParser2(options).fromStream(stream);
@@ -38372,9 +38372,9 @@ var init_file_type = __esm({
           }
         }
       }
-      async fromFile(path11) {
+      async fromFile(path12) {
         this.options.signal?.throwIfAborted();
-        const fileHandle = await fs5.open(path11, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
+        const fileHandle = await fs5.open(path12, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
         const fileStat = await fileHandle.stat();
         if (!fileStat.isFile()) {
           await fileHandle.close();
@@ -38383,7 +38383,7 @@ var init_file_type = __esm({
         const tokenizer = new FileTokenizer(fileHandle, {
           ...this.getTokenizerOptions(),
           fileInfo: {
-            path: path11,
+            path: path12,
             size: fileStat.size
           }
         });
@@ -38718,9 +38718,9 @@ function createJimp({ plugins: pluginsArg, formats: formatsArg } = {}) {
      * await image.write("test/output.png");
      * ```
      */
-    async write(path11, options) {
-      const mimeType = import_lite.default.getType(path11);
-      await writeFile(path11, await this.getBuffer(mimeType, options));
+    async write(path12, options) {
+      const mimeType = import_lite.default.getType(path12);
+      await writeFile(path12, await this.getBuffer(mimeType, options));
     }
     /**
      * Clone the image into a new Jimp instance.
@@ -54966,9 +54966,9 @@ function detectDirectoryType(dir) {
   if (entryExt === ".html" || entryExt === ".htm") return "web";
   return detectFromDirectoryContents(dir);
 }
-function readProjectJson(file) {
+function readProjectJson(file2) {
   try {
-    return JSON.parse(fs7.readFileSync(file, "utf8"));
+    return JSON.parse(fs7.readFileSync(file2, "utf8"));
   } catch {
     return void 0;
   }
@@ -55244,6 +55244,10 @@ function sendStaticFile(req, res, filePath, opts = {}) {
     ETag: etag
   };
   if (req.headers["if-none-match"] === etag) {
+    if (!isHead) {
+      opts.onRange?.({ start: 0, end: stat.size - 1 });
+      opts.onBytes?.(stat.size);
+    }
     res.writeHead(304, baseHeaders);
     res.end();
     return true;
@@ -55261,6 +55265,10 @@ function sendStaticFile(req, res, filePath, opts = {}) {
       } catch {
       }
     });
+    if (!isHead) {
+      opts.onRange?.({ start: opts2?.start ?? 0, end: opts2?.end ?? stat.size - 1 });
+      stream.on("data", (chunk) => opts.onBytes?.(chunk.length));
+    }
     res.on("close", () => stream.destroy());
     stream.pipe(res);
   };
@@ -55338,9 +55346,95 @@ var init_media = __esm({
   }
 });
 
-// src/core/configApi.ts
+// src/core/ledger.ts
+function account(sourceId, rel) {
+  let files = accounts.get(sourceId);
+  if (!files) {
+    files = /* @__PURE__ */ new Map();
+    accounts.set(sourceId, files);
+  }
+  let a2 = files.get(rel);
+  if (!a2) {
+    a2 = { requested: 0, received: 0, lastAt: 0 };
+    files.set(rel, a2);
+  }
+  return a2;
+}
+function transferBegin(sourceId, rel, start, end) {
+  const a2 = account(sourceId, rel);
+  a2.requested = Math.max(a2.requested, end + 1);
+  a2.lastAt = Date.now();
+}
+function transferChunk(sourceId, rel, n2) {
+  const a2 = account(sourceId, rel);
+  a2.received = Math.min(a2.requested, a2.received + n2);
+  a2.lastAt = Date.now();
+}
+function transferSnapshot(sourceId) {
+  const files = accounts.get(sourceId);
+  if (!files || files.size === 0) return { bytes: 0, total: 0, complete: false, lastAt: 0 };
+  let bytes = 0;
+  let total = 0;
+  let lastAt = 0;
+  let complete = true;
+  for (const a2 of files.values()) {
+    bytes += a2.received;
+    total += a2.requested;
+    lastAt = Math.max(lastAt, a2.lastAt);
+    if (a2.received < a2.requested) complete = false;
+  }
+  return { bytes, total, complete, lastAt };
+}
+var accounts;
+var init_ledger = __esm({
+  "src/core/ledger.ts"() {
+    "use strict";
+    accounts = /* @__PURE__ */ new Map();
+  }
+});
+
+// src/core/livefail.ts
 import fs11 from "node:fs";
 import path7 from "node:path";
+function file() {
+  return path7.join(dataDir(), "live-failures.json");
+}
+function readLiveFailures() {
+  try {
+    return JSON.parse(fs11.readFileSync(file(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+function liveFailureOf(sourceId) {
+  if (!sourceId) return void 0;
+  return readLiveFailures()[sourceId];
+}
+function recordLiveFailure(sourceId, reason) {
+  if (!sourceId) return;
+  const all = readLiveFailures();
+  all[sourceId] = { reason, at: Date.now() };
+  fs11.mkdirSync(dataDir(), { recursive: true });
+  fs11.writeFileSync(file(), JSON.stringify(all));
+}
+function clearLiveFailure(sourceId) {
+  if (!sourceId) return;
+  const all = readLiveFailures();
+  if (!(sourceId in all)) return;
+  delete all[sourceId];
+  fs11.mkdirSync(dataDir(), { recursive: true });
+  fs11.writeFileSync(file(), JSON.stringify(all));
+}
+var init_livefail = __esm({
+  "src/core/livefail.ts"() {
+    "use strict";
+    init_launch();
+  }
+});
+
+// src/core/configApi.ts
+import fs12 from "node:fs";
+import path8 from "node:path";
 function storedCustomSources() {
   const stored = loadConfig();
   return Array.isArray(stored.customSources) ? stored.customSources : [];
@@ -55364,17 +55458,17 @@ function persisted(config2) {
   return out;
 }
 function backupFile() {
-  return path7.join(dataDir(), "config.backup.json");
+  return path8.join(dataDir(), "config.backup.json");
 }
 function hasBackup() {
-  return fs11.existsSync(backupFile());
+  return fs12.existsSync(backupFile());
 }
 function readBackup() {
-  return JSON.parse(fs11.readFileSync(backupFile(), "utf8"));
+  return JSON.parse(fs12.readFileSync(backupFile(), "utf8"));
 }
 function writeBackup(config2) {
-  fs11.mkdirSync(dataDir(), { recursive: true });
-  fs11.writeFileSync(backupFile(), JSON.stringify(config2));
+  fs12.mkdirSync(dataDir(), { recursive: true });
+  fs12.writeFileSync(backupFile(), JSON.stringify(config2));
 }
 function publicConfig(config2) {
   return {
@@ -55384,7 +55478,7 @@ function publicConfig(config2) {
     wallpaperVisible: config2.wallpaperVisible,
     fit: config2.fit,
     wallpaperSet: Boolean(
-      config2.wallpaperPath && fs11.existsSync(config2.wallpaperPath) || config2.sceneVideoUrl || config2.live
+      config2.wallpaperPath && fs12.existsSync(config2.wallpaperPath) || config2.sceneVideoUrl || config2.live
     ),
     mediaType: config2.mediaType ?? "image",
     live: config2.live ?? null,
@@ -55404,6 +55498,7 @@ function publicConfig(config2) {
     rotationMinutes: config2.rotationMinutes ?? 30,
     rotationOrder: config2.rotationOrder === "random" ? "random" : "sequence",
     hasBackup: hasBackup(),
+    liveFailed: liveFailureOf(config2.live?.sourceId),
     cdpPort: config2.port,
     apiPort: config2.apiPort
   };
@@ -55437,23 +55532,24 @@ var init_configApi = __esm({
     "use strict";
     init_inject();
     init_launch();
+    init_livefail();
   }
 });
 
 // src/core/assets.ts
-import fs12 from "node:fs";
+import fs13 from "node:fs";
 function invalidateAssets() {
   cachedAssets = void 0;
   lastGoodAssets = void 0;
 }
-function primeAssets(file, assets) {
-  cachedAssets = { file, mtimeMs: fs12.statSync(file).mtimeMs, assets };
+function primeAssets(file2, assets) {
+  cachedAssets = { file: file2, mtimeMs: fs13.statSync(file2).mtimeMs, assets };
   lastGoodAssets = assets;
 }
 async function getAssets(config2, allowDecode = true) {
   const sourcePath = config2.monetSourcePath;
-  if (!sourcePath || !fs12.existsSync(sourcePath)) return void 0;
-  const mtimeMs = fs12.statSync(sourcePath).mtimeMs;
+  if (!sourcePath || !fs13.existsSync(sourcePath)) return void 0;
+  const mtimeMs = fs13.statSync(sourcePath).mtimeMs;
   if (cachedAssets?.file === sourcePath && cachedAssets.mtimeMs === mtimeMs) {
     return cachedAssets.assets;
   }
@@ -55485,6 +55581,11 @@ async function buildRuntimePayload(config2, allowDecode = true) {
     liveUrl: buildLiveUrl(config2)
   });
   payload.apiPort = config2.apiPort;
+  const failure = liveFailureOf(config2.live?.sourceId);
+  if (failure && payload.liveSrc) {
+    payload.liveSrc = void 0;
+    payload.liveFailed = failure;
+  }
   return payload;
 }
 var init_payload = __esm({
@@ -55492,6 +55593,7 @@ var init_payload = __esm({
     "use strict";
     init_inject();
     init_assets();
+    init_livefail();
   }
 });
 
@@ -55884,25 +55986,25 @@ var require_utils2 = __commonJS({
       }
       mkdirSync(folder);
     };
-    Utils.prototype.writeFileTo = function(path11, content, overwrite, attr) {
+    Utils.prototype.writeFileTo = function(path12, content, overwrite, attr) {
       const self2 = this;
-      if (self2.fs.existsSync(path11)) {
+      if (self2.fs.existsSync(path12)) {
         if (!overwrite) return false;
-        var stat = self2.fs.statSync(path11);
+        var stat = self2.fs.statSync(path12);
         if (stat.isDirectory()) {
           return false;
         }
       }
-      var folder = pth.dirname(path11);
+      var folder = pth.dirname(path12);
       if (!self2.fs.existsSync(folder)) {
         self2.makeDir(folder);
       }
       var fd;
       try {
-        fd = self2.fs.openSync(path11, "w", 438);
+        fd = self2.fs.openSync(path12, "w", 438);
       } catch (e2) {
-        self2.fs.chmodSync(path11, 438);
-        fd = self2.fs.openSync(path11, "w", 438);
+        self2.fs.chmodSync(path12, 438);
+        fd = self2.fs.openSync(path12, "w", 438);
       }
       if (fd) {
         try {
@@ -55911,22 +56013,22 @@ var require_utils2 = __commonJS({
           self2.fs.closeSync(fd);
         }
       }
-      self2.fs.chmodSync(path11, attr || 438);
+      self2.fs.chmodSync(path12, attr || 438);
       return true;
     };
-    Utils.prototype.writeFileToAsync = function(path11, content, overwrite, attr, callback) {
+    Utils.prototype.writeFileToAsync = function(path12, content, overwrite, attr, callback) {
       if (typeof attr === "function") {
         callback = attr;
         attr = void 0;
       }
       const self2 = this;
-      self2.fs.exists(path11, function(exist) {
+      self2.fs.exists(path12, function(exist) {
         if (exist && !overwrite) return callback(false);
-        self2.fs.stat(path11, function(err, stat) {
+        self2.fs.stat(path12, function(err, stat) {
           if (exist && stat && stat.isDirectory()) {
             return callback(false);
           }
-          var folder = pth.dirname(path11);
+          var folder = pth.dirname(path12);
           self2.fs.exists(folder, function(exists) {
             if (!exists) {
               try {
@@ -55939,16 +56041,16 @@ var require_utils2 = __commonJS({
               self2.fs.write(fd, content, 0, content.length, 0, function(writeErr) {
                 self2.fs.close(fd, function() {
                   if (writeErr) return callback(false);
-                  self2.fs.chmod(path11, attr || 438, function() {
+                  self2.fs.chmod(path12, attr || 438, function() {
                     callback(true);
                   });
                 });
               });
             };
-            self2.fs.open(path11, "w", 438, function(err2, fd) {
+            self2.fs.open(path12, "w", 438, function(err2, fd) {
               if (err2) {
-                self2.fs.chmod(path11, 438, function() {
-                  self2.fs.open(path11, "w", 438, function(retryErr, fd2) {
+                self2.fs.chmod(path12, 438, function() {
+                  self2.fs.open(path12, "w", 438, function(retryErr, fd2) {
                     if (retryErr || !fd2) return callback(false);
                     writeToFd(fd2);
                   });
@@ -55984,10 +56086,10 @@ var require_utils2 = __commonJS({
         if (stat.isSymbolicLink()) throw Errors.FILE_IN_THE_WAY(`"${cur}"`);
       }
     };
-    Utils.prototype.findFiles = function(path11) {
+    Utils.prototype.findFiles = function(path12) {
       const self2 = this;
       const canLstat = typeof self2.fs.lstatSync === "function";
-      const rootReal = self2.fs.realpathSync(path11);
+      const rootReal = self2.fs.realpathSync(path12);
       function escapesRoot(p2) {
         if (!canLstat) return false;
         if (!self2.fs.lstatSync(p2).isSymbolicLink()) return false;
@@ -56005,24 +56107,24 @@ var require_utils2 = __commonJS({
           pattern = void 0;
         }
         let files = [];
-        self2.fs.readdirSync(dir).forEach(function(file) {
-          const path12 = pth.join(dir, file);
-          if (escapesRoot(path12)) return;
-          const stat = self2.fs.statSync(path12);
-          if (!pattern || pattern.test(path12)) {
-            files.push(pth.normalize(path12) + (stat.isDirectory() ? self2.sep : ""));
+        self2.fs.readdirSync(dir).forEach(function(file2) {
+          const path13 = pth.join(dir, file2);
+          if (escapesRoot(path13)) return;
+          const stat = self2.fs.statSync(path13);
+          if (!pattern || pattern.test(path13)) {
+            files.push(pth.normalize(path13) + (stat.isDirectory() ? self2.sep : ""));
           }
           if (stat.isDirectory() && recursive) {
-            const realDir = self2.fs.realpathSync(path12);
+            const realDir = self2.fs.realpathSync(path13);
             if (!visited.has(realDir)) {
               visited.add(realDir);
-              files = files.concat(findSync(path12, pattern, recursive, visited));
+              files = files.concat(findSync(path13, pattern, recursive, visited));
             }
           }
         });
         return files;
       }
-      return findSync(path11, void 0, true, /* @__PURE__ */ new Set([rootReal]));
+      return findSync(path12, void 0, true, /* @__PURE__ */ new Set([rootReal]));
     };
     Utils.prototype.findFilesAsync = function(dir, cb) {
       const self2 = this;
@@ -56035,12 +56137,12 @@ var require_utils2 = __commonJS({
       };
       const canLstat = typeof self2.fs.lstat === "function";
       let rootReal = null;
-      const escapesRoot = function(file, cb2) {
+      const escapesRoot = function(file2, cb2) {
         if (!canLstat) return cb2(null, false);
-        self2.fs.lstat(file, function(err, lst) {
+        self2.fs.lstat(file2, function(err, lst) {
           if (err) return cb2(err);
           if (!lst || !lst.isSymbolicLink()) return cb2(null, false);
-          self2.fs.realpath(file, function(err2, real) {
+          self2.fs.realpath(file2, function(err2, real) {
             if (err2) return cb2(null, true);
             cb2(null, !(real === rootReal || real.startsWith(rootReal + pth.sep)));
           });
@@ -56052,32 +56154,32 @@ var require_utils2 = __commonJS({
           let pending = list.length;
           if (!pending) return done();
           list.forEach(function(name) {
-            const file = pth.join(dir2, name);
-            escapesRoot(file, function(err2, escapes) {
+            const file2 = pth.join(dir2, name);
+            escapesRoot(file2, function(err2, escapes) {
               if (err2) return done(err2);
               if (escapes) {
                 if (!--pending) done();
                 return;
               }
-              self2.fs.stat(file, function(err3, stat) {
+              self2.fs.stat(file2, function(err3, stat) {
                 if (err3) return done(err3);
                 if (!stat) {
                   if (!--pending) done();
                   return;
                 }
-                results.push(pth.normalize(file) + (stat.isDirectory() ? self2.sep : ""));
+                results.push(pth.normalize(file2) + (stat.isDirectory() ? self2.sep : ""));
                 if (!stat.isDirectory()) {
                   if (!--pending) done();
                   return;
                 }
-                self2.fs.realpath(file, function(err4, realDir) {
+                self2.fs.realpath(file2, function(err4, realDir) {
                   if (err4) return done(err4);
                   if (visited.has(realDir)) {
                     if (!--pending) done();
                     return;
                   }
                   visited.add(realDir);
-                  walk(file, visited, function(err5) {
+                  walk(file2, visited, function(err5) {
                     if (err5) return done(err5);
                     if (!--pending) done();
                   });
@@ -56119,14 +56221,14 @@ var require_utils2 = __commonJS({
           return "UNSUPPORTED (" + method + ")";
       }
     };
-    Utils.canonical = function(path11) {
-      if (!path11) return "";
-      const safeSuffix = pth.posix.normalize("/" + path11.split("\\").join("/"));
+    Utils.canonical = function(path12) {
+      if (!path12) return "";
+      const safeSuffix = pth.posix.normalize("/" + path12.split("\\").join("/"));
       return pth.join(".", safeSuffix);
     };
-    Utils.zipnamefix = function(path11) {
-      if (!path11) return "";
-      const safeSuffix = pth.posix.normalize("/" + path11.split("\\").join("/"));
+    Utils.zipnamefix = function(path12) {
+      if (!path12) return "";
+      const safeSuffix = pth.posix.normalize("/" + path12.split("\\").join("/"));
       return pth.posix.join(".", safeSuffix);
     };
     Utils.findLast = function(arr, callback) {
@@ -56143,9 +56245,9 @@ var require_utils2 = __commonJS({
       prefix = pth.resolve(pth.normalize(prefix));
       var parts = name.split("/");
       for (var i2 = 0, l2 = parts.length; i2 < l2; i2++) {
-        var path11 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
-        if (path11 === prefix || path11.startsWith(prefix + pth.sep)) {
-          return path11;
+        var path12 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
+        if (path12 === prefix || path12.startsWith(prefix + pth.sep)) {
+          return path12;
         }
       }
       return pth.normalize(pth.join(prefix, pth.basename(name)));
@@ -56195,8 +56297,8 @@ var require_utils2 = __commonJS({
 var require_fattr = __commonJS({
   "node_modules/adm-zip/util/fattr.js"(exports, module) {
     var pth = __require("path");
-    module.exports = function(path11, { fs: fs16 }) {
-      var _path = path11 || "", _obj = newAttr(), _stat = null;
+    module.exports = function(path12, { fs: fs17 }) {
+      var _path = path12 || "", _obj = newAttr(), _stat = null;
       function newAttr() {
         return {
           directory: false,
@@ -56207,8 +56309,8 @@ var require_fattr = __commonJS({
           atime: 0
         };
       }
-      if (_path && fs16.existsSync(_path)) {
-        _stat = fs16.statSync(_path);
+      if (_path && fs17.existsSync(_path)) {
+        _stat = fs17.statSync(_path);
         _obj.directory = _stat.isDirectory();
         _obj.mtime = _stat.mtime;
         _obj.atime = _stat.atime;
@@ -58238,7 +58340,7 @@ var require_adm_zip = __commonJS({
           }
           targetPath = pth.resolve(targetPath);
           const getPath = (entry) => sanitize2(targetPath, pth.normalize(canonical(entry.entryName)));
-          const getError = (msg, file) => new Error(msg + ': "' + file + '"');
+          const getError = (msg, file2) => new Error(msg + ': "' + file2 + '"');
           const dirEntries = [];
           const fileEntries = [];
           _zip.entries.forEach((e2) => {
@@ -58381,29 +58483,29 @@ var require_adm_zip = __commonJS({
 });
 
 // src/core/sources.ts
-import fs13 from "node:fs";
-import path8 from "node:path";
+import fs14 from "node:fs";
+import path9 from "node:path";
 import crypto2 from "node:crypto";
 function findVideoInDir(dir) {
   for (const subdir of ["", "files"]) {
-    const base = path8.join(dir, subdir);
+    const base = path9.join(dir, subdir);
     let entries;
     try {
-      entries = fs13.readdirSync(base);
+      entries = fs14.readdirSync(base);
     } catch {
       continue;
     }
     const hit = entries.find((e2) => /\.(mp4|webm)$/i.test(e2));
-    if (hit) return path8.join(base, hit);
+    if (hit) return path9.join(base, hit);
   }
   return void 0;
 }
-function toRel(dir, file) {
-  return path8.relative(dir, file).replace(/\\/g, "/");
+function toRel(dir, file2) {
+  return path9.relative(dir, file2).replace(/\\/g, "/");
 }
 function liveFrameFile(sourceId) {
   const safe = sourceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path8.join(dataDir(), `live-frame-${safe}.jpg`);
+  return path9.join(dataDir(), `live-frame-${safe}.jpg`);
 }
 async function applySource(id, config2, apply = true) {
   const entry = await resolveSourceDir(id, storedCustomSources());
@@ -58417,24 +58519,25 @@ async function applySource(id, config2, apply = true) {
       live: { sourceId: id, kind: type, title: entry.title, poster: entry.preview },
       sceneVideoUrl: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path8.join(entry.dir, entry.preview) : config2.monetSourcePath
+      monetSourcePath: entry.preview ? path9.join(entry.dir, entry.preview) : config2.monetSourcePath
     };
   } else if (type === "video") {
     const video = findVideoInDir(entry.dir);
     if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
-    const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
+    const file2 = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
     next = {
       ...config2,
       mediaType: "video",
-      sceneVideoUrl: `http://127.0.0.1:${config2.apiPort}/files/${id}/${file}`,
+      sceneVideoUrl: `http://127.0.0.1:${config2.apiPort}/files/${id}/${file2}`,
       live: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path8.join(entry.dir, entry.preview) : config2.monetSourcePath
+      monetSourcePath: entry.preview ? path9.join(entry.dir, entry.preview) : config2.monetSourcePath
     };
   } else {
     throw new Error(`unsupported wallpaper type (${type}): ${entry.title}`);
   }
   if (apply) {
+    clearLiveFailure(id);
     saveConfig(persisted(next));
     await publishConfig(next, false).catch(() => void 0);
     void publishConfig(next, true).catch(() => void 0);
@@ -58458,31 +58561,31 @@ async function migrateLegacyVideo() {
 function resolveSceneInput(input) {
   let stat;
   try {
-    stat = fs13.statSync(input);
+    stat = fs14.statSync(input);
   } catch {
     return input;
   }
   if (stat.isDirectory()) return input;
-  if (input.toLowerCase().endsWith(".pkg")) return path8.dirname(path8.resolve(input));
-  let dir = path8.dirname(path8.resolve(input));
+  if (input.toLowerCase().endsWith(".pkg")) return path9.dirname(path9.resolve(input));
+  let dir = path9.dirname(path9.resolve(input));
   for (let hop = 0; hop < 4; hop++) {
-    if (fs13.existsSync(path8.join(dir, "project.json"))) return dir;
-    const parent = path8.dirname(dir);
+    if (fs14.existsSync(path9.join(dir, "project.json"))) return dir;
+    const parent = path9.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return path8.dirname(path8.resolve(input));
+  return path9.dirname(path9.resolve(input));
 }
 function registerCustomSource(input) {
-  const dir = path8.resolve(resolveSceneInput(input));
-  if (!fs13.existsSync(dir) || !fs13.statSync(dir).isDirectory()) {
+  const dir = path9.resolve(resolveSceneInput(input));
+  if (!fs14.existsSync(dir) || !fs14.statSync(dir).isDirectory()) {
     throw new Error(`not a wallpaper directory: ${dir}`);
   }
   const id = `custom-${crypto2.createHash("sha1").update(dir.toLowerCase()).digest("hex").slice(0, 10)}`;
   const sources = storedCustomSources().filter((c3) => c3.id !== id);
   let name;
   try {
-    const p2 = JSON.parse(fs13.readFileSync(path8.join(dir, "project.json"), "utf8"));
+    const p2 = JSON.parse(fs14.readFileSync(path9.join(dir, "project.json"), "utf8"));
     if (typeof p2?.title === "string") name = p2.title;
   } catch {
   }
@@ -58493,16 +58596,16 @@ function registerCustomSource(input) {
 async function importPackageFromFile(zipPath, config2, apply) {
   const { default: AdmZip } = await Promise.resolve().then(() => __toESM(require_adm_zip(), 1));
   const zip = new AdmZip(zipPath);
-  const dest = path8.join(dataDir(), "packages", `pkg-${Date.now()}`);
-  fs13.mkdirSync(dest, { recursive: true });
+  const dest = path9.join(dataDir(), "packages", `pkg-${Date.now()}`);
+  fs14.mkdirSync(dest, { recursive: true });
   zip.extractAllTo(dest, true);
   let root = dest;
   for (let i2 = 0; i2 < 2; i2++) {
-    const entries = fs13.readdirSync(root, { withFileTypes: true });
-    if (entries.length === 1 && entries[0].isDirectory()) root = path8.join(root, entries[0].name);
+    const entries = fs14.readdirSync(root, { withFileTypes: true });
+    if (entries.length === 1 && entries[0].isDirectory()) root = path9.join(root, entries[0].name);
     else break;
   }
-  if (!fs13.existsSync(path8.join(root, "project.json")) && !fs13.existsSync(path8.join(root, "scene.pkg"))) {
+  if (!fs14.existsSync(path9.join(root, "project.json")) && !fs14.existsSync(path9.join(root, "scene.pkg"))) {
     throw new Error("package contains no project.json / scene.pkg \u2014 not a wallpaper package");
   }
   const { id } = registerCustomSource(root);
@@ -58532,17 +58635,17 @@ async function deleteSource(id, config2) {
       await publishConfig(config2).catch(() => void 0);
     }
   }
-  const packagesRoot = path8.join(dataDir(), "packages");
-  const rel = path8.relative(packagesRoot, path8.resolve(hit.dir));
-  const managed = rel !== "" && !rel.startsWith("..") && !path8.isAbsolute(rel);
+  const packagesRoot = path9.join(dataDir(), "packages");
+  const rel = path9.relative(packagesRoot, path9.resolve(hit.dir));
+  const managed = rel !== "" && !rel.startsWith("..") && !path9.isAbsolute(rel);
   saveConfig({ ...loadConfig(), customSources: storedCustomSources().filter((c3) => c3.id !== id) });
   const frameFile = liveFrameFile(id);
   void (async () => {
     for (let i2 = 0; i2 < 8; i2++) {
       await new Promise((r2) => setTimeout(r2, 750 * (i2 + 1)));
       try {
-        if (managed) fs13.rmSync(hit.dir, { recursive: true, force: true });
-        fs13.rmSync(frameFile, { force: true });
+        if (managed) fs14.rmSync(hit.dir, { recursive: true, force: true });
+        fs14.rmSync(frameFile, { force: true });
         return;
       } catch {
       }
@@ -58559,6 +58662,7 @@ var init_sources = __esm({
     init_launch();
     init_inject();
     init_configApi();
+    init_livefail();
     init_broadcast();
   }
 });
@@ -58737,19 +58841,19 @@ var shortcuts_exports = {};
 __export(shortcuts_exports, {
   ensureShortcutsHaveCdpFlag: () => ensureShortcutsHaveCdpFlag
 });
-import fs14 from "node:fs";
-import path9 from "node:path";
+import fs15 from "node:fs";
+import path10 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function shortcutDirs() {
   const home = process.env.USERPROFILE ?? "";
   const appData = process.env.APPDATA ?? "";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
-    path9.join(home, "Desktop"),
-    ...process.env.OneDrive ? [path9.join(process.env.OneDrive, "Desktop")] : [],
-    path9.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
-    path9.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
-    path9.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
+    path10.join(home, "Desktop"),
+    ...process.env.OneDrive ? [path10.join(process.env.OneDrive, "Desktop")] : [],
+    path10.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
+    path10.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
+    path10.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
   ];
 }
 async function ensureShortcutsHaveCdpFlag(port) {
@@ -58757,15 +58861,15 @@ async function ensureShortcutsHaveCdpFlag(port) {
   const result = { updated: [], skipped: [], failed: [] };
   const links = [];
   const collect = (dir) => {
-    links.push(...fs14.readdirSync(dir).filter((f2) => /^zcode/i.test(f2) && f2.endsWith(".lnk")).map((f2) => path9.join(dir, f2)));
+    links.push(...fs15.readdirSync(dir).filter((f2) => /^zcode/i.test(f2) && f2.endsWith(".lnk")).map((f2) => path10.join(dir, f2)));
   };
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs14.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs15.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path9.join(dir, sub.name));
+          collect(path10.join(dir, sub.name));
         } catch {
         }
       }
@@ -58850,20 +58954,20 @@ try {
   return result;
 }
 function discoverLauncher() {
-  let dir = path9.dirname(fileURLToPath2(import.meta.url));
+  let dir = path10.dirname(fileURLToPath2(import.meta.url));
   for (let i2 = 0; i2 < 6; i2++) {
-    if (fs14.existsSync(path9.join(dir, "dist", "cli.js"))) break;
-    dir = path9.dirname(dir);
+    if (fs15.existsSync(path10.join(dir, "dist", "cli.js"))) break;
+    dir = path10.dirname(dir);
   }
   const home = dataDir();
-  fs14.mkdirSync(home, { recursive: true });
-  return { vbs: path9.join(home, "zw-launch.vbs"), meta: path9.join(home, "zw-launch.json"), root: dir };
+  fs15.mkdirSync(home, { recursive: true });
+  return { vbs: path10.join(home, "zw-launch.vbs"), meta: path10.join(home, "zw-launch.json"), root: dir };
 }
 function writeEarlyLaunchWrapper(port, zcode, launcher) {
   const anti = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"];
-  const cli = path9.join(launcher.root, "dist", "cli.js");
+  const cli = path10.join(launcher.root, "dist", "cli.js");
   const node = process.execPath;
-  if (!fs14.existsSync(cli) || !fs14.existsSync(node)) return;
+  if (!fs15.existsSync(cli) || !fs15.existsSync(node)) return;
   const DQ = String.fromCharCode(34);
   const vbq = (v) => DQ + DQ + v + DQ + DQ;
   const serveCmd = [vbq(node), vbq(cli), "serve", "--early", "--port", String(port), "--api-port", String(port + 1)].join(" ");
@@ -58877,10 +58981,10 @@ function writeEarlyLaunchWrapper(port, zcode, launcher) {
     "sh.Run " + DQ + zcodeCmd + DQ + ", 1, False"
   ];
   try {
-    const prev = fs14.existsSync(launcher.meta) ? JSON.parse(fs14.readFileSync(launcher.meta, "utf8")) : {};
-    fs14.writeFileSync(launcher.meta, JSON.stringify({ ...prev, zcode, port }, null, 1));
+    const prev = fs15.existsSync(launcher.meta) ? JSON.parse(fs15.readFileSync(launcher.meta, "utf8")) : {};
+    fs15.writeFileSync(launcher.meta, JSON.stringify({ ...prev, zcode, port }, null, 1));
     const crlf = String.fromCharCode(13, 10);
-    fs14.writeFileSync(launcher.vbs, lines.join(crlf) + crlf, { encoding: "utf8" });
+    fs15.writeFileSync(launcher.vbs, lines.join(crlf) + crlf, { encoding: "utf8" });
   } catch {
   }
 }
@@ -58902,9 +59006,9 @@ __export(server_exports, {
   startServe: () => startServe
 });
 import http from "node:http";
-import fs15 from "node:fs";
+import fs16 from "node:fs";
 import os2 from "node:os";
-import path10 from "node:path";
+import path11 from "node:path";
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
 function sendJson(res, code, body) {
@@ -58950,7 +59054,7 @@ function readBody(req) {
 function readBodyToFile(req, dest, maxBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
-    const out = fs15.createWriteStream(dest);
+    const out = fs16.createWriteStream(dest);
     req.on("data", (c3) => {
       size += c3.length;
       if (size > maxBytes) {
@@ -58988,7 +59092,7 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
 }
 function pluginDisabledIn(cfgPath) {
   try {
-    const cfg = JSON.parse(fs15.readFileSync(cfgPath, "utf8"));
+    const cfg = JSON.parse(fs16.readFileSync(cfgPath, "utf8"));
     const ep = cfg?.plugins?.enabledPlugins;
     if (!ep || typeof ep !== "object") return false;
     const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
@@ -59030,12 +59134,12 @@ async function startServe(opts) {
         sendJson(res, 204, {});
         return;
       }
-      const staticRoute = (file, noStore = false) => sendStaticFile(req, res, file, { noStore }) || sendJson(res, 404, { error: `missing file: ${path10.basename(file)} (run \`npm run build\`)` });
+      const staticRoute = (file2, noStore = false) => sendStaticFile(req, res, file2, { noStore }) || sendJson(res, 404, { error: `missing file: ${path11.basename(file2)} (run \`npm run build\`)` });
       if (req.method === "GET" || req.method === "HEAD") {
-        if (url.pathname === "/agent.js") return void staticRoute(path10.join(liveDir(), "agent.js"), true);
-        if (url.pathname === "/panel.js") return void staticRoute(path10.join(liveDir(), "panel.js"), true);
-        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path10.join(liveDir(), "index.html"), true);
-        if (url.pathname === "/renderer.js") return void staticRoute(path10.join(liveDir(), "renderer.js"));
+        if (url.pathname === "/agent.js") return void staticRoute(path11.join(liveDir(), "agent.js"), true);
+        if (url.pathname === "/panel.js") return void staticRoute(path11.join(liveDir(), "panel.js"), true);
+        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path11.join(liveDir(), "index.html"), true);
+        if (url.pathname === "/renderer.js") return void staticRoute(path11.join(liveDir(), "renderer.js"));
         if (url.pathname === "/engine/webwallgl.global.min.js") {
           const engine = engineFile();
           if (!engine) return void sendJson(res, 404, { error: "webwallgl engine not installed (npm install webwallgl)" });
@@ -59053,7 +59157,10 @@ async function startServe(opts) {
           return;
         }
         const target = rel ? safeJoin(entry.dir, rel) : void 0;
-        if (!target || !sendStaticFile(req, res, target)) {
+        if (!target || !sendStaticFile(req, res, target, {
+          onRange: ({ start, end }) => transferBegin(sourceId, rel, start, end),
+          onBytes: (n2) => transferChunk(sourceId, rel, n2)
+        })) {
           sendJson(res, 404, { error: "not found" });
         }
         return;
@@ -59064,6 +59171,30 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/host-alive") {
         globalThis.__zwHostAlive = Date.now();
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/transfer") {
+        sendJson(res, 200, transferSnapshot(String(url.searchParams.get("id") ?? "")));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/live-verdict") {
+        const body = JSON.parse(await readBody(req));
+        const id = String(body.sourceId ?? "");
+        if (!id) {
+          sendJson(res, 400, { error: "sourceId required" });
+          return;
+        }
+        recordLiveFailure(id, String(body.reason ?? "renderer"));
+        serveLog.push(`[live:fail] ${id} \u2014 ${body.reason ?? "renderer"} (downgraded to poster)`);
+        await publishConfig(runtimeConfig());
+        sendJson(res, 200, { ok: true, downgraded: true });
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/live-retry") {
+        const cfg = runtimeConfig();
+        clearLiveFailure(cfg.live?.sourceId);
+        await publishConfig(cfg);
         sendJson(res, 200, { ok: true });
         return;
       }
@@ -59099,9 +59230,9 @@ async function startServe(opts) {
           throw new Error(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
         }
         const config2 = runtimeConfig();
-        fs15.mkdirSync(dataDir(), { recursive: true });
-        const dest = path10.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
-        fs15.writeFileSync(dest, bytes);
+        fs16.mkdirSync(dataDir(), { recursive: true });
+        const dest = path11.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
+        fs16.writeFileSync(dest, bytes);
         primeAssets(dest, await loadWallpaper(dest));
         const next = {
           ...config2,
@@ -59206,11 +59337,11 @@ async function startServe(opts) {
         const body = JSON.parse(await readBody(req));
         const input = typeof body?.path === "string" ? body.path.trim() : "";
         if (!input) throw new Error("path is required");
-        const abs = path10.resolve(input);
+        const abs = path11.resolve(input);
         let result;
         let sourceId;
         if (/\.zip$/i.test(abs)) {
-          if (!fs15.existsSync(abs)) throw new Error(`package not found: ${abs}`);
+          if (!fs16.existsSync(abs)) throw new Error(`package not found: ${abs}`);
           const r2 = await importPackageFromFile(abs, runtimeConfig(), true);
           sourceId = r2.id;
           result = r2;
@@ -59246,9 +59377,9 @@ async function startServe(opts) {
         const zip = new AdmZip();
         zip.addLocalFolder(entry.dir);
         const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path10.join(os2.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        const zipPath = path11.join(os2.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
         await zip.writeZipPromise(zipPath);
-        const size = fs15.statSync(zipPath).size;
+        const size = fs16.statSync(zipPath).size;
         res.writeHead(200, {
           "Content-Type": "application/zip",
           "Content-Length": size,
@@ -59256,14 +59387,14 @@ async function startServe(opts) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Expose-Headers": "Content-Disposition"
         });
-        const stream = fs15.createReadStream(zipPath);
+        const stream = fs16.createReadStream(zipPath);
         stream.pipe(res);
-        stream.on("close", () => fs15.rm(zipPath, { force: true }, () => void 0));
+        stream.on("close", () => fs16.rm(zipPath, { force: true }, () => void 0));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/import-package") {
         const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path10.join(os2.tmpdir(), `zw-import-${Date.now()}.zip`);
+        const tempZip = path11.join(os2.tmpdir(), `zw-import-${Date.now()}.zip`);
         await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
         try {
           const r2 = await importPackageFromFile(tempZip, runtimeConfig(), apply);
@@ -59276,18 +59407,18 @@ async function startServe(opts) {
             windows: heldWindowCount()
           });
         } finally {
-          fs15.rmSync(tempZip, { force: true });
+          fs16.rmSync(tempZip, { force: true });
         }
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/upload-wallpaper") {
         const apply = url.searchParams.get("apply") === "1";
         const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
-        const ext = path10.extname(name).toLowerCase();
+        const ext = path11.extname(name).toLowerCase();
         if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
           throw new Error(`unsupported file type: ${ext || "(none)"} \u2014 use .zip / .pkg / .mp4 / .webm`);
         }
-        const tempFile = path10.join(os2.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        const tempFile = path11.join(os2.tmpdir(), `zw-upl-${Date.now()}${ext}`);
         await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
         try {
           const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "\u5BFC\u5165\u7684\u58C1\u7EB8";
@@ -59296,20 +59427,20 @@ async function startServe(opts) {
             sendJson(res, 200, { ok: true, sourceId: r2.id, title: r2.entry.title, type: r2.entry.type, mediaType: r2.mediaType, windows: heldWindowCount() });
             return;
           }
-          const dest = path10.join(dataDir(), "packages", `upl-${Date.now()}`);
-          fs15.mkdirSync(dest, { recursive: true });
+          const dest = path11.join(dataDir(), "packages", `upl-${Date.now()}`);
+          fs16.mkdirSync(dest, { recursive: true });
           if (ext === ".pkg") {
-            fs15.copyFileSync(tempFile, path10.join(dest, "scene.pkg"));
-            fs15.writeFileSync(path10.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
+            fs16.copyFileSync(tempFile, path11.join(dest, "scene.pkg"));
+            fs16.writeFileSync(path11.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
           } else {
-            fs15.copyFileSync(tempFile, path10.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
-            fs15.writeFileSync(path10.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
+            fs16.copyFileSync(tempFile, path11.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
+            fs16.writeFileSync(path11.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
           }
           const { id } = registerCustomSource(dest);
           const result = await applySource(id, runtimeConfig(), apply);
           sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
         } finally {
-          fs15.rmSync(tempFile, { force: true });
+          fs16.rmSync(tempFile, { force: true });
         }
         return;
       }
@@ -59329,16 +59460,16 @@ async function startServe(opts) {
           sendJson(res, 400, { error: "source and dataUrl are required" });
           return;
         }
-        const file = liveFrameFile(source);
-        fs15.mkdirSync(dataDir(), { recursive: true });
-        fs15.writeFileSync(file, Buffer.from(m[1], "base64"));
+        const file2 = liveFrameFile(source);
+        fs16.mkdirSync(dataDir(), { recursive: true });
+        fs16.writeFileSync(file2, Buffer.from(m[1], "base64"));
         const config2 = runtimeConfig();
         if (config2.live?.sourceId === source) {
-          const next = { ...config2, monetSourcePath: file };
+          const next = { ...config2, monetSourcePath: file2 };
           saveConfig(persisted(next));
           await publishConfig(next);
         }
-        sendJson(res, 200, { ok: true, file });
+        sendJson(res, 200, { ok: true, file: file2 });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/diag") {
@@ -59351,9 +59482,9 @@ async function startServe(opts) {
       if (req.method === "GET" && url.pathname === "/api/library") {
         const images = [];
         try {
-          for (const f2 of fs15.readdirSync(dataDir())) {
+          for (const f2 of fs16.readdirSync(dataDir())) {
             if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f2)) {
-              images.push({ name: f2, path: path10.join(dataDir(), f2) });
+              images.push({ name: f2, path: path11.join(dataDir(), f2) });
             }
           }
         } catch {
@@ -59363,7 +59494,7 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
-        if (typeof body?.path !== "string" || !fs15.existsSync(body.path)) {
+        if (typeof body?.path !== "string" || !fs16.existsSync(body.path)) {
           throw new Error("provide an existing image path");
         }
         const config2 = runtimeConfig();
@@ -59420,7 +59551,7 @@ async function startServe(opts) {
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
     setInterval(() => {
       void (async () => {
-        if (pluginDisabledIn(path10.join(os2.homedir(), ".zcode", "cli", "config.json"))) {
+        if (pluginDisabledIn(path11.join(os2.homedir(), ".zcode", "cli", "config.json"))) {
           console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
           await shutdownServe().catch(() => void 0);
           process.exit(0);
@@ -59477,6 +59608,8 @@ var init_server = __esm({
     init_monet();
     init_launch();
     init_media();
+    init_ledger();
+    init_livefail();
     init_steam();
     init_configApi();
     init_assets();
@@ -59702,10 +59835,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path11) {
-  if (!path11)
+function getElementAtPath(obj, path12) {
+  if (!path12)
     return obj;
-  return path11.reduce((acc, key) => acc?.[key], obj);
+  return path12.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -60025,11 +60158,11 @@ function aborted(x2, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path11, issues) {
+function prefixIssues(path12, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path11);
+    iss.path.unshift(path12);
     return iss;
   });
 }
@@ -62883,28 +63016,28 @@ var JSONSchemaGenerator = class {
           }
           case "file": {
             const json = _json;
-            const file = {
+            const file2 = {
               type: "string",
               format: "binary",
               contentEncoding: "binary"
             };
             const { minimum, maximum, mime: mime2 } = schema._zod.bag;
             if (minimum !== void 0)
-              file.minLength = minimum;
+              file2.minLength = minimum;
             if (maximum !== void 0)
-              file.maxLength = maximum;
+              file2.maxLength = maximum;
             if (mime2) {
               if (mime2.length === 1) {
-                file.contentMediaType = mime2[0];
-                Object.assign(json, file);
+                file2.contentMediaType = mime2[0];
+                Object.assign(json, file2);
               } else {
                 json.anyOf = mime2.map((m) => {
-                  const mFile = { ...file, contentMediaType: m };
+                  const mFile = { ...file2, contentMediaType: m };
                   return mFile;
                 });
               }
             } else {
-              Object.assign(json, file);
+              Object.assign(json, file2);
             }
             break;
           }
@@ -63440,11 +63573,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path11) {
-  if (path11.length === 0) {
+function getDotPath(path12) {
+  if (path12.length === 0) {
     return "object root";
   }
-  return path11.reduce((acc, seg, index) => {
+  return path12.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -70000,7 +70133,7 @@ function bootstrapServe() {
   }
 }
 {
-  const path11 = (() => {
+  const path12 = (() => {
     try {
       return __require("node:path").join(
         process.env.USERPROFILE || process.env.HOME || ".",
@@ -70016,10 +70149,10 @@ function bootstrapServe() {
     }
   })();
   const journal = (kind, detail) => {
-    if (!path11) return;
+    if (!path12) return;
     try {
       __require("node:fs").appendFileSync(
-        path11,
+        path12,
         `${(/* @__PURE__ */ new Date()).toISOString()} pid=${process.pid} ${kind} ${String(detail).slice(0, 800)}
 `
       );
@@ -70034,7 +70167,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.3.3"
+  version: "0.4.0"
 });
 var TOOL_NAMES = [
   "set_background",

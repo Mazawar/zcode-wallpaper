@@ -14,6 +14,7 @@ import { detectWallpaperType } from "./wallpaperType.js";
 import { dataDir, loadConfig, saveConfig } from "./launch.js";
 import { DEFAULT_API_PORT, DEFAULT_CONFIG, type BeautifyConfig, type CustomSource } from "./inject.js";
 import { persisted, storedCustomSources } from "./configApi.js";
+import { clearLiveFailure } from "./livefail.js";
 import { publishConfig } from "./broadcast.js";
 
 export interface ApplyLiveResult {
@@ -96,6 +97,9 @@ export async function applySource(
   // apply=false means "import only": register the source, leave the current
   // wallpaper untouched.
   if (apply) {
+    // Re-picking a source is an explicit retry — its live-failure memory (D6)
+    // must not downgrade the fresh attempt.
+    clearLiveFailure(id);
     saveConfig(persisted(next));
     // Two-phase publish: switch the wallpaper layer first (cache-only palette,
     // instant), then decode the new Monet source in the background and publish

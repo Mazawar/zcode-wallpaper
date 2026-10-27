@@ -14,6 +14,7 @@ import {
   type BuiltPayload,
 } from "./inject.js";
 import { getAssets, getLastGoodAssets } from "./assets.js";
+import { liveFailureOf } from "./livefail.js";
 
 export async function buildRuntimePayload(config: BeautifyConfig, allowDecode = true): Promise<BuiltPayload> {
   const assets = (await getAssets(config, allowDecode)) ?? getLastGoodAssets();
@@ -21,5 +22,12 @@ export async function buildRuntimePayload(config: BeautifyConfig, allowDecode = 
     liveUrl: buildLiveUrl(config),
   });
   payload.apiPort = config.apiPort;
+  // D6 downgrade: a source with a hard live failure renders poster-only —
+  // the agent stays in the poster phase and the panel shows the reason.
+  const failure = liveFailureOf(config.live?.sourceId);
+  if (failure && payload.liveSrc) {
+    payload.liveSrc = undefined;
+    payload.liveFailed = failure;
+  }
   return payload;
 }

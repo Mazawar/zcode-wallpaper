@@ -6035,7 +6035,7 @@ var require_gifframe = __commonJS({
 var require_gifutil = __commonJS({
   "node_modules/gifwrap/src/gifutil.js"(exports) {
     "use strict";
-    var fs16 = __require("fs");
+    var fs17 = __require("fs");
     var ImageQ = require_image_q();
     var BitmapImage2 = require_bitmapimage();
     var { GifFrame: GifFrame2 } = require_gifframe();
@@ -6150,14 +6150,14 @@ var require_gifutil = __commonJS({
       jimpImage.bitmap.data = bitmapImageToShare.bitmap.data;
       return jimpImage;
     };
-    exports.write = function(path12, frames, spec, encoder) {
+    exports.write = function(path13, frames, spec, encoder) {
       encoder = encoder || defaultCodec;
-      const matches = path12.match(/\.[a-zA-Z]+$/);
+      const matches = path13.match(/\.[a-zA-Z]+$/);
       if (matches !== null && INVALID_SUFFIXES.includes(matches[0].toLowerCase())) {
-        throw new Error(`GIF '${path12}' has an unexpected suffix`);
+        throw new Error(`GIF '${path13}' has an unexpected suffix`);
       }
       return encoder.encodeGif(frames, spec).then((gif2) => {
-        return _writeBinary(path12, gif2.buffer).then(() => {
+        return _writeBinary(path13, gif2.buffer).then(() => {
           return gif2;
         });
       });
@@ -6229,9 +6229,9 @@ var require_gifutil = __commonJS({
         }
       }
     }
-    function _readBinary(path12) {
+    function _readBinary(path13) {
       return new Promise((resolve, reject) => {
-        fs16.readFile(path12, (err, buffer) => {
+        fs17.readFile(path13, (err, buffer) => {
           if (err) {
             return reject(err);
           }
@@ -6239,9 +6239,9 @@ var require_gifutil = __commonJS({
         });
       });
     }
-    function _writeBinary(path12, buffer) {
+    function _writeBinary(path13, buffer) {
       return new Promise((resolve, reject) => {
-        fs16.writeFile(path12, buffer, (err) => {
+        fs17.writeFile(path13, buffer, (err) => {
           if (err) {
             return reject(err);
           }
@@ -8252,9 +8252,9 @@ var require_decoder = __commonJS({
         return a2 < 0 ? 0 : a2 > 255 ? 255 : a2;
       }
       constructor.prototype = {
-        load: function load(path12) {
+        load: function load(path13) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path12, true);
+          xhr.open("GET", path13, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = (function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -19157,8 +19157,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path12, errorMaps, issueData } = params;
-      const fullPath = [...path12, ...issueData.path || []];
+      const { data, path: path13, errorMaps, issueData } = params;
+      const fullPath = [...path13, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -19466,11 +19466,11 @@ var init_types2 = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path12, key) {
+      constructor(parent, value, path13, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path12;
+        this._path = path13;
         this._key = key;
       }
       get path() {
@@ -24468,11 +24468,11 @@ var require_Mime = __commonJS({
         }
       }
     };
-    Mime.prototype.getType = function(path12) {
-      path12 = String(path12);
-      let last = path12.replace(/^.*[/\\]/, "").toLowerCase();
+    Mime.prototype.getType = function(path13) {
+      path13 = String(path13);
+      let last = path13.replace(/^.*[/\\]/, "").toLowerCase();
       let ext = last.replace(/^.*\./, "").toLowerCase();
-      let hasPath = last.length < path12.length;
+      let hasPath = last.length < path13.length;
       let hasDot = ext.length < last.length - 1;
       return (hasDot || !hasPath) && this._types[ext] || null;
     };
@@ -27020,9 +27020,9 @@ var NotRegularFileError;
 var init_NotRegularFileError = __esm({
   "node_modules/strtok3/lib/NotRegularFileError.js"() {
     NotRegularFileError = class extends Error {
-      constructor(path12) {
-        super(`Not a regular file: ${path12}`);
-        this.path = path12;
+      constructor(path13) {
+        super(`Not a regular file: ${path13}`);
+        this.path = path13;
         this.name = "NotRegularFileError";
       }
     };
@@ -31230,8 +31230,8 @@ function isTokenizerStreamBoundsError(error) {
   }
   return /strtok3[/\\]lib[/\\]stream[/\\]/.test(error.stack);
 }
-async function fileTypeFromFile(path12, options) {
-  return new FileTypeParser2(options).fromFile(path12, options);
+async function fileTypeFromFile(path13, options) {
+  return new FileTypeParser2(options).fromFile(path13, options);
 }
 async function fileTypeFromStream(stream, options) {
   return new FileTypeParser2(options).fromStream(stream);
@@ -31262,9 +31262,9 @@ var init_file_type = __esm({
           }
         }
       }
-      async fromFile(path12) {
+      async fromFile(path13) {
         this.options.signal?.throwIfAborted();
-        const fileHandle = await fs6.open(path12, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
+        const fileHandle = await fs6.open(path13, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
         const fileStat = await fileHandle.stat();
         if (!fileStat.isFile()) {
           await fileHandle.close();
@@ -31273,7 +31273,7 @@ var init_file_type = __esm({
         const tokenizer = new FileTokenizer(fileHandle, {
           ...this.getTokenizerOptions(),
           fileInfo: {
-            path: path12,
+            path: path13,
             size: fileStat.size
           }
         });
@@ -31608,9 +31608,9 @@ function createJimp({ plugins: pluginsArg, formats: formatsArg } = {}) {
      * await image.write("test/output.png");
      * ```
      */
-    async write(path12, options) {
-      const mimeType = import_lite.default.getType(path12);
-      await writeFile(path12, await this.getBuffer(mimeType, options));
+    async write(path13, options) {
+      const mimeType = import_lite.default.getType(path13);
+      await writeFile(path13, await this.getBuffer(mimeType, options));
     }
     /**
      * Clone the image into a new Jimp instance.
@@ -47745,9 +47745,9 @@ function detectDirectoryType(dir) {
   if (entryExt === ".html" || entryExt === ".htm") return "web";
   return detectFromDirectoryContents(dir);
 }
-function readProjectJson(file) {
+function readProjectJson(file2) {
   try {
-    return JSON.parse(fs7.readFileSync(file, "utf8"));
+    return JSON.parse(fs7.readFileSync(file2, "utf8"));
   } catch {
     return void 0;
   }
@@ -48400,6 +48400,10 @@ function sendStaticFile(req, res, filePath, opts = {}) {
     ETag: etag
   };
   if (req.headers["if-none-match"] === etag) {
+    if (!isHead) {
+      opts.onRange?.({ start: 0, end: stat.size - 1 });
+      opts.onBytes?.(stat.size);
+    }
     res.writeHead(304, baseHeaders);
     res.end();
     return true;
@@ -48417,6 +48421,10 @@ function sendStaticFile(req, res, filePath, opts = {}) {
       } catch {
       }
     });
+    if (!isHead) {
+      opts.onRange?.({ start: opts2?.start ?? 0, end: opts2?.end ?? stat.size - 1 });
+      stream.on("data", (chunk) => opts.onBytes?.(chunk.length));
+    }
     res.on("close", () => stream.destroy());
     stream.pipe(res);
   };
@@ -48494,9 +48502,95 @@ var init_media = __esm({
   }
 });
 
-// src/core/configApi.ts
+// src/core/ledger.ts
+function account(sourceId, rel) {
+  let files = accounts.get(sourceId);
+  if (!files) {
+    files = /* @__PURE__ */ new Map();
+    accounts.set(sourceId, files);
+  }
+  let a2 = files.get(rel);
+  if (!a2) {
+    a2 = { requested: 0, received: 0, lastAt: 0 };
+    files.set(rel, a2);
+  }
+  return a2;
+}
+function transferBegin(sourceId, rel, start, end) {
+  const a2 = account(sourceId, rel);
+  a2.requested = Math.max(a2.requested, end + 1);
+  a2.lastAt = Date.now();
+}
+function transferChunk(sourceId, rel, n2) {
+  const a2 = account(sourceId, rel);
+  a2.received = Math.min(a2.requested, a2.received + n2);
+  a2.lastAt = Date.now();
+}
+function transferSnapshot(sourceId) {
+  const files = accounts.get(sourceId);
+  if (!files || files.size === 0) return { bytes: 0, total: 0, complete: false, lastAt: 0 };
+  let bytes = 0;
+  let total = 0;
+  let lastAt = 0;
+  let complete = true;
+  for (const a2 of files.values()) {
+    bytes += a2.received;
+    total += a2.requested;
+    lastAt = Math.max(lastAt, a2.lastAt);
+    if (a2.received < a2.requested) complete = false;
+  }
+  return { bytes, total, complete, lastAt };
+}
+var accounts;
+var init_ledger = __esm({
+  "src/core/ledger.ts"() {
+    "use strict";
+    accounts = /* @__PURE__ */ new Map();
+  }
+});
+
+// src/core/livefail.ts
 import fs12 from "node:fs";
 import path8 from "node:path";
+function file() {
+  return path8.join(dataDir(), "live-failures.json");
+}
+function readLiveFailures() {
+  try {
+    return JSON.parse(fs12.readFileSync(file(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+function liveFailureOf(sourceId) {
+  if (!sourceId) return void 0;
+  return readLiveFailures()[sourceId];
+}
+function recordLiveFailure(sourceId, reason) {
+  if (!sourceId) return;
+  const all = readLiveFailures();
+  all[sourceId] = { reason, at: Date.now() };
+  fs12.mkdirSync(dataDir(), { recursive: true });
+  fs12.writeFileSync(file(), JSON.stringify(all));
+}
+function clearLiveFailure(sourceId) {
+  if (!sourceId) return;
+  const all = readLiveFailures();
+  if (!(sourceId in all)) return;
+  delete all[sourceId];
+  fs12.mkdirSync(dataDir(), { recursive: true });
+  fs12.writeFileSync(file(), JSON.stringify(all));
+}
+var init_livefail = __esm({
+  "src/core/livefail.ts"() {
+    "use strict";
+    init_launch();
+  }
+});
+
+// src/core/configApi.ts
+import fs13 from "node:fs";
+import path9 from "node:path";
 function storedCustomSources() {
   const stored = loadConfig();
   return Array.isArray(stored.customSources) ? stored.customSources : [];
@@ -48520,17 +48614,17 @@ function persisted(config) {
   return out;
 }
 function backupFile() {
-  return path8.join(dataDir(), "config.backup.json");
+  return path9.join(dataDir(), "config.backup.json");
 }
 function hasBackup() {
-  return fs12.existsSync(backupFile());
+  return fs13.existsSync(backupFile());
 }
 function readBackup() {
-  return JSON.parse(fs12.readFileSync(backupFile(), "utf8"));
+  return JSON.parse(fs13.readFileSync(backupFile(), "utf8"));
 }
 function writeBackup(config) {
-  fs12.mkdirSync(dataDir(), { recursive: true });
-  fs12.writeFileSync(backupFile(), JSON.stringify(config));
+  fs13.mkdirSync(dataDir(), { recursive: true });
+  fs13.writeFileSync(backupFile(), JSON.stringify(config));
 }
 function publicConfig(config) {
   return {
@@ -48540,7 +48634,7 @@ function publicConfig(config) {
     wallpaperVisible: config.wallpaperVisible,
     fit: config.fit,
     wallpaperSet: Boolean(
-      config.wallpaperPath && fs12.existsSync(config.wallpaperPath) || config.sceneVideoUrl || config.live
+      config.wallpaperPath && fs13.existsSync(config.wallpaperPath) || config.sceneVideoUrl || config.live
     ),
     mediaType: config.mediaType ?? "image",
     live: config.live ?? null,
@@ -48560,6 +48654,7 @@ function publicConfig(config) {
     rotationMinutes: config.rotationMinutes ?? 30,
     rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
     hasBackup: hasBackup(),
+    liveFailed: liveFailureOf(config.live?.sourceId),
     cdpPort: config.port,
     apiPort: config.apiPort
   };
@@ -48593,23 +48688,24 @@ var init_configApi = __esm({
     "use strict";
     init_inject();
     init_launch();
+    init_livefail();
   }
 });
 
 // src/core/assets.ts
-import fs13 from "node:fs";
+import fs14 from "node:fs";
 function invalidateAssets() {
   cachedAssets = void 0;
   lastGoodAssets = void 0;
 }
-function primeAssets(file, assets) {
-  cachedAssets = { file, mtimeMs: fs13.statSync(file).mtimeMs, assets };
+function primeAssets(file2, assets) {
+  cachedAssets = { file: file2, mtimeMs: fs14.statSync(file2).mtimeMs, assets };
   lastGoodAssets = assets;
 }
 async function getAssets(config, allowDecode = true) {
   const sourcePath = config.monetSourcePath;
-  if (!sourcePath || !fs13.existsSync(sourcePath)) return void 0;
-  const mtimeMs = fs13.statSync(sourcePath).mtimeMs;
+  if (!sourcePath || !fs14.existsSync(sourcePath)) return void 0;
+  const mtimeMs = fs14.statSync(sourcePath).mtimeMs;
   if (cachedAssets?.file === sourcePath && cachedAssets.mtimeMs === mtimeMs) {
     return cachedAssets.assets;
   }
@@ -48641,6 +48737,11 @@ async function buildRuntimePayload(config, allowDecode = true) {
     liveUrl: buildLiveUrl(config)
   });
   payload.apiPort = config.apiPort;
+  const failure = liveFailureOf(config.live?.sourceId);
+  if (failure && payload.liveSrc) {
+    payload.liveSrc = void 0;
+    payload.liveFailed = failure;
+  }
   return payload;
 }
 var init_payload = __esm({
@@ -48648,6 +48749,7 @@ var init_payload = __esm({
     "use strict";
     init_inject();
     init_assets();
+    init_livefail();
   }
 });
 
@@ -49040,25 +49142,25 @@ var require_utils = __commonJS({
       }
       mkdirSync(folder);
     };
-    Utils.prototype.writeFileTo = function(path12, content, overwrite, attr) {
+    Utils.prototype.writeFileTo = function(path13, content, overwrite, attr) {
       const self2 = this;
-      if (self2.fs.existsSync(path12)) {
+      if (self2.fs.existsSync(path13)) {
         if (!overwrite) return false;
-        var stat = self2.fs.statSync(path12);
+        var stat = self2.fs.statSync(path13);
         if (stat.isDirectory()) {
           return false;
         }
       }
-      var folder = pth.dirname(path12);
+      var folder = pth.dirname(path13);
       if (!self2.fs.existsSync(folder)) {
         self2.makeDir(folder);
       }
       var fd;
       try {
-        fd = self2.fs.openSync(path12, "w", 438);
+        fd = self2.fs.openSync(path13, "w", 438);
       } catch (e2) {
-        self2.fs.chmodSync(path12, 438);
-        fd = self2.fs.openSync(path12, "w", 438);
+        self2.fs.chmodSync(path13, 438);
+        fd = self2.fs.openSync(path13, "w", 438);
       }
       if (fd) {
         try {
@@ -49067,22 +49169,22 @@ var require_utils = __commonJS({
           self2.fs.closeSync(fd);
         }
       }
-      self2.fs.chmodSync(path12, attr || 438);
+      self2.fs.chmodSync(path13, attr || 438);
       return true;
     };
-    Utils.prototype.writeFileToAsync = function(path12, content, overwrite, attr, callback) {
+    Utils.prototype.writeFileToAsync = function(path13, content, overwrite, attr, callback) {
       if (typeof attr === "function") {
         callback = attr;
         attr = void 0;
       }
       const self2 = this;
-      self2.fs.exists(path12, function(exist) {
+      self2.fs.exists(path13, function(exist) {
         if (exist && !overwrite) return callback(false);
-        self2.fs.stat(path12, function(err, stat) {
+        self2.fs.stat(path13, function(err, stat) {
           if (exist && stat && stat.isDirectory()) {
             return callback(false);
           }
-          var folder = pth.dirname(path12);
+          var folder = pth.dirname(path13);
           self2.fs.exists(folder, function(exists) {
             if (!exists) {
               try {
@@ -49095,16 +49197,16 @@ var require_utils = __commonJS({
               self2.fs.write(fd, content, 0, content.length, 0, function(writeErr) {
                 self2.fs.close(fd, function() {
                   if (writeErr) return callback(false);
-                  self2.fs.chmod(path12, attr || 438, function() {
+                  self2.fs.chmod(path13, attr || 438, function() {
                     callback(true);
                   });
                 });
               });
             };
-            self2.fs.open(path12, "w", 438, function(err2, fd) {
+            self2.fs.open(path13, "w", 438, function(err2, fd) {
               if (err2) {
-                self2.fs.chmod(path12, 438, function() {
-                  self2.fs.open(path12, "w", 438, function(retryErr, fd2) {
+                self2.fs.chmod(path13, 438, function() {
+                  self2.fs.open(path13, "w", 438, function(retryErr, fd2) {
                     if (retryErr || !fd2) return callback(false);
                     writeToFd(fd2);
                   });
@@ -49140,10 +49242,10 @@ var require_utils = __commonJS({
         if (stat.isSymbolicLink()) throw Errors.FILE_IN_THE_WAY(`"${cur}"`);
       }
     };
-    Utils.prototype.findFiles = function(path12) {
+    Utils.prototype.findFiles = function(path13) {
       const self2 = this;
       const canLstat = typeof self2.fs.lstatSync === "function";
-      const rootReal = self2.fs.realpathSync(path12);
+      const rootReal = self2.fs.realpathSync(path13);
       function escapesRoot(p2) {
         if (!canLstat) return false;
         if (!self2.fs.lstatSync(p2).isSymbolicLink()) return false;
@@ -49161,24 +49263,24 @@ var require_utils = __commonJS({
           pattern = void 0;
         }
         let files = [];
-        self2.fs.readdirSync(dir).forEach(function(file) {
-          const path13 = pth.join(dir, file);
-          if (escapesRoot(path13)) return;
-          const stat = self2.fs.statSync(path13);
-          if (!pattern || pattern.test(path13)) {
-            files.push(pth.normalize(path13) + (stat.isDirectory() ? self2.sep : ""));
+        self2.fs.readdirSync(dir).forEach(function(file2) {
+          const path14 = pth.join(dir, file2);
+          if (escapesRoot(path14)) return;
+          const stat = self2.fs.statSync(path14);
+          if (!pattern || pattern.test(path14)) {
+            files.push(pth.normalize(path14) + (stat.isDirectory() ? self2.sep : ""));
           }
           if (stat.isDirectory() && recursive) {
-            const realDir = self2.fs.realpathSync(path13);
+            const realDir = self2.fs.realpathSync(path14);
             if (!visited.has(realDir)) {
               visited.add(realDir);
-              files = files.concat(findSync(path13, pattern, recursive, visited));
+              files = files.concat(findSync(path14, pattern, recursive, visited));
             }
           }
         });
         return files;
       }
-      return findSync(path12, void 0, true, /* @__PURE__ */ new Set([rootReal]));
+      return findSync(path13, void 0, true, /* @__PURE__ */ new Set([rootReal]));
     };
     Utils.prototype.findFilesAsync = function(dir, cb) {
       const self2 = this;
@@ -49191,12 +49293,12 @@ var require_utils = __commonJS({
       };
       const canLstat = typeof self2.fs.lstat === "function";
       let rootReal = null;
-      const escapesRoot = function(file, cb2) {
+      const escapesRoot = function(file2, cb2) {
         if (!canLstat) return cb2(null, false);
-        self2.fs.lstat(file, function(err, lst) {
+        self2.fs.lstat(file2, function(err, lst) {
           if (err) return cb2(err);
           if (!lst || !lst.isSymbolicLink()) return cb2(null, false);
-          self2.fs.realpath(file, function(err2, real) {
+          self2.fs.realpath(file2, function(err2, real) {
             if (err2) return cb2(null, true);
             cb2(null, !(real === rootReal || real.startsWith(rootReal + pth.sep)));
           });
@@ -49208,32 +49310,32 @@ var require_utils = __commonJS({
           let pending = list.length;
           if (!pending) return done();
           list.forEach(function(name) {
-            const file = pth.join(dir2, name);
-            escapesRoot(file, function(err2, escapes) {
+            const file2 = pth.join(dir2, name);
+            escapesRoot(file2, function(err2, escapes) {
               if (err2) return done(err2);
               if (escapes) {
                 if (!--pending) done();
                 return;
               }
-              self2.fs.stat(file, function(err3, stat) {
+              self2.fs.stat(file2, function(err3, stat) {
                 if (err3) return done(err3);
                 if (!stat) {
                   if (!--pending) done();
                   return;
                 }
-                results.push(pth.normalize(file) + (stat.isDirectory() ? self2.sep : ""));
+                results.push(pth.normalize(file2) + (stat.isDirectory() ? self2.sep : ""));
                 if (!stat.isDirectory()) {
                   if (!--pending) done();
                   return;
                 }
-                self2.fs.realpath(file, function(err4, realDir) {
+                self2.fs.realpath(file2, function(err4, realDir) {
                   if (err4) return done(err4);
                   if (visited.has(realDir)) {
                     if (!--pending) done();
                     return;
                   }
                   visited.add(realDir);
-                  walk(file, visited, function(err5) {
+                  walk(file2, visited, function(err5) {
                     if (err5) return done(err5);
                     if (!--pending) done();
                   });
@@ -49275,14 +49377,14 @@ var require_utils = __commonJS({
           return "UNSUPPORTED (" + method + ")";
       }
     };
-    Utils.canonical = function(path12) {
-      if (!path12) return "";
-      const safeSuffix = pth.posix.normalize("/" + path12.split("\\").join("/"));
+    Utils.canonical = function(path13) {
+      if (!path13) return "";
+      const safeSuffix = pth.posix.normalize("/" + path13.split("\\").join("/"));
       return pth.join(".", safeSuffix);
     };
-    Utils.zipnamefix = function(path12) {
-      if (!path12) return "";
-      const safeSuffix = pth.posix.normalize("/" + path12.split("\\").join("/"));
+    Utils.zipnamefix = function(path13) {
+      if (!path13) return "";
+      const safeSuffix = pth.posix.normalize("/" + path13.split("\\").join("/"));
       return pth.posix.join(".", safeSuffix);
     };
     Utils.findLast = function(arr, callback) {
@@ -49299,9 +49401,9 @@ var require_utils = __commonJS({
       prefix = pth.resolve(pth.normalize(prefix));
       var parts = name.split("/");
       for (var i2 = 0, l2 = parts.length; i2 < l2; i2++) {
-        var path12 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
-        if (path12 === prefix || path12.startsWith(prefix + pth.sep)) {
-          return path12;
+        var path13 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
+        if (path13 === prefix || path13.startsWith(prefix + pth.sep)) {
+          return path13;
         }
       }
       return pth.normalize(pth.join(prefix, pth.basename(name)));
@@ -49351,8 +49453,8 @@ var require_utils = __commonJS({
 var require_fattr = __commonJS({
   "node_modules/adm-zip/util/fattr.js"(exports, module) {
     var pth = __require("path");
-    module.exports = function(path12, { fs: fs16 }) {
-      var _path = path12 || "", _obj = newAttr(), _stat = null;
+    module.exports = function(path13, { fs: fs17 }) {
+      var _path = path13 || "", _obj = newAttr(), _stat = null;
       function newAttr() {
         return {
           directory: false,
@@ -49363,8 +49465,8 @@ var require_fattr = __commonJS({
           atime: 0
         };
       }
-      if (_path && fs16.existsSync(_path)) {
-        _stat = fs16.statSync(_path);
+      if (_path && fs17.existsSync(_path)) {
+        _stat = fs17.statSync(_path);
         _obj.directory = _stat.isDirectory();
         _obj.mtime = _stat.mtime;
         _obj.atime = _stat.atime;
@@ -51394,7 +51496,7 @@ var require_adm_zip = __commonJS({
           }
           targetPath = pth.resolve(targetPath);
           const getPath = (entry) => sanitize2(targetPath, pth.normalize(canonical(entry.entryName)));
-          const getError = (msg, file) => new Error(msg + ': "' + file + '"');
+          const getError = (msg, file2) => new Error(msg + ': "' + file2 + '"');
           const dirEntries = [];
           const fileEntries = [];
           _zip.entries.forEach((e2) => {
@@ -51537,29 +51639,29 @@ var require_adm_zip = __commonJS({
 });
 
 // src/core/sources.ts
-import fs14 from "node:fs";
-import path9 from "node:path";
+import fs15 from "node:fs";
+import path10 from "node:path";
 import crypto2 from "node:crypto";
 function findVideoInDir(dir) {
   for (const subdir of ["", "files"]) {
-    const base = path9.join(dir, subdir);
+    const base = path10.join(dir, subdir);
     let entries;
     try {
-      entries = fs14.readdirSync(base);
+      entries = fs15.readdirSync(base);
     } catch {
       continue;
     }
     const hit = entries.find((e2) => /\.(mp4|webm)$/i.test(e2));
-    if (hit) return path9.join(base, hit);
+    if (hit) return path10.join(base, hit);
   }
   return void 0;
 }
-function toRel(dir, file) {
-  return path9.relative(dir, file).replace(/\\/g, "/");
+function toRel(dir, file2) {
+  return path10.relative(dir, file2).replace(/\\/g, "/");
 }
 function liveFrameFile(sourceId) {
   const safe = sourceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path9.join(dataDir(), `live-frame-${safe}.jpg`);
+  return path10.join(dataDir(), `live-frame-${safe}.jpg`);
 }
 async function applySource(id, config, apply = true) {
   const entry = await resolveSourceDir(id, storedCustomSources());
@@ -51573,24 +51675,25 @@ async function applySource(id, config, apply = true) {
       live: { sourceId: id, kind: type, title: entry.title, poster: entry.preview },
       sceneVideoUrl: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path9.join(entry.dir, entry.preview) : config.monetSourcePath
+      monetSourcePath: entry.preview ? path10.join(entry.dir, entry.preview) : config.monetSourcePath
     };
   } else if (type === "video") {
     const video = findVideoInDir(entry.dir);
     if (!video) throw new Error(`no .mp4/.webm inside video wallpaper: ${entry.dir}`);
-    const file = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
+    const file2 = toRel(entry.dir, video).split("/").map(encodeURIComponent).join("/");
     next = {
       ...config,
       mediaType: "video",
-      sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${file}`,
+      sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${file2}`,
       live: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path9.join(entry.dir, entry.preview) : config.monetSourcePath
+      monetSourcePath: entry.preview ? path10.join(entry.dir, entry.preview) : config.monetSourcePath
     };
   } else {
     throw new Error(`unsupported wallpaper type (${type}): ${entry.title}`);
   }
   if (apply) {
+    clearLiveFailure(id);
     saveConfig(persisted(next));
     await publishConfig(next, false).catch(() => void 0);
     void publishConfig(next, true).catch(() => void 0);
@@ -51614,31 +51717,31 @@ async function migrateLegacyVideo() {
 function resolveSceneInput(input) {
   let stat;
   try {
-    stat = fs14.statSync(input);
+    stat = fs15.statSync(input);
   } catch {
     return input;
   }
   if (stat.isDirectory()) return input;
-  if (input.toLowerCase().endsWith(".pkg")) return path9.dirname(path9.resolve(input));
-  let dir = path9.dirname(path9.resolve(input));
+  if (input.toLowerCase().endsWith(".pkg")) return path10.dirname(path10.resolve(input));
+  let dir = path10.dirname(path10.resolve(input));
   for (let hop = 0; hop < 4; hop++) {
-    if (fs14.existsSync(path9.join(dir, "project.json"))) return dir;
-    const parent = path9.dirname(dir);
+    if (fs15.existsSync(path10.join(dir, "project.json"))) return dir;
+    const parent = path10.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return path9.dirname(path9.resolve(input));
+  return path10.dirname(path10.resolve(input));
 }
 function registerCustomSource(input) {
-  const dir = path9.resolve(resolveSceneInput(input));
-  if (!fs14.existsSync(dir) || !fs14.statSync(dir).isDirectory()) {
+  const dir = path10.resolve(resolveSceneInput(input));
+  if (!fs15.existsSync(dir) || !fs15.statSync(dir).isDirectory()) {
     throw new Error(`not a wallpaper directory: ${dir}`);
   }
   const id = `custom-${crypto2.createHash("sha1").update(dir.toLowerCase()).digest("hex").slice(0, 10)}`;
   const sources = storedCustomSources().filter((c3) => c3.id !== id);
   let name;
   try {
-    const p2 = JSON.parse(fs14.readFileSync(path9.join(dir, "project.json"), "utf8"));
+    const p2 = JSON.parse(fs15.readFileSync(path10.join(dir, "project.json"), "utf8"));
     if (typeof p2?.title === "string") name = p2.title;
   } catch {
   }
@@ -51649,16 +51752,16 @@ function registerCustomSource(input) {
 async function importPackageFromFile(zipPath, config, apply) {
   const { default: AdmZip } = await Promise.resolve().then(() => __toESM(require_adm_zip(), 1));
   const zip = new AdmZip(zipPath);
-  const dest = path9.join(dataDir(), "packages", `pkg-${Date.now()}`);
-  fs14.mkdirSync(dest, { recursive: true });
+  const dest = path10.join(dataDir(), "packages", `pkg-${Date.now()}`);
+  fs15.mkdirSync(dest, { recursive: true });
   zip.extractAllTo(dest, true);
   let root = dest;
   for (let i2 = 0; i2 < 2; i2++) {
-    const entries = fs14.readdirSync(root, { withFileTypes: true });
-    if (entries.length === 1 && entries[0].isDirectory()) root = path9.join(root, entries[0].name);
+    const entries = fs15.readdirSync(root, { withFileTypes: true });
+    if (entries.length === 1 && entries[0].isDirectory()) root = path10.join(root, entries[0].name);
     else break;
   }
-  if (!fs14.existsSync(path9.join(root, "project.json")) && !fs14.existsSync(path9.join(root, "scene.pkg"))) {
+  if (!fs15.existsSync(path10.join(root, "project.json")) && !fs15.existsSync(path10.join(root, "scene.pkg"))) {
     throw new Error("package contains no project.json / scene.pkg \u2014 not a wallpaper package");
   }
   const { id } = registerCustomSource(root);
@@ -51688,17 +51791,17 @@ async function deleteSource(id, config) {
       await publishConfig(config).catch(() => void 0);
     }
   }
-  const packagesRoot = path9.join(dataDir(), "packages");
-  const rel = path9.relative(packagesRoot, path9.resolve(hit.dir));
-  const managed = rel !== "" && !rel.startsWith("..") && !path9.isAbsolute(rel);
+  const packagesRoot = path10.join(dataDir(), "packages");
+  const rel = path10.relative(packagesRoot, path10.resolve(hit.dir));
+  const managed = rel !== "" && !rel.startsWith("..") && !path10.isAbsolute(rel);
   saveConfig({ ...loadConfig(), customSources: storedCustomSources().filter((c3) => c3.id !== id) });
   const frameFile = liveFrameFile(id);
   void (async () => {
     for (let i2 = 0; i2 < 8; i2++) {
       await new Promise((r2) => setTimeout(r2, 750 * (i2 + 1)));
       try {
-        if (managed) fs14.rmSync(hit.dir, { recursive: true, force: true });
-        fs14.rmSync(frameFile, { force: true });
+        if (managed) fs15.rmSync(hit.dir, { recursive: true, force: true });
+        fs15.rmSync(frameFile, { force: true });
         return;
       } catch {
       }
@@ -51715,6 +51818,7 @@ var init_sources = __esm({
     init_launch();
     init_inject();
     init_configApi();
+    init_livefail();
     init_broadcast();
   }
 });
@@ -51886,9 +51990,9 @@ __export(server_exports, {
   startServe: () => startServe
 });
 import http from "node:http";
-import fs15 from "node:fs";
+import fs16 from "node:fs";
 import os2 from "node:os";
-import path10 from "node:path";
+import path11 from "node:path";
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
 function sendJson(res, code, body) {
@@ -51934,7 +52038,7 @@ function readBody(req) {
 function readBodyToFile(req, dest, maxBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
-    const out = fs15.createWriteStream(dest);
+    const out = fs16.createWriteStream(dest);
     req.on("data", (c3) => {
       size += c3.length;
       if (size > maxBytes) {
@@ -51972,7 +52076,7 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
 }
 function pluginDisabledIn(cfgPath) {
   try {
-    const cfg = JSON.parse(fs15.readFileSync(cfgPath, "utf8"));
+    const cfg = JSON.parse(fs16.readFileSync(cfgPath, "utf8"));
     const ep = cfg?.plugins?.enabledPlugins;
     if (!ep || typeof ep !== "object") return false;
     const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
@@ -52014,12 +52118,12 @@ async function startServe(opts) {
         sendJson(res, 204, {});
         return;
       }
-      const staticRoute = (file, noStore = false) => sendStaticFile(req, res, file, { noStore }) || sendJson(res, 404, { error: `missing file: ${path10.basename(file)} (run \`npm run build\`)` });
+      const staticRoute = (file2, noStore = false) => sendStaticFile(req, res, file2, { noStore }) || sendJson(res, 404, { error: `missing file: ${path11.basename(file2)} (run \`npm run build\`)` });
       if (req.method === "GET" || req.method === "HEAD") {
-        if (url.pathname === "/agent.js") return void staticRoute(path10.join(liveDir(), "agent.js"), true);
-        if (url.pathname === "/panel.js") return void staticRoute(path10.join(liveDir(), "panel.js"), true);
-        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path10.join(liveDir(), "index.html"), true);
-        if (url.pathname === "/renderer.js") return void staticRoute(path10.join(liveDir(), "renderer.js"));
+        if (url.pathname === "/agent.js") return void staticRoute(path11.join(liveDir(), "agent.js"), true);
+        if (url.pathname === "/panel.js") return void staticRoute(path11.join(liveDir(), "panel.js"), true);
+        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path11.join(liveDir(), "index.html"), true);
+        if (url.pathname === "/renderer.js") return void staticRoute(path11.join(liveDir(), "renderer.js"));
         if (url.pathname === "/engine/webwallgl.global.min.js") {
           const engine = engineFile();
           if (!engine) return void sendJson(res, 404, { error: "webwallgl engine not installed (npm install webwallgl)" });
@@ -52037,7 +52141,10 @@ async function startServe(opts) {
           return;
         }
         const target = rel ? safeJoin(entry.dir, rel) : void 0;
-        if (!target || !sendStaticFile(req, res, target)) {
+        if (!target || !sendStaticFile(req, res, target, {
+          onRange: ({ start, end }) => transferBegin(sourceId, rel, start, end),
+          onBytes: (n2) => transferChunk(sourceId, rel, n2)
+        })) {
           sendJson(res, 404, { error: "not found" });
         }
         return;
@@ -52048,6 +52155,30 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/host-alive") {
         globalThis.__zwHostAlive = Date.now();
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/transfer") {
+        sendJson(res, 200, transferSnapshot(String(url.searchParams.get("id") ?? "")));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/live-verdict") {
+        const body = JSON.parse(await readBody(req));
+        const id = String(body.sourceId ?? "");
+        if (!id) {
+          sendJson(res, 400, { error: "sourceId required" });
+          return;
+        }
+        recordLiveFailure(id, String(body.reason ?? "renderer"));
+        serveLog.push(`[live:fail] ${id} \u2014 ${body.reason ?? "renderer"} (downgraded to poster)`);
+        await publishConfig(runtimeConfig());
+        sendJson(res, 200, { ok: true, downgraded: true });
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/live-retry") {
+        const cfg = runtimeConfig();
+        clearLiveFailure(cfg.live?.sourceId);
+        await publishConfig(cfg);
         sendJson(res, 200, { ok: true });
         return;
       }
@@ -52083,9 +52214,9 @@ async function startServe(opts) {
           throw new Error(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
         }
         const config = runtimeConfig();
-        fs15.mkdirSync(dataDir(), { recursive: true });
-        const dest = path10.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
-        fs15.writeFileSync(dest, bytes);
+        fs16.mkdirSync(dataDir(), { recursive: true });
+        const dest = path11.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
+        fs16.writeFileSync(dest, bytes);
         primeAssets(dest, await loadWallpaper(dest));
         const next = {
           ...config,
@@ -52190,11 +52321,11 @@ async function startServe(opts) {
         const body = JSON.parse(await readBody(req));
         const input = typeof body?.path === "string" ? body.path.trim() : "";
         if (!input) throw new Error("path is required");
-        const abs = path10.resolve(input);
+        const abs = path11.resolve(input);
         let result;
         let sourceId;
         if (/\.zip$/i.test(abs)) {
-          if (!fs15.existsSync(abs)) throw new Error(`package not found: ${abs}`);
+          if (!fs16.existsSync(abs)) throw new Error(`package not found: ${abs}`);
           const r2 = await importPackageFromFile(abs, runtimeConfig(), true);
           sourceId = r2.id;
           result = r2;
@@ -52230,9 +52361,9 @@ async function startServe(opts) {
         const zip = new AdmZip();
         zip.addLocalFolder(entry.dir);
         const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path10.join(os2.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        const zipPath = path11.join(os2.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
         await zip.writeZipPromise(zipPath);
-        const size = fs15.statSync(zipPath).size;
+        const size = fs16.statSync(zipPath).size;
         res.writeHead(200, {
           "Content-Type": "application/zip",
           "Content-Length": size,
@@ -52240,14 +52371,14 @@ async function startServe(opts) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Expose-Headers": "Content-Disposition"
         });
-        const stream = fs15.createReadStream(zipPath);
+        const stream = fs16.createReadStream(zipPath);
         stream.pipe(res);
-        stream.on("close", () => fs15.rm(zipPath, { force: true }, () => void 0));
+        stream.on("close", () => fs16.rm(zipPath, { force: true }, () => void 0));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/import-package") {
         const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path10.join(os2.tmpdir(), `zw-import-${Date.now()}.zip`);
+        const tempZip = path11.join(os2.tmpdir(), `zw-import-${Date.now()}.zip`);
         await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
         try {
           const r2 = await importPackageFromFile(tempZip, runtimeConfig(), apply);
@@ -52260,18 +52391,18 @@ async function startServe(opts) {
             windows: heldWindowCount()
           });
         } finally {
-          fs15.rmSync(tempZip, { force: true });
+          fs16.rmSync(tempZip, { force: true });
         }
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/upload-wallpaper") {
         const apply = url.searchParams.get("apply") === "1";
         const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
-        const ext = path10.extname(name).toLowerCase();
+        const ext = path11.extname(name).toLowerCase();
         if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
           throw new Error(`unsupported file type: ${ext || "(none)"} \u2014 use .zip / .pkg / .mp4 / .webm`);
         }
-        const tempFile = path10.join(os2.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        const tempFile = path11.join(os2.tmpdir(), `zw-upl-${Date.now()}${ext}`);
         await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
         try {
           const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "\u5BFC\u5165\u7684\u58C1\u7EB8";
@@ -52280,20 +52411,20 @@ async function startServe(opts) {
             sendJson(res, 200, { ok: true, sourceId: r2.id, title: r2.entry.title, type: r2.entry.type, mediaType: r2.mediaType, windows: heldWindowCount() });
             return;
           }
-          const dest = path10.join(dataDir(), "packages", `upl-${Date.now()}`);
-          fs15.mkdirSync(dest, { recursive: true });
+          const dest = path11.join(dataDir(), "packages", `upl-${Date.now()}`);
+          fs16.mkdirSync(dest, { recursive: true });
           if (ext === ".pkg") {
-            fs15.copyFileSync(tempFile, path10.join(dest, "scene.pkg"));
-            fs15.writeFileSync(path10.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
+            fs16.copyFileSync(tempFile, path11.join(dest, "scene.pkg"));
+            fs16.writeFileSync(path11.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
           } else {
-            fs15.copyFileSync(tempFile, path10.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
-            fs15.writeFileSync(path10.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
+            fs16.copyFileSync(tempFile, path11.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
+            fs16.writeFileSync(path11.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
           }
           const { id } = registerCustomSource(dest);
           const result = await applySource(id, runtimeConfig(), apply);
           sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
         } finally {
-          fs15.rmSync(tempFile, { force: true });
+          fs16.rmSync(tempFile, { force: true });
         }
         return;
       }
@@ -52313,16 +52444,16 @@ async function startServe(opts) {
           sendJson(res, 400, { error: "source and dataUrl are required" });
           return;
         }
-        const file = liveFrameFile(source);
-        fs15.mkdirSync(dataDir(), { recursive: true });
-        fs15.writeFileSync(file, Buffer.from(m[1], "base64"));
+        const file2 = liveFrameFile(source);
+        fs16.mkdirSync(dataDir(), { recursive: true });
+        fs16.writeFileSync(file2, Buffer.from(m[1], "base64"));
         const config = runtimeConfig();
         if (config.live?.sourceId === source) {
-          const next = { ...config, monetSourcePath: file };
+          const next = { ...config, monetSourcePath: file2 };
           saveConfig(persisted(next));
           await publishConfig(next);
         }
-        sendJson(res, 200, { ok: true, file });
+        sendJson(res, 200, { ok: true, file: file2 });
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/diag") {
@@ -52335,9 +52466,9 @@ async function startServe(opts) {
       if (req.method === "GET" && url.pathname === "/api/library") {
         const images = [];
         try {
-          for (const f2 of fs15.readdirSync(dataDir())) {
+          for (const f2 of fs16.readdirSync(dataDir())) {
             if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f2)) {
-              images.push({ name: f2, path: path10.join(dataDir(), f2) });
+              images.push({ name: f2, path: path11.join(dataDir(), f2) });
             }
           }
         } catch {
@@ -52347,7 +52478,7 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
-        if (typeof body?.path !== "string" || !fs15.existsSync(body.path)) {
+        if (typeof body?.path !== "string" || !fs16.existsSync(body.path)) {
           throw new Error("provide an existing image path");
         }
         const config = runtimeConfig();
@@ -52404,7 +52535,7 @@ async function startServe(opts) {
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
     setInterval(() => {
       void (async () => {
-        if (pluginDisabledIn(path10.join(os2.homedir(), ".zcode", "cli", "config.json"))) {
+        if (pluginDisabledIn(path11.join(os2.homedir(), ".zcode", "cli", "config.json"))) {
           console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
           await shutdownServe().catch(() => void 0);
           process.exit(0);
@@ -52461,6 +52592,8 @@ var init_server = __esm({
     init_monet();
     init_launch();
     init_media();
+    init_ledger();
+    init_livefail();
     init_steam();
     init_configApi();
     init_assets();
@@ -52497,7 +52630,7 @@ init_session();
 init_steam();
 init_cdp();
 init_inject();
-import path11 from "node:path";
+import path12 from "node:path";
 var USAGE = `zcode-wallpaper <command> [options]
 
 Commands:
@@ -52630,7 +52763,7 @@ Quit ZCode completely (including any tray icon), then run \`zcode-wallpaper laun
       case "serve": {
         if (has("--detach")) {
           const { spawn: spawn2 } = await import("node:child_process");
-          const self2 = path11.resolve(process.argv[1] ?? "");
+          const self2 = path12.resolve(process.argv[1] ?? "");
           const child = spawn2(process.execPath, [self2, "serve", "--port", String(port), "--api-port", String(apiPort)], {
             detached: true,
             stdio: "ignore",

@@ -38,6 +38,11 @@ const MIME: Record<string, string> = {
 export interface ServeFileOptions {
   /** Force no-store (renderer HTML carries query-state; don't cache it). */
   noStore?: boolean;
+  /** Transfer-ledger hooks (D7): the byte span being satisfied, then body
+   *  bytes as they stream. A 304 revalidation reports the full file — the
+   *  client already holds it, so the transfer counts as complete. */
+  onRange?: (info: { start: number; end: number }) => void;
+  onBytes?: (n: number) => void;
 }
 
 /**
@@ -75,6 +80,11 @@ export function sendStaticFile(
   };
 
   if (req.headers["if-none-match"] === etag) {
+    if (!isHead) {
+      // Revalidation: the client already holds the whole file.
+      opts.onRange?.({ start: 0, end: stat.size - 1 });
+      opts.onBytes?.(stat.size);
+    }
     res.writeHead(304, baseHeaders);
     res.end();
     return true;
@@ -87,12 +97,12 @@ export function sendStaticFile(
 
   // Handles "bytes=A-B", "bytes=A-" and suffix "bytes=-N".
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
-  const pipe = (opts?: { start: number; end: number }) => {
+  const pipe = (opts2?: { start: number; end: number }) => {
     // A client abort (the cross-fade drops the old engine's in-flight media
     // fetch mid-body) must not escalate to an unhandled stream error — that
     // takes the whole in-process serve, i.e. the plugin's MCP, down and the
     // page heartbeats unmount everything ("plugin looks uninstalled").
-    const stream = opts ? fs.createReadStream(filePath, opts) : fs.createReadStream(filePath);
+    const stream = opts2 ? fs.createReadStream(filePath, opts2) : fs.createReadStream(filePath);
     stream.on("error", () => {
       try {
         res.destroy();
@@ -100,6 +110,10 @@ export function sendStaticFile(
         /* already gone */
       }
     });
+    if (!isHead) {
+      opts.onRange?.({ start: opts2?.start ?? 0, end: opts2?.end ?? stat.size - 1 });
+      stream.on("data", (chunk: Buffer | string) => opts.onBytes?.(chunk.length));
+    }
     res.on("close", () => stream.destroy());
     stream.pipe(res);
   };

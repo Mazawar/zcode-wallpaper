@@ -20,8 +20,11 @@
 | **统一导入** | 「导入壁纸…」一个入口接受图片 / `.zw.zip` / `.pkg` 场景 / `.mp4`/`.webm` 视频（裸 pkg 自动合成元数据） |
 | **删除管理** | 本机导入项可删除（使用中自动切换），文件后台重试清理（规避 Windows 句柄锁定） |
 | **Monet 动态取色** | 从壁纸真实渲染首帧提取 MD3 配色适配界面（首帧回传机制），两段推送不阻塞切换 |
+| **失败分级与回退** | 实时渲染失败分软/硬：传输未完成自动冷却重试（次数有上限）；渲染器硬失败落盘记忆→自动回退预览图，面板显示原因并一键重试（换源/重试自动清记忆） |
+| **传输账本** | 装载期按源记账字节流，「正在下载」不被误判成「渲染不出来」；首帧预算按包大小现算（大场景不再被固定墙钟冤杀） |
 | **视频/图片壁纸** | 视频 Range 流式播放（WE 视频本就无缝），图片三种构图（cover/contain/smart 智能主体分析） |
 | **Agent 工具** | MCP 工具 7 个（`list_wallpapers`、`import_scene_wallpaper`、`apply_options`…），`/wallpaper` 命令 + 技能 |
+| **架构与守卫** | 壁纸层为声明式状态机（12 相位，转移表唯一权威）；运行时多模块开发、单文件投递；模块级守卫 4 条 + 端到端闸门，`npm run verify` 一键（见 `docs/`） |
 
 ## 工作原理
 
@@ -84,10 +87,15 @@ node dist/cli.js serve --detach     # 常驻服务（API 28257，注入 CDP 2825
 src/core/    steam.ts(发现/枚举) server.ts(HTTP 路由+生命周期) cdp.ts(连接+瘦 bootstrap)
              sessions.ts(会话/自愈) broadcast.ts(SSE) sources.ts(应用/导入导出/删除)
              inject.ts(配置模型+载荷) payload.ts/assets.ts(载荷组装+缓存) monet.ts(tokens.ts)
-             configApi.ts(校验/投影) media.ts(静态服务) session.ts(CLI/MCP 共用操作)
-live/        agent.js(壁纸层运行时) panel.js(设置面板) index.html + renderer.js(WebWallGL 渲染页)
+             configApi.ts(校验/投影) media.ts(静态服务+传输账本回调) ledger.ts(字节账本)
+             livefail.ts(实时渲染失败记忆) session.ts(CLI/MCP 共用操作)
+live/src/    agent/(main 总装·liveframe·video·watchdogs·ledger·heal·bridge·recorder)
+             panel/(main·mount·controls·library)  state.js(状态机+失败策略，纯逻辑可测)
+live/        agent.js panel.js = esbuild 打包产物（改 live/src 后 npm run build）
+             index.html + renderer.js(WebWallGL 渲染页)
 src/mcp/     MCP 服务器（7 个工具）
-commands/ skills/ scripts/  /wallpaper 命令、技能、构建与 e2e 脚本
+docs/        ARCHITECTURE(分层) DECISIONS(决策档案) STATE(状态机规范) GUARD-MAP(生成物)
+scripts/     /wallpaper 命令、构建、e2e 与守卫脚本（verify-*）
 ```
 
 ## 致谢与许可

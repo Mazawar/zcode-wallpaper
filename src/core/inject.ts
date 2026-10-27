@@ -113,6 +113,9 @@ export const DEFAULT_API_PORT = 28257;
 export interface BuiltPayload extends InjectionPayload {
   focusX: number;
   focusY: number;
+  /** Present when the live source hard-failed and serve downgraded it to
+   *  poster-only (D6); the agent holds the poster phase, the panel shows it. */
+  liveFailed?: { reason: string; at: number };
 }
 
 /** URL of the live renderer page for the config's live source. */

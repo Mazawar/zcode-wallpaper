@@ -1,0 +1,59 @@
+{
+  "$comment": "Single source for docs/GUARD-MAP.md. verify-guard-map.mjs regenerates the doc from this table and byte-compares; edit here, never the doc.",
+  "guards": [
+    {
+      "id": "verify-live-machine.mjs",
+      "what": "状态机不变量：转移表完整可达、每个事件有消费者或显式保留、失败策略边界、state.js 纯净性（零 DOM）",
+      "files": [
+        "live/src/state.js",
+        "live/src/agent/main.js",
+        "live/src/agent/ledger.js",
+        "live/src/agent/watchdogs.js",
+        "docs/STATE.md"
+      ]
+    },
+    {
+      "id": "verify-contracts.mjs",
+      "what": "双向对账：SSE 事件 产出↔消费；面板写入键 ⊆ sanitize 白名单 ⊆ publicConfig 键；agent 读取的 payload 字段 ⊆ 构建方字段",
+      "files": [
+        "src/core/broadcast.ts",
+        "src/core/server.ts",
+        "src/core/configApi.ts",
+        "src/core/inject.ts",
+        "src/core/payload.ts",
+        "live/src/agent/main.js",
+        "live/src/panel/main.js"
+      ]
+    },
+    {
+      "id": "verify-guard-map.mjs",
+      "what": "守卫地图是生成物：guards.json → docs/GUARD-MAP.md 逐字一致，表内文件全部存在",
+      "files": [
+        "scripts/guards.json",
+        "docs/GUARD-MAP.md"
+      ]
+    },
+    {
+      "id": "e2e.mjs",
+      "what": "端到端闸门（需 serve 运行中 + ZCode 带 CDP）：注入、SSE 推送、切换、重置/还原全链路断言",
+      "files": [
+        "src/core/cdp.ts",
+        "src/core/sessions.ts",
+        "src/core/inject.ts",
+        "live/src/agent/main.js",
+        "live/src/panel/main.js"
+      ]
+    },
+    {
+      "id": "panel-check.mjs",
+      "what": "构建产物完整性：live/agent.js + live/panel.js 可解析、生命周期/SSE/挂载/回退契约标记在位",
+      "files": [
+        "live/src/panel/controls.js",
+        "live/src/panel/main.js",
+        "live/src/agent/main.js",
+        "live/agent.js",
+        "live/panel.js"
+      ]
+    }
+  ]
+}
