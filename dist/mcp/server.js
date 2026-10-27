@@ -55607,7 +55607,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 12;
-  var V = 27;
+  var V = 28;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -55859,8 +55859,12 @@ function buildPanelScript(apiPort) {
   // Dropdowns hide the choices; a segment row shows them. Active segment =
   // bg-input pill with a hairline inset border, verified classes + inline only.
   function makeSeg(options, value, onChange, key, fill) {
-    var wrap = el('div', 'inline-flex items-center gap-1 rounded-lg border border-border');
-    wrap.style.cssText = fill
+    var wrap = el('div', 'inline-flex items-center gap-1 rounded-lg');
+    // Inline border: borrowed host utility classes (border border-border)
+    // can lose the race with the host's async stylesheet \u2014 our chrome defines
+    // its own look, like dsh ships its own styles instead of borrowing.
+    wrap.style.border = '1px solid var(--color-border,#ffffff1a)';
+    wrap.style.cssText += fill
       ? 'padding:3px;display:flex;flex-wrap:nowrap;width:100%;'
       : 'padding:3px;flex-wrap:wrap;row-gap:2px;';
     wrap.setAttribute('role', 'radiogroup');
@@ -55929,7 +55933,8 @@ function buildPanelScript(apiPort) {
   // status line; failures would otherwise be completely silent.
   function toast(text) {
     var host = document.body || document.documentElement;
-    var t = el('div', 'fixed right-4 bottom-4 z-[2147483647] rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground shadow-md');
+    var t = el('div', 'fixed right-4 bottom-4 z-[2147483647] rounded-lg bg-card px-3 py-2 text-sm text-foreground shadow-md');
+    t.style.border = '1px solid var(--color-border,#ffffff1a)';
     t.textContent = text;
     host.appendChild(t);
     setTimeout(function () { t.remove(); }, 2500);
@@ -56143,8 +56148,8 @@ function buildPanelScript(apiPort) {
 
     // --- full-width tab strip (dsh: equal tabs in one bordered container) -------
     ensureSliderStyle();
-    var tabBar = el('div', 'rounded-lg border border-border');
-    tabBar.style.cssText = 'display:flex;gap:2px;padding:3px;margin:12px 16px 2px;';
+    var tabBar = el('div', 'rounded-lg');
+    tabBar.style.cssText = 'display:flex;gap:2px;padding:3px;margin:12px 16px 2px;border:1px solid var(--color-border,#ffffff1a);';
     function tabBtn(label) {
       var b = el('button', 'h-8 rounded-md text-sm outline-none transition-colors cursor-pointer');
       b.type = 'button';
