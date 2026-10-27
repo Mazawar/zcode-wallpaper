@@ -12,7 +12,7 @@
 
 import {
   CLS, el, button, dropdown, setSwitch, makeSwitch, ensureSliderStyle,
-  paintRange, syncRange, makeSeg, setSeg, prow, groupLabel, toast,
+  ensurePaintStyle, paintRange, syncRange, makeSeg, setSeg, prow, groupLabel, toast,
 } from "./controls.js";
 import { createLibrary } from "./library.js";
 import { MARKER, createMountLoop } from "./mount.js";
@@ -154,19 +154,30 @@ import { MARKER, createMountLoop } from "./mount.js";
     content.setAttribute("data-slot", "card-content");
 
     // --- full-width tab strip (dsh: equal tabs in one bordered container) -------
+    // Active tab styling is declarative (.zw-paint + data-active, see controls):
+    // hover/focus can no longer visually swallow the hairline.
     ensureSliderStyle(MARKER);
-    const tabBar = el("div", "rounded-lg");
-    tabBar.style.cssText = "display:flex;gap:2px;padding:3px;margin:12px 16px 2px;border:1px solid var(--color-border,#ffffff1a);";
-    function tabBtn(label) {
-      const b = el("button", "h-8 rounded-md text-sm outline-none transition-colors cursor-pointer");
+    ensurePaintStyle(MARKER);
+    const tabBar = el("div", "zw-paint rounded-lg");
+    tabBar.dataset.fill = "1";
+    tabBar.style.margin = "12px 16px 2px";
+    tabBar.setAttribute("data-value", "lib");
+    function tabBtn(label, v) {
+      const b = el("button", "h-8 text-sm");
       b.type = "button";
-      b.style.cssText = "flex:1 1 0;";
       b.textContent = label;
+      b.setAttribute("data-v", v);
       tabBar.appendChild(b);
       return b;
     }
-    const tabLibBtn = tabBtn("壁纸库");
-    const tabPlayBtn = tabBtn("画面与播放");
+    const tabLibBtn = tabBtn("壁纸库", "lib");
+    const tabPlayBtn = tabBtn("画面与播放", "play");
+    tabBar.__zwPaint = function () {
+      const cur = String(tabBar.getAttribute("data-value"));
+      Array.prototype.forEach.call(tabBar.children, function (b) {
+        b.dataset.active = b.getAttribute("data-v") === cur ? "1" : "0";
+      });
+    };
     content.appendChild(tabBar);
     const tabLib = el("div");
     const tabPlay = el("div");
@@ -177,18 +188,14 @@ import { MARKER, createMountLoop } from "./mount.js";
       const isLib = t !== "play";
       tabLib.style.display = isLib ? "" : "none";
       tabPlay.style.display = isLib ? "none" : "";
-      Array.prototype.forEach.call([tabLibBtn, tabPlayBtn], function (b, idx) {
-        const on = (idx === 0) === isLib;
-        b.style.background = on ? "var(--color-input,#2b2b2b)" : "transparent";
-        b.style.color = on ? "var(--color-foreground,#eee)" : "var(--color-foreground-subtle,#999)";
-        b.style.fontWeight = on ? "500" : "400";
-        b.style.boxShadow = on ? "inset 0 0 0 1px var(--color-input-border,#ffffff1a)" : "none";
-      });
+      tabBar.setAttribute("data-value", isLib ? "lib" : "play");
+      tabBar.__zwPaint();
       state.tab = isLib ? "lib" : "play";
       try { localStorage.setItem("zw-panel-tab", state.tab); } catch (e) { /* private mode */ }
     }
     tabLibBtn.addEventListener("click", function () { showTab("lib"); });
     tabPlayBtn.addEventListener("click", function () { showTab("play"); });
+    tabBar.__zwPaint();
     showTab((function () { try { return localStorage.getItem("zw-panel-tab") || "lib"; } catch (e) { return "lib"; } })());
 
     tabLib.appendChild(groupLabel("当前壁纸"));

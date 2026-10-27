@@ -165,27 +165,28 @@
     if (chip) chip.textContent = val + (unit || "");
     paintRange(i);
   }
+  function ensurePaintStyle(marker) {
+    if (document.getElementById(marker + "-paint-style")) return;
+    const st = document.createElement("style");
+    st.id = marker + "-paint-style";
+    st.textContent = `#${marker} .zw-paint{border:1px solid var(--color-border,#ffffff1a);border-radius:8px;padding:3px;display:inline-flex;gap:2px;flex-wrap:wrap;row-gap:2px;}#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;width:100%;}#${marker} .zw-paint>button{flex:1 1 0;padding:0 8px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}#${marker} .zw-paint>button:hover{color:var(--color-foreground,#eee);}#${marker} .zw-paint>button[data-active="1"]{background:var(--color-input,#2b2b2b);color:var(--color-foreground,#eee);font-weight:500;box-shadow:inset 0 0 0 1px var(--color-input-border,#ffffff33)!important;}#${marker} .zw-paint>button:focus{outline:none;}#${marker} .zw-paint>button:focus-visible{box-shadow:inset 0 0 0 1px var(--color-primary,#7aa2f7)!important;}`;
+    (document.head || document.documentElement).appendChild(st);
+  }
   function makeSeg(options, value, onChange, key, fill) {
-    var wrap = el("div", "inline-flex items-center gap-1 rounded-lg");
-    wrap.style.border = "1px solid var(--color-border,#ffffff1a)";
-    wrap.style.cssText += fill ? "padding:3px;display:flex;flex-wrap:nowrap;width:100%;" : "padding:3px;flex-wrap:wrap;row-gap:2px;";
+    const wrap = el("div", "zw-paint");
+    if (fill) wrap.dataset.fill = "1";
     wrap.setAttribute("role", "radiogroup");
     if (key) wrap.setAttribute("data-k", key);
     wrap.setAttribute("data-value", String(value));
     wrap.__zwPaint = function() {
-      var cur = String(wrap.getAttribute("data-value"));
+      const cur = String(wrap.getAttribute("data-value"));
       Array.prototype.forEach.call(wrap.children, function(b) {
-        var on = b.getAttribute("data-v") === cur;
-        b.style.background = on ? "var(--color-input,#2b2b2b)" : "transparent";
-        b.style.color = on ? "var(--color-foreground,#eee)" : "var(--color-foreground-subtle,#999)";
-        b.style.fontWeight = on ? "500" : "400";
-        b.style.boxShadow = on ? "inset 0 0 0 1px var(--color-input-border,#ffffff1a)" : "none";
+        b.dataset.active = b.getAttribute("data-v") === cur ? "1" : "0";
       });
     };
     options.forEach(function(o) {
-      var b = el("button", "h-7 rounded-md text-xs cursor-pointer outline-none transition-colors");
+      const b = el("button", "h-7 text-xs");
       b.type = "button";
-      b.style.cssText = fill ? "flex:1 1 0;padding:0 8px;" : "padding:0 12px;";
       b.textContent = o[1];
       b.setAttribute("data-v", String(o[0]));
       b.addEventListener("click", function() {
@@ -675,18 +676,27 @@
       const content = el("div", CLS.content);
       content.setAttribute("data-slot", "card-content");
       ensureSliderStyle(MARKER);
-      const tabBar = el("div", "rounded-lg");
-      tabBar.style.cssText = "display:flex;gap:2px;padding:3px;margin:12px 16px 2px;border:1px solid var(--color-border,#ffffff1a);";
-      function tabBtn(label) {
-        const b = el("button", "h-8 rounded-md text-sm outline-none transition-colors cursor-pointer");
+      ensurePaintStyle(MARKER);
+      const tabBar = el("div", "zw-paint rounded-lg");
+      tabBar.dataset.fill = "1";
+      tabBar.style.margin = "12px 16px 2px";
+      tabBar.setAttribute("data-value", "lib");
+      function tabBtn(label, v) {
+        const b = el("button", "h-8 text-sm");
         b.type = "button";
-        b.style.cssText = "flex:1 1 0;";
         b.textContent = label;
+        b.setAttribute("data-v", v);
         tabBar.appendChild(b);
         return b;
       }
-      const tabLibBtn = tabBtn("\u58C1\u7EB8\u5E93");
-      const tabPlayBtn = tabBtn("\u753B\u9762\u4E0E\u64AD\u653E");
+      const tabLibBtn = tabBtn("\u58C1\u7EB8\u5E93", "lib");
+      const tabPlayBtn = tabBtn("\u753B\u9762\u4E0E\u64AD\u653E", "play");
+      tabBar.__zwPaint = function() {
+        const cur = String(tabBar.getAttribute("data-value"));
+        Array.prototype.forEach.call(tabBar.children, function(b) {
+          b.dataset.active = b.getAttribute("data-v") === cur ? "1" : "0";
+        });
+      };
       content.appendChild(tabBar);
       const tabLib = el("div");
       const tabPlay = el("div");
@@ -697,13 +707,8 @@
         const isLib = t !== "play";
         tabLib.style.display = isLib ? "" : "none";
         tabPlay.style.display = isLib ? "none" : "";
-        Array.prototype.forEach.call([tabLibBtn, tabPlayBtn], function(b, idx) {
-          const on = idx === 0 === isLib;
-          b.style.background = on ? "var(--color-input,#2b2b2b)" : "transparent";
-          b.style.color = on ? "var(--color-foreground,#eee)" : "var(--color-foreground-subtle,#999)";
-          b.style.fontWeight = on ? "500" : "400";
-          b.style.boxShadow = on ? "inset 0 0 0 1px var(--color-input-border,#ffffff1a)" : "none";
-        });
+        tabBar.setAttribute("data-value", isLib ? "lib" : "play");
+        tabBar.__zwPaint();
         state.tab = isLib ? "lib" : "play";
         try {
           localStorage.setItem("zw-panel-tab", state.tab);
@@ -716,6 +721,7 @@
       tabPlayBtn.addEventListener("click", function() {
         showTab("play");
       });
+      tabBar.__zwPaint();
       showTab((function() {
         try {
           return localStorage.getItem("zw-panel-tab") || "lib";

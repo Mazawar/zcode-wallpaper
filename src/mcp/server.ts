@@ -124,7 +124,7 @@ bootstrapServe();
 
 const server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.4.8",
+  version: "0.4.9",
 });
 
 /** Registry of the tools this server exposes (used by tests / docs). */

@@ -197,34 +197,41 @@ export function syncRange(f, k, val, unit) {
 }
 
 // --- segmented control (dsh's 帧率 / 适配 rows) --------------------------------
-// Dropdowns hide the choices; a segment row shows them. Active segment =
-// bg-input pill with a hairline inset border, verified classes + inline only.
+// Active-state styling is DECLARATIVE (data-active + stylesheet, D9): inline
+// JS painting lost the hairline whenever ZCode's own hover/focus rules
+// lightened the fill — the 1px inset shadow was still applied, just invisible
+// against the lighter background ("click the tab, border vanishes; click
+// elsewhere, it returns"). !important pins the active border over any
+// host-state rule; focus gets its own explicit look.
+export function ensurePaintStyle(marker) {
+  if (document.getElementById(marker + "-paint-style")) return;
+  const st = document.createElement("style");
+  st.id = marker + "-paint-style";
+  st.textContent =
+    `#${marker} .zw-paint{border:1px solid var(--color-border,#ffffff1a);border-radius:8px;padding:3px;display:inline-flex;gap:2px;flex-wrap:wrap;row-gap:2px;}` +
+    `#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;width:100%;}` +
+    `#${marker} .zw-paint>button{flex:1 1 0;padding:0 8px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}` +
+    `#${marker} .zw-paint>button:hover{color:var(--color-foreground,#eee);}` +
+    `#${marker} .zw-paint>button[data-active="1"]{background:var(--color-input,#2b2b2b);color:var(--color-foreground,#eee);font-weight:500;box-shadow:inset 0 0 0 1px var(--color-input-border,#ffffff33)!important;}` +
+    `#${marker} .zw-paint>button:focus{outline:none;}` +
+    `#${marker} .zw-paint>button:focus-visible{box-shadow:inset 0 0 0 1px var(--color-primary,#7aa2f7)!important;}`;
+  (document.head || document.documentElement).appendChild(st);
+}
 export function makeSeg(options, value, onChange, key, fill) {
-  var wrap = el("div", "inline-flex items-center gap-1 rounded-lg");
-  // Inline border: borrowed host utility classes (border border-border)
-  // can lose the race with the host's async stylesheet — our chrome defines
-  // its own look, like dsh ships its own styles instead of borrowing.
-  wrap.style.border = "1px solid var(--color-border,#ffffff1a)";
-  wrap.style.cssText += fill
-    ? "padding:3px;display:flex;flex-wrap:nowrap;width:100%;"
-    : "padding:3px;flex-wrap:wrap;row-gap:2px;";
+  const wrap = el("div", "zw-paint");
+  if (fill) wrap.dataset.fill = "1";
   wrap.setAttribute("role", "radiogroup");
   if (key) wrap.setAttribute("data-k", key);
   wrap.setAttribute("data-value", String(value));
   wrap.__zwPaint = function () {
-    var cur = String(wrap.getAttribute("data-value"));
+    const cur = String(wrap.getAttribute("data-value"));
     Array.prototype.forEach.call(wrap.children, function (b) {
-      var on = b.getAttribute("data-v") === cur;
-      b.style.background = on ? "var(--color-input,#2b2b2b)" : "transparent";
-      b.style.color = on ? "var(--color-foreground,#eee)" : "var(--color-foreground-subtle,#999)";
-      b.style.fontWeight = on ? "500" : "400";
-      b.style.boxShadow = on ? "inset 0 0 0 1px var(--color-input-border,#ffffff1a)" : "none";
+      b.dataset.active = b.getAttribute("data-v") === cur ? "1" : "0";
     });
   };
   options.forEach(function (o) {
-    var b = el("button", "h-7 rounded-md text-xs cursor-pointer outline-none transition-colors");
+    const b = el("button", "h-7 text-xs");
     b.type = "button";
-    b.style.cssText = fill ? "flex:1 1 0;padding:0 8px;" : "padding:0 12px;";
     b.textContent = o[1];
     b.setAttribute("data-v", String(o[0]));
     b.addEventListener("click", function () {
