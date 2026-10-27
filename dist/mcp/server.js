@@ -59010,8 +59010,8 @@ __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
   activeWorkspaceDirs: () => activeWorkspaceDirs,
   existingServePid: () => existingServePid,
-  pluginDisabledAnywhere: () => pluginDisabledAnywhere,
-  pluginDisabledIn: () => pluginDisabledIn,
+  pluginDisabledBy: () => pluginDisabledBy,
+  pluginDisabledKeyIn: () => pluginDisabledKeyIn,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
 });
@@ -59100,15 +59100,17 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
     return "";
   }
 }
-function pluginDisabledIn(cfgPath) {
+function pluginDisabledKeyIn(cfgPath) {
   try {
     const cfg = JSON.parse(fs16.readFileSync(cfgPath, "utf8"));
     const ep = cfg?.plugins?.enabledPlugins;
-    if (!ep || typeof ep !== "object") return false;
-    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
-    return keys.length > 0 && keys.every((k) => ep[k] === false);
+    if (!ep || typeof ep !== "object") return null;
+    for (const [k, v] of Object.entries(ep)) {
+      if (k.includes("zcode-wallpaper") && v === false) return k;
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 function activeWorkspaceDirs() {
@@ -59132,10 +59134,15 @@ function activeWorkspaceDirs() {
     return [];
   }
 }
-function pluginDisabledAnywhere(userCfgPath) {
-  const workspaces = activeWorkspaceDirs();
-  if (!workspaces.length) return pluginDisabledIn(userCfgPath);
-  return workspaces.every((ws) => pluginDisabledIn(path11.join(ws, ".zcode", "config.json")));
+function pluginDisabledBy(userCfgPath) {
+  const userKey = pluginDisabledKeyIn(userCfgPath);
+  if (userKey) return { scope: userCfgPath, key: userKey };
+  for (const ws of activeWorkspaceDirs()) {
+    const p2 = path11.join(ws, ".zcode", "config.json");
+    const key = pluginDisabledKeyIn(p2);
+    if (key) return { scope: p2, key };
+  }
+  return null;
 }
 async function shutdownServe() {
   await shutdownSessions();
@@ -59579,49 +59586,52 @@ async function startServe(opts) {
       })();
     }, 3e4);
   }
+  const cfgPath = path11.join(os2.homedir(), ".zcode", "cli", "config.json");
+  const checkDisabled = async () => {
+    const by = pluginDisabledBy(cfgPath);
+    if (!by) return false;
+    console.log(`serve: plugin disabled in ZCode (${by.scope} :: ${by.key}) \u2014 restoring default appearance and exiting`);
+    await shutdownServe().catch(() => void 0);
+    process.exit(0);
+  };
+  await checkDisabled();
+  let disableDebounce;
+  const onCfgDirEvent = (_event, file2) => {
+    if (file2 !== "config.json") return;
+    clearTimeout(disableDebounce);
+    disableDebounce = setTimeout(() => void checkDisabled(), 250);
+  };
+  const armWatch = (dir) => {
+    try {
+      const w = fs16.watch(dir, onCfgDirEvent);
+      w.on("error", () => {
+        try {
+          w.close();
+        } catch {
+        }
+      });
+    } catch {
+    }
+  };
+  const watchedDirs = /* @__PURE__ */ new Set([path11.dirname(cfgPath)]);
+  setInterval(() => {
+    for (const ws of activeWorkspaceDirs()) {
+      const dir = path11.join(ws, ".zcode");
+      if (!watchedDirs.has(dir)) {
+        watchedDirs.add(dir);
+        armWatch(dir);
+      }
+    }
+    void checkDisabled();
+  }, 5e3);
   if (process.env.ZW_EARLY === "1") {
     let hostSeen = false;
     let lastHostAlive = 0;
     const startedAt = Date.now();
     let zcodeSeenAt = 0;
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
-    const cfgPath = path11.join(os2.homedir(), ".zcode", "cli", "config.json");
-    const checkDisabled = async () => {
-      if (!pluginDisabledAnywhere(cfgPath)) return false;
-      console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
-      await shutdownServe().catch(() => void 0);
-      process.exit(0);
-    };
-    await checkDisabled();
-    let disableDebounce;
-    const onCfgDirEvent = (_event, file2) => {
-      if (file2 !== "config.json") return;
-      clearTimeout(disableDebounce);
-      disableDebounce = setTimeout(() => void checkDisabled(), 250);
-    };
-    const armWatch = (dir) => {
-      try {
-        const w = fs16.watch(dir, onCfgDirEvent);
-        w.on("error", () => {
-          try {
-            w.close();
-          } catch {
-          }
-        });
-      } catch {
-      }
-    };
-    const watchedDirs = /* @__PURE__ */ new Set([path11.dirname(cfgPath)]);
     setInterval(() => {
       void (async () => {
-        for (const ws of activeWorkspaceDirs()) {
-          const dir = path11.join(ws, ".zcode");
-          if (!watchedDirs.has(dir)) {
-            watchedDirs.add(dir);
-            armWatch(dir);
-          }
-        }
-        if (await checkDisabled()) return;
         const zcode = await isZcodeProcessRunning2().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
         const now = Date.now();
@@ -70233,7 +70243,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.4.4"
+  version: "0.4.5"
 });
 var TOOL_NAMES = [
   "set_background",
