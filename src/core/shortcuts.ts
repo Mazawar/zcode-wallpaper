@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileP as exec } from "./exec.js";
+import { dataDir } from "./launch.js";
 
 export interface ShortcutSyncResult {
   /** Shortcuts that gained the flag this run. */
@@ -116,23 +117,29 @@ try {
   return result;
 }
 
-/** Where the generated wrapper lives: next to the plugin's dist/cli.js,
- *  located by probing upward (tsc layout, bundle layout, cache installs). */
-function discoverLauncher(): { vbs: string; meta: string } {
+/**
+ * Where the generated wrapper lives. The data dir (~/.zcode/.../data/
+ * zcode-wallpaper/) is stable across plugin reinstalls and never dirties the
+ * plugin/repo directory; the cli.js path is discovered by probing upward from
+ * this module (tsc layout, bundle layout, cache installs).
+ */
+function discoverLauncher(): { vbs: string; meta: string; root: string } {
   let dir = path.dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 6; i++) {
     if (fs.existsSync(path.join(dir, "dist", "cli.js"))) break;
     dir = path.dirname(dir);
   }
-  return { vbs: path.join(dir, "zw-launch.vbs"), meta: path.join(dir, "zw-launch.json") };
+  const home = dataDir();
+  fs.mkdirSync(home, { recursive: true });
+  return { vbs: path.join(home, "zw-launch.vbs"), meta: path.join(home, "zw-launch.json"), root: dir };
 }
 
 /** Writes zw-launch.vbs (+ meta json). The ZCode path comes from the user's
  *  own shortcut (discovered per machine — nothing hardcoded); node is the
  *  process running the plugin right now. Idempotent. */
-function writeEarlyLaunchWrapper(port: number, zcode: string, launcher: { vbs: string; meta: string }): void {
+function writeEarlyLaunchWrapper(port: number, zcode: string, launcher: { vbs: string; meta: string; root: string }): void {
   const anti = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"];
-  const cli = path.join(path.dirname(launcher.vbs), "dist", "cli.js");
+  const cli = path.join(launcher.root, "dist", "cli.js");
   const node = process.execPath;
   if (!fs.existsSync(cli) || !fs.existsSync(node)) return;
   // VBS string literals double every embedded quote; sh.Run takes a full

@@ -6,3 +6,7 @@ reference/
 .zcode/
 .DS_Store
 serve.log
+scripts/_*
+shot.jpg
+zw-launch.vbs
+zw-launch.json
