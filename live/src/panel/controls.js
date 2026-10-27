@@ -209,7 +209,7 @@ export function ensurePaintStyle(marker) {
   st.id = marker + "-paint-style";
   st.textContent =
     `#${marker} .zw-paint{border:1px solid var(--color-border,#ffffff1a);border-radius:8px;padding:3px;display:inline-flex;gap:4px;flex-wrap:wrap;row-gap:2px;}` +
-    `#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;width:100%;gap:2px;}` +
+    `#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;gap:2px;}` +
     `#${marker} .zw-paint>button{padding:0 12px;border-radius:6px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}` +
     `#${marker} .zw-paint[data-fill="1"]>button{flex:1 1 0;padding:0 8px;}` +
     `#${marker} .zw-paint>button:hover{color:var(--color-foreground,#eee);}` +
@@ -220,7 +220,14 @@ export function ensurePaintStyle(marker) {
 }
 export function makeSeg(options, value, onChange, key, fill) {
   const wrap = el("div", "zw-paint");
-  if (fill) wrap.dataset.fill = "1";
+  if (fill) {
+    wrap.dataset.fill = "1";
+    // Stretch across the prow's control column (auto width would size to
+    // content). NEVER put this in the shared CSS: the tab bar is also
+    // [data-fill] but carries margins — width:100% there overflowed the card
+    // by the margin width (0.4.9-0.4.12 regression).
+    wrap.style.width = "100%";
+  }
   wrap.setAttribute("role", "radiogroup");
   if (key) wrap.setAttribute("data-k", key);
   wrap.setAttribute("data-value", String(value));

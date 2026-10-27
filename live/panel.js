@@ -169,12 +169,15 @@
     if (document.getElementById(marker + "-paint-style")) return;
     const st = document.createElement("style");
     st.id = marker + "-paint-style";
-    st.textContent = `#${marker} .zw-paint{border:1px solid var(--color-border,#ffffff1a);border-radius:8px;padding:3px;display:inline-flex;gap:4px;flex-wrap:wrap;row-gap:2px;}#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;width:100%;gap:2px;}#${marker} .zw-paint>button{padding:0 12px;border-radius:6px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}#${marker} .zw-paint[data-fill="1"]>button{flex:1 1 0;padding:0 8px;}#${marker} .zw-paint>button:hover{color:var(--color-foreground,#eee);}#${marker} .zw-paint>button[data-active="1"]{background:var(--color-input,#2b2b2b);color:var(--color-foreground,#eee);font-weight:500;box-shadow:inset 0 0 0 1px var(--color-input-border,#ffffff33)!important;}#${marker} .zw-paint>button:focus{outline:none;}#${marker} .zw-paint>button:focus-visible{box-shadow:inset 0 0 0 1px var(--color-primary,#7aa2f7)!important;}`;
+    st.textContent = `#${marker} .zw-paint{border:1px solid var(--color-border,#ffffff1a);border-radius:8px;padding:3px;display:inline-flex;gap:4px;flex-wrap:wrap;row-gap:2px;}#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;gap:2px;}#${marker} .zw-paint>button{padding:0 12px;border-radius:6px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}#${marker} .zw-paint[data-fill="1"]>button{flex:1 1 0;padding:0 8px;}#${marker} .zw-paint>button:hover{color:var(--color-foreground,#eee);}#${marker} .zw-paint>button[data-active="1"]{background:var(--color-input,#2b2b2b);color:var(--color-foreground,#eee);font-weight:500;box-shadow:inset 0 0 0 1px var(--color-input-border,#ffffff33)!important;}#${marker} .zw-paint>button:focus{outline:none;}#${marker} .zw-paint>button:focus-visible{box-shadow:inset 0 0 0 1px var(--color-primary,#7aa2f7)!important;}`;
     (document.head || document.documentElement).appendChild(st);
   }
   function makeSeg(options, value, onChange, key, fill) {
     const wrap = el("div", "zw-paint");
-    if (fill) wrap.dataset.fill = "1";
+    if (fill) {
+      wrap.dataset.fill = "1";
+      wrap.style.width = "100%";
+    }
     wrap.setAttribute("role", "radiogroup");
     if (key) wrap.setAttribute("data-k", key);
     wrap.setAttribute("data-value", String(value));
@@ -536,7 +539,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "0.4.12";
+    const PANEL_VERSION = false ? "dev" : "0.4.13";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
