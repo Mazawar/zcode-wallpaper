@@ -58,9 +58,9 @@
   var LEDGER_TICK_MS = 1e3;
   var LEDGER_STALL_TICKS = 8;
   var LEDGER_CAP_MS = 6e4;
-  var FIRST_FRAME_BASE_MS = 4e3;
+  var FIRST_FRAME_BASE_MS = 12e3;
   var FIRST_FRAME_BYTES_PER_MS = 2048;
-  var FIRST_FRAME_CAP_MS = 25e3;
+  var FIRST_FRAME_CAP_MS = 4e4;
   var SOFT_RETRY_LIMIT = 2;
   var SOFT_RETRY_DELAY_MS = 4e3;
   var TRANSITION_HISTORY = 200;
@@ -69,8 +69,8 @@
     return Math.min(FIRST_FRAME_CAP_MS, FIRST_FRAME_BASE_MS + totalBytes / FIRST_FRAME_BYTES_PER_MS);
   }
   function classifyFailure({ bytesComplete, stallTicks }) {
-    if (stallTicks < LEDGER_STALL_TICKS) return null;
-    return bytesComplete ? "renderer" : "transfer";
+    if (!bytesComplete && stallTicks >= LEDGER_STALL_TICKS) return "transfer";
+    return null;
   }
   function createMachine(onEvent) {
     let kind = KIND.NONE;
@@ -186,11 +186,16 @@
         if (d.zwEvent === "hb2") rec("ENGINE", "fps=" + d.fps + " paused=" + d.paused + " poster=" + d.poster);
         else rec("MSG", d.zwEvent + (d.message ? " " + String(d.message).slice(0, 80) : ""));
       });
+      let lastSnap = "";
       reg.every(function() {
         const st = document.getElementById(MARKER + "-style");
         const lv = document.getElementById(MARKER + "-live");
         const bd = document.getElementById(MARKER + "-backdrop");
-        rec("SNAP", "css=" + (st ? st.textContent.length : 0) + " live=" + (lv ? getComputedStyle(lv).opacity : "-") + " bd=" + (bd ? bd.dataset.on : "-"));
+        const line = "css=" + (st ? st.textContent.length : 0) + " live=" + (lv ? getComputedStyle(lv).opacity : "-") + " bd=" + (bd ? bd.dataset.on : "-");
+        if (line !== lastSnap) {
+          lastSnap = line;
+          rec("SNAP", line);
+        }
       }, 3e3);
       reg.on(window, "error", function(e) {
         rec("PAGEERR", (e.message || "") + " @" + (e.lineno || 0));
@@ -752,11 +757,12 @@
         } else {
           stallTicks++;
         }
-        const now = Date.now();
-        const verdict = classifyFailure({ bytesComplete: d.bytes >= d.total, stallTicks });
-        if (verdict === "renderer" || now - startedAt > Math.max(budgetMs, LEDGER_CAP_MS)) {
+        const stalled = classifyFailure({ bytesComplete: d.bytes >= d.total, stallTicks });
+        const budgetSpent = Date.now() - startedAt > Math.max(budgetMs, LEDGER_CAP_MS);
+        if (stalled === "transfer" || budgetSpent) {
           stop();
-          onVerdict(verdict === "renderer" ? "renderer" : "transfer");
+          const complete = d.bytes >= d.total;
+          onVerdict(budgetSpent ? complete ? "renderer" : "transfer" : "transfer");
         }
       }).catch(function() {
       });

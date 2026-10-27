@@ -191,10 +191,10 @@ function freezeFrame() {
   try {
     const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
     if (c && c.width) {
-      // 0.92: the frozen cover must read as the same picture as the live
+      // 0.95: the frozen cover must read as the same picture as the live
       // canvas — lower JPEG quality read as a visible "darker, muddier" flash
       // whenever a pause/resume cycle uncovered it.
-      host.style.background = `#000 url("${c.toDataURL("image/jpeg", 0.92)}") center / cover no-repeat`;
+      host.style.background = `#000 url("${c.toDataURL("image/jpeg", 0.95)}") center / cover no-repeat`;
     }
   } catch {
     // tainted canvas — leave whatever background is already there
@@ -349,8 +349,12 @@ setInterval(function () {
 // to the host page's flight recorder. Black-box evidence: after boot the
 // engine can drop to fps=0 for a few seconds while NOT paused (a warm-up
 // stall) — the canvas goes transparent and the screen reads as dead until
-// frames resume. Two consecutive zero-fps beacons FREEZE the last rendered
-// frame over the stall; resumed frames uncover it. Stalls become invisible.
+// frames resume. Four consecutive zero-fps beacons (8s) FREEZE the last
+// rendered frame over the stall; resumed frames uncover it. Stalls become
+// invisible. (2 ticks / 4s was too eager: opening the Settings page janks
+// the shared main thread long enough to trip it — the long-standing
+// "click settings, screen darkens then brightens" flash was exactly this
+// cover engaging on a transient stall.)
 let zeroFpsTicks = 0;
 setInterval(() => {
   try {
@@ -368,7 +372,7 @@ setInterval(() => {
       if (frozen) doResume(false);
       return;
     }
-    if (++zeroFpsTicks >= 2 && framesSeen >= 3) freezeFrame();
+    if (++zeroFpsTicks >= 4 && framesSeen >= 3) freezeFrame();
   } catch {
     /* parent gone */
   }

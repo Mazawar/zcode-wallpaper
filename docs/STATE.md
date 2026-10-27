@@ -23,10 +23,11 @@
 装载期（`live/loading`）每 `LEDGER_TICK_MS` 轮询 serve 账本（`GET /api/transfer`）：
 
 - 字节仍在涨 → 重置停滞计数（正在下载 ≠ 渲染不出来）；
-- 字节停涨 ≥ `LEDGER_STALL_TICKS` 或总时超 `LEDGER_CAP_MS` → 判定，规则：
-  - 传输未完成 → **软失败**（`transfer`）：会话内冷却 `SOFT_RETRY_DELAY_MS` 后重试，
-    上限 `SOFT_RETRY_LIMIT` 次；耗尽即升级硬失败；
-  - 传输已完成但引擎未报 ready → **硬失败**（`renderer`）。
+- **传输停涨且未完成** ≥ `LEDGER_STALL_TICKS` → **软失败**（`transfer`）：会话内冷却
+  `SOFT_RETRY_DELAY_MS` 后重试，上限 `SOFT_RETRY_LIMIT` 次；耗尽即升级硬失败；
+- **传输已完成但引擎未报 ready**：**不因停滞计数判死**——装配（shader/纹理/粒子）
+  在交付后可合法耗时数秒以上；只有**总预算耗尽**（`max(firstFrameBudget, LEDGER_CAP)`）
+  才判硬失败（`renderer`）。0.4.0 曾以 8 拍停滞冤杀装配期场景（切换卡静态页），此即修正。
 - 硬失败：`POST /api/live-verdict` 落盘（serve 端 `livefail.ts`），此后 payload 构建对
   该源 **不放 liveSrc**、保留 livePoster、附 `liveFailed: {reason, at}`——页面停在
   poster 相位并在面板显示原因与「重试」按钮（`POST /api/live-retry` 清记忆重推）。

@@ -100,9 +100,13 @@ export function entryPhase(kind, hasPoster) {
 export const LEDGER_TICK_MS = 1000;
 export const LEDGER_STALL_TICKS = 8;
 export const LEDGER_CAP_MS = 60000;
-export const FIRST_FRAME_BASE_MS = 4000;
+// The first-frame budget covers transfer AND assembly (shader compile,
+// textures, particle systems — a delivered scene can legitimately take many
+// seconds before its first frame). Bytes-complete says nothing yet; only the
+// overall budget may rule a complete transfer a renderer failure.
+export const FIRST_FRAME_BASE_MS = 12000;
 export const FIRST_FRAME_BYTES_PER_MS = 2048;
-export const FIRST_FRAME_CAP_MS = 25000;
+export const FIRST_FRAME_CAP_MS = 40000;
 export const SOFT_RETRY_LIMIT = 2;
 export const SOFT_RETRY_DELAY_MS = 4000;
 export const SWITCH_CAP_MS = 10000;
@@ -116,14 +120,18 @@ export function firstFrameBudgetMs(totalBytes) {
 }
 
 /**
- * Ledger verdict: is this activation failing, and if so how hard?
- *   "transfer"  — bytes still incomplete → SOFT (session retry, capped)
- *   "renderer"  — transfer complete, engine never signaled → HARD
- *   null        — keep waiting
+ * Ledger verdict at a tick:
+ *   "transfer" — bytes STATIC and INCOMPLETE for LEDGER_STALL_TICKS: the
+ *                download itself is stuck → SOFT (session retry, capped)
+ *   null       — keep waiting. A COMPLETE but silent transfer is NOT a
+ *                failure here: assembly takes unbounded seconds after
+ *                delivery; only the overall budget (caller) may rule it a
+ *                renderer failure. (0.4.0 killed assembling scenes at 8s —
+ *                "switch stuck on a static poster" — before this split.)
  */
 export function classifyFailure({ bytesComplete, stallTicks }) {
-  if (stallTicks < LEDGER_STALL_TICKS) return null;
-  return bytesComplete ? "renderer" : "transfer";
+  if (!bytesComplete && stallTicks >= LEDGER_STALL_TICKS) return "transfer";
+  return null;
 }
 
 // ── the machine ─────────────────────────────────────────────────────────────

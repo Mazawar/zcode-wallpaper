@@ -39,12 +39,19 @@ export function createRecorder(reg) {
       else rec("MSG", d.zwEvent + (d.message ? " " + String(d.message).slice(0, 80) : ""));
     });
     // Periodic state snapshot: silent changes (css rewrites, style attr churn)
-    // leave no mutation trail — poll the invariants.
+    // leave no mutation trail — poll the invariants. Only CHANGES are recorded:
+    // an unconditional 3s entry floods the 800-slot ring in 40 minutes and
+    // evicts the very transitions an incident review needs.
+    let lastSnap = "";
     reg.every(function () {
       const st = document.getElementById(MARKER + "-style");
       const lv = document.getElementById(MARKER + "-live");
       const bd = document.getElementById(MARKER + "-backdrop");
-      rec("SNAP", "css=" + (st ? st.textContent.length : 0) + " live=" + (lv ? getComputedStyle(lv).opacity : "-") + " bd=" + (bd ? bd.dataset.on : "-"));
+      const line = "css=" + (st ? st.textContent.length : 0) + " live=" + (lv ? getComputedStyle(lv).opacity : "-") + " bd=" + (bd ? bd.dataset.on : "-");
+      if (line !== lastSnap) {
+        lastSnap = line;
+        rec("SNAP", line);
+      }
     }, 3000);
     reg.on(window, "error", function (e) { rec("PAGEERR", (e.message || "") + " @" + (e.lineno || 0)); });
   } catch (e) { /* never break the runtime */ }

@@ -44,11 +44,16 @@ export function createLedger({ apiBase, rec, onVerdict }) {
       } else {
         stallTicks++;
       }
-      const now = Date.now();
-      const verdict = classifyFailure({ bytesComplete: d.bytes >= d.total, stallTicks });
-      if (verdict === "renderer" || now - startedAt > Math.max(budgetMs, LEDGER_CAP_MS)) {
+      // Two ways to give up (docs/STATE.md): a STUCK TRANSFER (static and
+      // incomplete) fails soft at LEDGER_STALL_TICKS; a complete-but-silent
+      // transfer is only ruled a renderer failure when the OVERALL first-frame
+      // budget is spent — assembly after delivery takes unbounded seconds.
+      const stalled = classifyFailure({ bytesComplete: d.bytes >= d.total, stallTicks });
+      const budgetSpent = Date.now() - startedAt > Math.max(budgetMs, LEDGER_CAP_MS);
+      if (stalled === "transfer" || budgetSpent) {
         stop();
-        onVerdict(verdict === "renderer" ? "renderer" : "transfer");
+        const complete = d.bytes >= d.total;
+        onVerdict(budgetSpent ? (complete ? "renderer" : "transfer") : "transfer");
       }
     }).catch(function () {
       // Serve briefly unreachable (busy loop): tolerate, keep polling; the

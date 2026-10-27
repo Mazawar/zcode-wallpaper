@@ -92,8 +92,11 @@ ok(waits === SOFT_RETRY_LIMIT, `scheduleSoftRetry allowed ${waits} retries, expe
 ok(m2.scheduleSoftRetry() === null, "soft retries must run out");
 
 // ── 4. failure policy ────────────────────────────────────────────────────────
+// A STUCK TRANSFER (static + incomplete) fails soft at the stall threshold;
+// a COMPLETE but silent transfer is NOT a failure here — assembly after
+// delivery takes unbounded seconds, only the overall budget rules it.
 ok(classifyFailure({ bytesComplete: false, stallTicks: LEDGER_STALL_TICKS }) === "transfer", "static incomplete transfer ⇒ transfer");
-ok(classifyFailure({ bytesComplete: true, stallTicks: LEDGER_STALL_TICKS }) === "renderer", "complete but silent ⇒ renderer");
+ok(classifyFailure({ bytesComplete: true, stallTicks: LEDGER_STALL_TICKS * 3 }) === null, "complete + silent ⇒ keep waiting (assembly, budget decides)");
 ok(classifyFailure({ bytesComplete: false, stallTicks: LEDGER_STALL_TICKS - 1 }) === null, "still moving ⇒ no verdict");
 ok(firstFrameBudgetMs(0) === FIRST_FRAME_BASE_MS, "zero-size budget = base");
 ok(firstFrameBudgetMs(10e9) === FIRST_FRAME_CAP_MS, "budget must cap");
