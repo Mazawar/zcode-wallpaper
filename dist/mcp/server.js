@@ -55607,7 +55607,7 @@ function buildPanelScript(apiPort) {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(\u5916\u89C2|Appearance)$/;
   var PAGE_SIZE = 16;
-  var V = 29;
+  var V = 30;
   // NOTE: bump V on EVERY deployed change (even content-only edits) \u2014 a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -55928,6 +55928,21 @@ function buildPanelScript(apiPort) {
   function pushConfig(patch) {
     post('/api/config', patch).catch(function () {});
   }
+  // Debounced+merged push for slider drags: 'input' fires at pointer
+  // frequency and every undebounced push costs the serve a CDP evaluate \u2014
+  // a drag used to storm the queue and freeze the UI until it drained.
+  var soonTimer = null;
+  var soonPatch = {};
+  function pushConfigSoon(patch) {
+    for (var k in patch) soonPatch[k] = patch[k];
+    if (soonTimer) return;
+    soonTimer = setTimeout(function () {
+      soonTimer = null;
+      var body = soonPatch;
+      soonPatch = {};
+      pushConfig(body);
+    }, 180);
+  }
 
   // Transient feedback (2.5s, auto-dismiss) \u2014 the library has no permanent
   // status line; failures would otherwise be completely silent.
@@ -56027,7 +56042,13 @@ function buildPanelScript(apiPort) {
       name.style.cssText = 'position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;color:#fff;font-size:12px;' +
         'background:linear-gradient(transparent,rgba(0,0,0,.78));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       card.appendChild(name);
+      var lastApply = 0;
       card.addEventListener('click', function () {
+        // Rapid card clicks queue heavy scene loads on the engine \u2014 swallow
+        // anything within 600ms of the last one (a drag over cards should
+        // not fire a dozen loads).
+        if (Date.now() - lastApply < 600) return;
+        lastApply = Date.now();
         post('/api/apply-source', { sourceId: w.id }).then(function (r) {
           if (!r.error) refresh();
         }).catch(function () {});
@@ -59746,12 +59767,17 @@ async function pushConfigToSessions(config2, allowDecode = true) {
   let ok = 0;
   for (const [id, session] of held) {
     try {
-      if (session.themeScriptId) {
-        await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
-        });
-      }
-      session.themeScriptId = await registerScript(session, bootstrap);
       await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+      void (async () => {
+        try {
+          if (session.themeScriptId) {
+            await session.conn.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId }).catch(() => {
+            });
+          }
+          session.themeScriptId = await registerScript(session, bootstrap);
+        } catch {
+        }
+      })();
       await session.conn.send("Runtime.evaluate", {
         expression: "if (window.__zwPanelRefresh) window.__zwPanelRefresh()",
         returnByValue: true

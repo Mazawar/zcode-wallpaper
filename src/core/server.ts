@@ -503,13 +503,25 @@ async function pushConfigToSessions(config: BeautifyConfig, allowDecode = true):
   let ok = 0;
   for (const [id, session] of held) {
     try {
-      if (session.themeScriptId) {
-        await session.conn
-          .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId })
-          .catch(() => {});
-      }
-      session.themeScriptId = await registerScript(session, bootstrap);
+      // Evaluate FIRST — it is the user-visible effect and must not queue
+      // behind anything. The new-document registration only matters for page
+      // reloads, so re-register out-of-band: during a slider drag the panel
+      // fires pushes at pointer frequency, and the remove+register round
+      // trips (which the page never sees) were saturating the CDP queue and
+      // freezing the UI until it drained.
       await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
+      void (async () => {
+        try {
+          if (session.themeScriptId) {
+            await session.conn
+              .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.themeScriptId })
+              .catch(() => {});
+          }
+          session.themeScriptId = await registerScript(session, bootstrap);
+        } catch {
+          /* registration is best-effort; heal re-registers */
+        }
+      })();
       // The panel reads config once at mount; keep its badge/library in sync
       // with this push. Missing panel (older build) degrades silently.
       await session.conn

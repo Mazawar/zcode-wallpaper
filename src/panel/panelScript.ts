@@ -28,7 +28,7 @@ export function buildPanelScript(apiPort: number): string {
   var LEGACY_IDS = ['zcode-wallpaper-settings', 'zcode-wallpaper-settings-2'];
   var H2_TEXT = /^(外观|Appearance)$/;
   var PAGE_SIZE = 16;
-  var V = 29;
+  var V = 30;
   // NOTE: bump V on EVERY deployed change (even content-only edits) — a same-
   // version redeploy is a no-op on a live page (flag already set), and the
   // older registration keeps running with the stale logic.
@@ -349,6 +349,21 @@ export function buildPanelScript(apiPort: number): string {
   function pushConfig(patch) {
     post('/api/config', patch).catch(function () {});
   }
+  // Debounced+merged push for slider drags: 'input' fires at pointer
+  // frequency and every undebounced push costs the serve a CDP evaluate —
+  // a drag used to storm the queue and freeze the UI until it drained.
+  var soonTimer = null;
+  var soonPatch = {};
+  function pushConfigSoon(patch) {
+    for (var k in patch) soonPatch[k] = patch[k];
+    if (soonTimer) return;
+    soonTimer = setTimeout(function () {
+      soonTimer = null;
+      var body = soonPatch;
+      soonPatch = {};
+      pushConfig(body);
+    }, 180);
+  }
 
   // Transient feedback (2.5s, auto-dismiss) — the library has no permanent
   // status line; failures would otherwise be completely silent.
@@ -448,7 +463,13 @@ export function buildPanelScript(apiPort: number): string {
       name.style.cssText = 'position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;color:#fff;font-size:12px;' +
         'background:linear-gradient(transparent,rgba(0,0,0,.78));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       card.appendChild(name);
+      var lastApply = 0;
       card.addEventListener('click', function () {
+        // Rapid card clicks queue heavy scene loads on the engine — swallow
+        // anything within 600ms of the last one (a drag over cards should
+        // not fire a dozen loads).
+        if (Date.now() - lastApply < 600) return;
+        lastApply = Date.now();
         post('/api/apply-source', { sourceId: w.id }).then(function (r) {
           if (!r.error) refresh();
         }).catch(function () {});
