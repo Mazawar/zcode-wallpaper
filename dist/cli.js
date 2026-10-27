@@ -52529,6 +52529,7 @@ async function getAssets(config, allowDecode = true) {
   try {
     const assets = await loadWallpaper(sourcePath);
     cachedAssets = { file: sourcePath, mtimeMs, assets };
+    lastGoodAssets = assets;
     return assets;
   } catch {
     return void 0;
@@ -52749,7 +52750,7 @@ async function registerScript(session, source) {
   return identifier;
 }
 async function buildBootstrapFor(config, allowDecode = false) {
-  const assets = await getAssets(config, allowDecode);
+  const assets = await getAssets(config, allowDecode) ?? lastGoodAssets;
   const payload = buildPayload(config, assets, {
     liveUrl: buildLiveUrl(config)
   });
@@ -53022,6 +53023,7 @@ async function startServe(opts) {
         const dest = path7.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
         fs10.writeFileSync(dest, bytes);
         cachedAssets = { file: dest, mtimeMs: fs10.statSync(dest).mtimeMs, assets: await loadWallpaper(dest) };
+        lastGoodAssets = cachedAssets.assets;
         const next = {
           ...config,
           mediaType: "image",
@@ -53446,7 +53448,7 @@ async function startServe(opts) {
     }
   }
 }
-var POLL_MS, MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, serveLog, pluginRoot, cachedAssets, held, IMAGE_EXT, activeServer;
+var POLL_MS, MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, serveLog, pluginRoot, cachedAssets, held, lastGoodAssets, IMAGE_EXT, activeServer;
 var init_server = __esm({
   "src/core/server.ts"() {
     "use strict";

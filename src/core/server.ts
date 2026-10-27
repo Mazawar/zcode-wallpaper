@@ -131,6 +131,7 @@ async function getAssets(config: BeautifyConfig, allowDecode = true): Promise<Wa
   try {
     const assets = await loadWallpaper(sourcePath);
     cachedAssets = { file: sourcePath, mtimeMs, assets };
+    lastGoodAssets = assets;
     return assets;
   } catch {
     return undefined; // undecodable source: inject without Monet rather than not at all
@@ -436,8 +437,16 @@ async function registerScript(session: HeldSession, source: string): Promise<str
   return identifier;
 }
 
+// Last successfully decoded palette, independent of which source it came
+// from. A switch's instant first push can't have the NEW wallpaper decoded
+// yet — falling back to this keeps the transparency overrides (old colors)
+// in that push instead of shipping bare css that the opaque UI covers the
+// screen with for a moment. dsh gets the same atomicity by recoloring
+// client-side together with the layer swap.
+let lastGoodAssets: WallpaperAssets | undefined;
+
 async function buildBootstrapFor(config: BeautifyConfig, allowDecode = false): Promise<string> {
-  const assets = await getAssets(config, allowDecode);
+  const assets = (await getAssets(config, allowDecode)) ?? lastGoodAssets;
   const payload: BuiltPayload = buildPayload(config, assets, {
     liveUrl: buildLiveUrl(config),
   });
@@ -807,6 +816,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
         const dest = path.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
         fs.writeFileSync(dest, bytes);
         cachedAssets = { file: dest, mtimeMs: fs.statSync(dest).mtimeMs, assets: await loadWallpaper(dest) };
+        lastGoodAssets = cachedAssets.assets;
         const next: BeautifyConfig = {
           ...config,
           mediaType: "image",
