@@ -379,6 +379,47 @@ function buildBootstrapScript(payload) {
   }
   applyLive(LIVE_SRC);
 
+  // --- auto-heal opaque surfaces (Zgd03 model) -----------------------------
+  // ZCode updates rename internal classes; our copied-class overrides then
+  // miss and opaque cards cover the wallpaper (the recurring bare-css bug
+  // class). Version-proof DOM-level fallback: scan bg-background surfaces,
+  // force-translucent any opaque one covering >=30% of the viewport (skips
+  // dialogs/menus/popovers), mark with an attr, recycle marks when layouts
+  // change, and report additions to the flight recorder.
+  if (!S.autoHeal) {
+    S.autoHeal = true;
+    var WP_AUTO = "data-zw-auto";
+    var wpHeal = function () {
+      try {
+        var vp = window.innerWidth * window.innerHeight;
+        var nodes = document.querySelectorAll("[class*=bg-background]");
+        var keep = [];
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          if (n.closest("[role=dialog],[role=menu],[role=listbox],[data-radix-popper-content-wrapper]")) continue;
+          var r = n.getBoundingClientRect();
+          if (r.width * r.height < vp * 0.3) continue;
+          var bg = getComputedStyle(n).backgroundColor;
+          var opaque = !(bg === "transparent" || bg === "rgba(0, 0, 0, 0)");
+          if (!n.hasAttribute(WP_AUTO) && !opaque) continue;
+          keep.push(n);
+        }
+        var marked = document.querySelectorAll("[" + WP_AUTO + "]");
+        for (var m = 0; m < marked.length; m++) {
+          if (keep.indexOf(marked[m]) === -1) marked[m].removeAttribute(WP_AUTO);
+        }
+        var added = 0;
+        for (var k = 0; k < keep.length; k++) {
+          if (!keep[k].hasAttribute(WP_AUTO)) { keep[k].setAttribute(WP_AUTO, ""); added++; }
+          keep[k].style.setProperty("background-color", "var(--color-background)", "important");
+        }
+        if (added > 0) window.__zwRec && window.__zwRec("AUTOHEAL", added + " surface(s)");
+      } catch (e) { /* never break the bootstrap */ }
+    };
+    wpHeal();
+    setInterval(wpHeal, 5000);
+  }
+
   // --- loop video layer (dsh's model: a native <video> in the host page) ----
   // Videos never enter the WebGL engine: engine pause clears the WebCodecs
   // canvas and its scheduler fast-forwards on wake. A native element pauses
