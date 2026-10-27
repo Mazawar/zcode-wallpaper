@@ -210,7 +210,7 @@ export function ensurePaintStyle(marker) {
   st.textContent =
     `#${marker} .zw-paint{border:1px solid var(--color-border,#ffffff1a);border-radius:8px;padding:3px;display:inline-flex;gap:4px;flex-wrap:wrap;row-gap:2px;}` +
     `#${marker} .zw-paint[data-fill="1"]{display:flex;flex-wrap:nowrap;width:100%;gap:2px;}` +
-    `#${marker} .zw-paint>button{padding:0 12px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}` +
+    `#${marker} .zw-paint>button{padding:0 12px;border-radius:6px;background:transparent;color:var(--color-foreground-subtle,#999);font-weight:400;box-shadow:none;border:0;outline:none;cursor:pointer;transition:color .15s ease,background-color .15s ease;}` +
     `#${marker} .zw-paint[data-fill="1"]>button{flex:1 1 0;padding:0 8px;}` +
     `#${marker} .zw-paint>button:hover{color:var(--color-foreground,#eee);}` +
     `#${marker} .zw-paint>button[data-active="1"]{background:var(--color-input,#2b2b2b);color:var(--color-foreground,#eee);font-weight:500;box-shadow:inset 0 0 0 1px var(--color-input-border,#ffffff33)!important;}` +
