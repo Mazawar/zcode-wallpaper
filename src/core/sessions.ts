@@ -17,6 +17,7 @@ import {
   type CdpTarget,
 } from "./cdp.js";
 import type { BeautifyConfig } from "./inject.js";
+import { liveFailureOf } from "./livefail.js";
 import { buildRuntimePayload } from "./payload.js";
 
 const POLL_MS = 1500;
@@ -205,7 +206,11 @@ export async function startSessionLoop(
     if (++healTick % 20 !== 0) continue;
     const config = getConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
-    const wantLive = config.wallpaperVisible && config.mediaType === "live";
+    // A hard-failed source is DELIBERATELY downgraded to poster-only with no
+    // engine iframe (D6) — demanding one anyway made every heal tick re-inject
+    // the bootstrap, forever, while the user stared at the poster.
+    const degraded = Boolean(config.live && liveFailureOf(config.live.sourceId));
+    const wantLive = config.wallpaperVisible && config.mediaType === "live" && !degraded;
     const bootstrap = await bootstrapScriptFor(config, apiPort).catch(() => null);
     if (!bootstrap) continue;
     for (const [id, session] of held) {

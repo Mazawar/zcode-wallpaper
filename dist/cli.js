@@ -52140,7 +52140,8 @@ async function startSessionLoop(getConfig, apiPort) {
     if (++healTick % 20 !== 0) continue;
     const config = getConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
-    const wantLive = config.wallpaperVisible && config.mediaType === "live";
+    const degraded = Boolean(config.live && liveFailureOf(config.live.sourceId));
+    const wantLive = config.wallpaperVisible && config.mediaType === "live" && !degraded;
     const bootstrap = await bootstrapScriptFor(config, apiPort).catch(() => null);
     if (!bootstrap) continue;
     for (const [id, session] of held) {
@@ -52177,6 +52178,7 @@ var init_sessions = __esm({
   "src/core/sessions.ts"() {
     "use strict";
     init_cdp();
+    init_livefail();
     init_payload();
     POLL_MS = 1500;
     held = /* @__PURE__ */ new Map();

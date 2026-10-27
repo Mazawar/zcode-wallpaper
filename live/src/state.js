@@ -116,7 +116,6 @@ export const FIRST_FRAME_BYTES_PER_MS = 2048;
 export const FIRST_FRAME_CAP_MS = 40000;
 export const SOFT_RETRY_LIMIT = 2;
 export const SOFT_RETRY_DELAY_MS = 4000;
-export const SWITCH_CAP_MS = 10000;
 export const TRANSITION_HISTORY = 200;
 
 /** First-frame budget from payload size — a wall clock that pretends 300 MB
@@ -218,9 +217,10 @@ export function createMachine(onEvent) {
 // ── watchdog registry (sensors; intervals owned by the agent main) ──────────
 // scope "*" = active in every phase. Intervals are guidance for the agent's
 // scheduler; event-driven sensors name their event source instead.
+// A switch needs no separate cap since 1.0.1: a switch is a fresh engine
+// frame, so the ledger's size-aware budget covers it like any first load.
 export const WATCHDOGS = [
   { id: "ledger", intervalMs: LEDGER_TICK_MS, scope: ["live/loading", "live/switching"] },
-  { id: "switch-cap", intervalMs: SWITCH_CAP_MS, scope: ["live/switching"], once: true },
   { id: "hidden-pause", event: "visibilitychange", scope: "*" },
   { id: "video-kick", intervalMs: 2000, scope: ["video/shown", "video/prep"] },
 ];

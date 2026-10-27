@@ -159,19 +159,20 @@
   // live/src/agent/recorder.js
   var MARKER = "zcode-wallpaper";
   function createRecorder(reg) {
-    if (window.__zwRec) return window.__zwRec;
-    window.__zwLog = [];
-    let lastEntry = "";
-    window.__zwRec = function(tag, d) {
-      try {
-        const line = tag + "|" + (d === void 0 ? "" : String(d));
-        if (line === lastEntry) return;
-        lastEntry = line;
-        window.__zwLog.push({ t: (/* @__PURE__ */ new Date()).toISOString().slice(11, 23), tag, d: d === void 0 ? "" : String(d).slice(0, 160) });
-        if (window.__zwLog.length > 800) window.__zwLog.shift();
-      } catch (e) {
-      }
-    };
+    if (!window.__zwRec) {
+      window.__zwLog = [];
+      let lastEntry = "";
+      window.__zwRec = function(tag, d) {
+        try {
+          const line = tag + "|" + (d === void 0 ? "" : String(d));
+          if (line === lastEntry) return;
+          lastEntry = line;
+          window.__zwLog.push({ t: (/* @__PURE__ */ new Date()).toISOString().slice(11, 23), tag, d: d === void 0 ? "" : String(d).slice(0, 160) });
+          if (window.__zwLog.length > 800) window.__zwLog.shift();
+        } catch (e) {
+        }
+      };
+    }
     const rec = window.__zwRec;
     try {
       const obs = new MutationObserver(function(muts) {
@@ -331,7 +332,15 @@
       const TRANS = opts.trans || "fade";
       const TSPD = opts.tspd || 600;
       api = opts.apiBase || api;
-      if (document.getElementById(MARKER + "-live-next")) promoteNext();
+      const pending = document.getElementById(MARKER + "-live-next");
+      if (pending) {
+        if (src && (pending.getAttribute("src") || "") === src) {
+          applied = src;
+          bridge.start();
+          return "switch";
+        }
+        promoteNext();
+      }
       const cur = document.getElementById(MARKER + "-live");
       if (!src) {
         const holdMs = opts.videoIncoming ? 3e3 : 0;
@@ -359,18 +368,19 @@
         wpRoot().appendChild(first);
         applied = src;
         bridge.start();
-        let settled = false;
+        let settled2 = false;
+        let firstTimer = 0;
         const onFirstReady = function(ev) {
           if (ev.data && ev.data.zwEvent === "ready" && first.contentWindow === ev.source) {
-            settled = true;
+            settled2 = true;
             first.style.opacity = "1";
             window.removeEventListener("message", onFirstReady);
             clearTimeout(firstTimer);
           }
         };
         window.addEventListener("message", onFirstReady);
-        reg.timer(function() {
-          if (!settled) {
+        firstTimer = reg.timer(function() {
+          if (!settled2) {
             first.style.opacity = "1";
             window.removeEventListener("message", onFirstReady);
           }
@@ -390,90 +400,55 @@
         bridge.start();
         return "hot";
       }
-      const oldOverlay = document.getElementById(MARKER + "-fade");
-      if (oldOverlay) oldOverlay.remove();
-      const doLoad = function(overlaySrc) {
-        let overlay = null;
-        if (overlaySrc) {
-          overlay = document.createElement("img");
-          overlay.id = MARKER + "-fade";
-          overlay.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;";
-          overlay.src = overlaySrc;
-          wpRoot().appendChild(overlay);
-          let faded = false;
-          const fadeOut = function() {
-            if (faded) return;
-            faded = true;
-            const t = TSPD + "ms cubic-bezier(.4,0,.2,1)";
-            switch (TRANS) {
-              case "push":
-                overlay.style.transition = "transform " + t;
-                overlay.style.transform = "translateX(100%)";
-                break;
-              case "wipe":
-                overlay.style.transition = "clip-path " + t;
-                overlay.style.clipPath = "inset(0 0 0 100%)";
-                break;
-              case "iris":
-                overlay.style.transition = "clip-path " + t;
-                overlay.style.clipPath = "circle(0% at 50% 50%)";
-                break;
-              case "zoom":
-                overlay.style.transition = "transform " + t + ", opacity " + t;
-                overlay.style.transform = "scale(1.18)";
-                overlay.style.opacity = "0";
-                break;
-              default:
-                overlay.style.transition = "opacity " + t;
-                overlay.style.opacity = "0";
-            }
-            reg.timer(function() {
-              overlay.remove();
-            }, TSPD + 80);
-          };
-          const onReady = function(ev) {
-            if (ev.data && ev.data.zwEvent === "ready" && cur.contentWindow === ev.source) {
-              fadeOut();
-              window.removeEventListener("message", onReady);
-            }
-          };
-          window.addEventListener("message", onReady);
-          reg.timer(fadeOut, 1e4);
+      const next = makeFrame(MARKER + "-live-next", src, "");
+      wpRoot().insertBefore(next, cur);
+      applied = src;
+      bridge.start();
+      let settled = false;
+      const commitSwitch = function() {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener("message", onSwitchReady);
+        clearTimeout(leaveTimer);
+        if (TRANS === "cut") {
+          cur.remove();
+          next.id = MARKER + "-live";
+          return;
         }
-        try {
-          cur.contentWindow.postMessage({ zw: "load", type: b.type, src: b.src, file: b.file || "", fit: b.fit, fps: Number(b.fps) || 30, muted: b.muted, poster: b.poster || "" }, "*");
-        } catch (e) {
+        const t = TSPD + "ms cubic-bezier(.4,0,.2,1)";
+        switch (TRANS) {
+          case "push":
+            cur.style.transition = "transform " + t;
+            cur.style.transform = "translateX(100%)";
+            break;
+          case "wipe":
+            cur.style.transition = "clip-path " + t;
+            cur.style.clipPath = "inset(0 0 0 100%)";
+            break;
+          case "iris":
+            cur.style.transition = "clip-path " + t;
+            cur.style.clipPath = "circle(0% at 50% 50%)";
+            break;
+          case "zoom":
+            cur.style.transition = "transform " + t + ", opacity " + t;
+            cur.style.transform = "scale(1.18)";
+            cur.style.opacity = "0";
+            break;
+          default:
+            cur.style.transition = "opacity " + t;
+            cur.style.opacity = "0";
         }
-        applied = src;
-        bridge.start();
+        reg.timer(function() {
+          cur.remove();
+        }, TSPD + 80);
+        next.id = MARKER + "-live";
       };
-      if (TRANS === "cut") {
-        doLoad("");
-        return "switch";
-      }
-      const posterAbs = b.poster ? api + b.poster : "";
-      let snapped = false;
-      const onSnap = function(ev) {
-        if (snapped || !ev.data || ev.data.zwEvent !== "snap" || !cur.contentWindow || ev.source !== cur.contentWindow) return;
-        snapped = true;
-        window.removeEventListener("message", onSnap);
-        clearTimeout(snapTimer);
-        doLoad(ev.data.dataUrl || posterAbs);
+      const onSwitchReady = function(ev) {
+        if (!ev.data || ev.data.zwEvent !== "ready" || next.contentWindow !== ev.source) return;
+        commitSwitch();
       };
-      const snapTimer = setTimeout(function() {
-        if (snapped) return;
-        snapped = true;
-        window.removeEventListener("message", onSnap);
-        doLoad(posterAbs);
-      }, 700);
-      window.addEventListener("message", onSnap);
-      try {
-        cur.contentWindow.postMessage({ zw: "snapshot" }, "*");
-      } catch (e) {
-        clearTimeout(snapTimer);
-        window.removeEventListener("message", onSnap);
-        doLoad(posterAbs);
-      }
+      window.addEventListener("message", onSwitchReady);
+      const leaveTimer = reg.timer(commitSwitch, 6e4);
       return "switch";
     }
     return {
@@ -707,6 +682,10 @@
     }
     function tick() {
       if (!sourceId) return;
+      if (document.hidden) {
+        startedAt = Date.now();
+        return;
+      }
       const url = apiBase + "/api/transfer?id=" + encodeURIComponent(sourceId);
       fetch(url).then(function(r) {
         return r.json();
@@ -829,7 +808,7 @@
             liveframe.reset();
             machine.fire("RETRY", { hasPoster: false });
             const mode = liveframe.applySrc(LIVE_SRC, { trans: TRANS, tspd: TSPD, apiBase: API });
-            if (mode === "mount") ledger.watch(currentSourceId());
+            if (mode === "mount" || mode === "switch") ledger.watch(currentSourceId());
           }, wait);
           return;
         }
@@ -849,6 +828,13 @@
     createWatchdogs({ reg, machine, video, postAll: bridge.postAll });
     reg.on(window, "message", function(ev) {
       if (!ev.data || !ev.data.zwEvent) return;
+      if (ev.data.zwEvent === "error") {
+        rec("ENGINE", "error " + String(ev.data.message || "").slice(0, 90));
+        if (machine.phase === "live/loading" || machine.phase === "live/switching") {
+          machine.fire("BUDGET_EXHAUSTED", { reason: "engine" });
+        }
+        return;
+      }
       if (ev.data.zwEvent !== "ready") return;
       if (machine.phase === "live/loading") machine.fire("READY");
       else if (machine.phase === "live/switching") machine.fire("SWITCH_READY");
@@ -890,18 +876,23 @@
         wp.remove();
       }
       if (kind === KIND.LIVE && !failedInfo) {
+        if (machine.phase !== "live/loading" && machine.phase !== "live/shown" && machine.phase !== "live/switching") {
+          machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
+        }
         const mode = liveframe.applySrc(LIVE_SRC, { trans: TRANS, tspd: TSPD, apiBase: API, videoIncoming: false });
+        S.appliedLive = liveframe.applied || "";
         if (mode === "mount") {
-          if (machine.phase !== "live/loading" && machine.phase !== "live/shown" && machine.phase !== "live/switching") {
-            machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
-          }
           ledger.watch(currentSourceId());
         } else if (mode === "switch") {
           if (machine.phase !== "live/switching") machine.fire("SWITCH_BEGIN");
-          ledger.watch(currentSourceId());
+          if (machine.phase === "live/switching") ledger.watch(currentSourceId());
         }
       } else if (kind === KIND.LIVE && failedInfo) {
         liveframe.applySrc("", {});
+        S.appliedLive = "";
+      } else if (liveframe.frames().length) {
+        liveframe.applySrc("", { videoIncoming: kind === KIND.VIDEO });
+        S.appliedLive = "";
       }
       if (kind === KIND.VIDEO) {
         video.apply(VIDEO_SRC, { muted: VMUTED, fit: VFIT });

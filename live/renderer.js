@@ -24,7 +24,11 @@ const pageType = (params.get("type") || "scene").toLowerCase();
 const pageSrc = params.get("src") || "";
 const FITS = new Set(["cover", "contain", "stretch"]);
 const fitOf = (v) => (FITS.has(v) ? v : "cover");
-const volume = params.get("muted") === "0" ? 1 : 0;
+// MUST stay reassignable: the {zw:"load"} handler updates it on a source
+// switch. Declaring it const made that handler throw (assignment to constant)
+// inside its try/catch — every host-driven switch was silently swallowed and
+// the wallpaper never changed (1.0.0 "switching does nothing").
+let volume = params.get("muted") === "0" ? 1 : 0;
 
 const host = document.getElementById("wp");
 

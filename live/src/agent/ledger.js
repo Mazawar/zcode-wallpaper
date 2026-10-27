@@ -30,6 +30,15 @@ export function createLedger({ apiBase, rec, onVerdict }) {
 
   function tick() {
     if (!sourceId) return;
+    if (document.hidden) {
+      // A hidden page cannot produce frames (rAF is throttled) — "no ready
+      // yet" is not a renderer failure while hidden. Freeze the budget clock
+      // and the stall counter; they resume when the page shows again. (A
+      // switch picked while the window was in the background used to burn
+      // its whole budget unseen and arrive at a false renderer verdict.)
+      startedAt = Date.now();
+      return;
+    }
     const url = apiBase + "/api/transfer?id=" + encodeURIComponent(sourceId);
     fetch(url).then(function (r) { return r.json(); }).then(function (d) {
       if (!d || typeof d.bytes !== "number" || !timer) return;

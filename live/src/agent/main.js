@@ -84,10 +84,12 @@ import { createLedger } from "./ledger.js";
         rec("LIVEFAIL", "soft (transfer) — retry in " + wait + "ms");
         reg.timer(function () {
           if (machine.phase !== "live/failed") return;
-          liveframe.reset(); // force the mount path, not an in-place no-op
+          liveframe.reset(); // force a fresh comparison, not a hot no-op
           machine.fire("RETRY", { hasPoster: false });
           const mode = liveframe.applySrc(LIVE_SRC, { trans: TRANS, tspd: TSPD, apiBase: API });
-          if (mode === "mount") ledger.watch(currentSourceId());
+          // reset() with the old frame still in the DOM makes the retry a
+          // fresh-frame SWITCH — the budget must cover that path too.
+          if (mode === "mount" || mode === "switch") ledger.watch(currentSourceId());
         }, wait);
         return;
       }
@@ -106,9 +108,19 @@ import { createLedger } from "./ledger.js";
 
   createWatchdogs({ reg, machine, video, postAll: bridge.postAll });
 
-  // Engine signals: ready (first mount, in-place switch, renderer self-reload).
+  // Engine signals: ready (first mount, fresh-frame switch, renderer
+  // self-reload) and error (assembly failure — shader compile, broken pkg).
   reg.on(window, "message", function (ev) {
     if (!ev.data || !ev.data.zwEvent) return;
+    if (ev.data.zwEvent === "error") {
+      // A load that cannot assemble fails NOW — burning the whole first-frame
+      // budget on a scene whose shaders already failed to compile helps no one.
+      rec("ENGINE", "error " + String(ev.data.message || "").slice(0, 90));
+      if (machine.phase === "live/loading" || machine.phase === "live/switching") {
+        machine.fire("BUDGET_EXHAUSTED", { reason: "engine" });
+      }
+      return;
+    }
     if (ev.data.zwEvent !== "ready") return;
     if (machine.phase === "live/loading") machine.fire("READY");
     else if (machine.phase === "live/switching") machine.fire("SWITCH_READY");
@@ -167,18 +179,32 @@ import { createLedger } from "./ledger.js";
     // hasPoster:false on entry — the poster phase is RESERVED for degraded
     // (failedInfo) payloads; a real live URL always enters loading.
     if (kind === KIND.LIVE && !failedInfo) {
+      // Normalize the phase BEFORE the actor runs: a live payload can arrive
+      // in any phase (paused — a switch while the window was in the
+      // background; stalled; failed). SET_SOURCE is the universal event;
+      // after it we are in live/loading and mount/switch events are always
+      // declared. (0.4.16: SWITCH_BEGIN fired from live/paused was rejected,
+      // yet the DOM switch had already happened — a silently lost switch.)
+      if (machine.phase !== "live/loading" && machine.phase !== "live/shown" && machine.phase !== "live/switching") {
+        machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
+      }
       const mode = liveframe.applySrc(LIVE_SRC, { trans: TRANS, tspd: TSPD, apiBase: API, videoIncoming: false });
+      S.appliedLive = liveframe.applied || "";
       if (mode === "mount") {
-        if (machine.phase !== "live/loading" && machine.phase !== "live/shown" && machine.phase !== "live/switching") {
-          machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
-        }
         ledger.watch(currentSourceId());
       } else if (mode === "switch") {
         if (machine.phase !== "live/switching") machine.fire("SWITCH_BEGIN");
-        ledger.watch(currentSourceId());
+        if (machine.phase === "live/switching") ledger.watch(currentSourceId());
       }
     } else if (kind === KIND.LIVE && failedInfo) {
       liveframe.applySrc("", {}); // degraded: poster-only, no engine layer
+      S.appliedLive = "";
+    } else if (liveframe.frames().length) {
+      // Video/image payloads must retire a leftover engine frame: it keeps
+      // burning GPU under the new layer (and covers an image — the iframe
+      // paints over the layer's background-image).
+      liveframe.applySrc("", { videoIncoming: kind === KIND.VIDEO });
+      S.appliedLive = "";
     }
 
     // Video actor: removal also runs when switching live←video (hold-for-ready

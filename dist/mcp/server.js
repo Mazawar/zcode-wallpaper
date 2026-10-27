@@ -58792,7 +58792,8 @@ async function startSessionLoop(getConfig, apiPort) {
     if (++healTick % 20 !== 0) continue;
     const config2 = getConfig();
     const wantLayer = config2.wallpaperVisible && Boolean(config2.live || config2.sceneVideoUrl || config2.wallpaperPath);
-    const wantLive = config2.wallpaperVisible && config2.mediaType === "live";
+    const degraded = Boolean(config2.live && liveFailureOf(config2.live.sourceId));
+    const wantLive = config2.wallpaperVisible && config2.mediaType === "live" && !degraded;
     const bootstrap = await bootstrapScriptFor(config2, apiPort).catch(() => null);
     if (!bootstrap) continue;
     for (const [id, session] of held) {
@@ -58829,6 +58830,7 @@ var init_sessions = __esm({
   "src/core/sessions.ts"() {
     "use strict";
     init_cdp();
+    init_livefail();
     init_payload();
     POLL_MS = 1500;
     held = /* @__PURE__ */ new Map();
@@ -70509,7 +70511,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "1.0.0"
+  version: "1.0.1"
 });
 var TOOL_NAMES = [
   "set_background",

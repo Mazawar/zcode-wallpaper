@@ -7,19 +7,27 @@
 export const MARKER = "zcode-wallpaper";
 
 export function createRecorder(reg) {
-  if (window.__zwRec) return window.__zwRec;
-  window.__zwLog = [];
-  let lastEntry = ""; // dedupe runs of identical entries (771 identical page
-  // errors once evicted every other diagnostic from the 800-slot ring)
-  window.__zwRec = function (tag, d) {
-    try {
-      const line = tag + "|" + (d === undefined ? "" : String(d));
-      if (line === lastEntry) return;
-      lastEntry = line;
-      window.__zwLog.push({ t: new Date().toISOString().slice(11, 23), tag: tag, d: d === undefined ? "" : String(d).slice(0, 160) });
-      if (window.__zwLog.length > 800) window.__zwLog.shift();
-    } catch (e) { /* recorder must never break the runtime */ }
-  };
+  // Singleton = the ring buffer + rec() only: they survive agent re-injections
+  // (heartbeat teardown + heal re-eval) so the timeline stays continuous. The
+  // SENSORS below are per-agent — they live in THIS agent's reg and are
+  // cleaned by ITS teardown, so every agent must install its own. (1.0.0
+  // regression: a re-created agent got the singleton back and skipped the
+  // sensor block — ADD/REMOVE/MSG/ENGINE/VIS trails went dark exactly when a
+  // heal re-injection had happened, i.e. exactly during incidents.)
+  if (!window.__zwRec) {
+    window.__zwLog = [];
+    let lastEntry = ""; // dedupe runs of identical entries (771 identical page
+    // errors once evicted every other diagnostic from the 800-slot ring)
+    window.__zwRec = function (tag, d) {
+      try {
+        const line = tag + "|" + (d === undefined ? "" : String(d));
+        if (line === lastEntry) return;
+        lastEntry = line;
+        window.__zwLog.push({ t: new Date().toISOString().slice(11, 23), tag: tag, d: d === undefined ? "" : String(d).slice(0, 160) });
+        if (window.__zwLog.length > 800) window.__zwLog.shift();
+      } catch (e) { /* recorder must never break the runtime */ }
+    };
+  }
   const rec = window.__zwRec;
   try {
     const obs = new MutationObserver(function (muts) {

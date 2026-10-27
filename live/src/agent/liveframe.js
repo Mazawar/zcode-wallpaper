@@ -62,8 +62,19 @@ export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
     const TRANS = opts.trans || "fade";
     const TSPD = opts.tspd || 600;
     api = opts.apiBase || api;
-    // A rapid switch during an in-flight transition: jump to its end first.
-    if (document.getElementById(MARKER + "-live-next")) promoteNext();
+    // A rapid switch during an in-flight transition: a re-apply of the SAME
+    // target (the two-phase publish of one apply-source) keeps the pending
+    // switch — promoting now would drop the old cover before the new frame
+    // renders. A DIFFERENT target jumps to the pending switch's end first.
+    const pending = document.getElementById(MARKER + "-live-next");
+    if (pending) {
+      if (src && (pending.getAttribute("src") || "") === src) {
+        applied = src;
+        bridge.start();
+        return "switch";
+      }
+      promoteNext();
+    }
     const cur = document.getElementById(MARKER + "-live");
     if (!src) {
       // No live layer (switching to video/image): fade the engine out. When a
@@ -95,6 +106,7 @@ export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
       applied = src;
       bridge.start();
       let settled = false;
+      let firstTimer = 0;
       const onFirstReady = function (ev) {
         if (ev.data && ev.data.zwEvent === "ready" && first.contentWindow === ev.source) {
           settled = true;
@@ -104,7 +116,7 @@ export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
         }
       };
       window.addEventListener("message", onFirstReady);
-      reg.timer(function () {
+      firstTimer = reg.timer(function () {
         if (!settled) { first.style.opacity = "1"; window.removeEventListener("message", onFirstReady); }
       }, 10000);
       return "mount";
@@ -125,95 +137,60 @@ export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
       bridge.start();
       return "hot";
     }
-    // Same-kind switch: IN-PLACE LOAD on the existing frame (dsh's
-    // setWallpaper). The engine reuses its WebGL context — remounting churned
-    // destroy/create cycles that lost contexts under GPU pressure. A snapshot
-    // of the old frame covers the assembly gap; it leaves with the chosen
-    // effect on the renderer's ready signal.
-    const oldOverlay = document.getElementById(MARKER + "-fade");
-    if (oldOverlay) oldOverlay.remove();
-    const doLoad = function (overlaySrc) {
-      let overlay = null;
-      if (overlaySrc) {
-        overlay = document.createElement("img");
-        overlay.id = MARKER + "-fade";
-        overlay.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;";
-        overlay.src = overlaySrc;
-        wpRoot().appendChild(overlay);
-        let faded = false;
-        const fadeOut = function () {
-          if (faded) return;
-          faded = true;
-          const t = TSPD + "ms cubic-bezier(.4,0,.2,1)";
-          switch (TRANS) {
-            case "push":
-              overlay.style.transition = "transform " + t;
-              overlay.style.transform = "translateX(100%)";
-              break;
-            case "wipe":
-              overlay.style.transition = "clip-path " + t;
-              overlay.style.clipPath = "inset(0 0 0 100%)";
-              break;
-            case "iris":
-              overlay.style.transition = "clip-path " + t;
-              overlay.style.clipPath = "circle(0% at 50% 50%)";
-              break;
-            case "zoom":
-              overlay.style.transition = "transform " + t + ", opacity " + t;
-              overlay.style.transform = "scale(1.18)";
-              overlay.style.opacity = "0";
-              break;
-            default: // fade
-              overlay.style.transition = "opacity " + t;
-              overlay.style.opacity = "0";
-          }
-          reg.timer(function () { overlay.remove(); }, TSPD + 80);
-        };
-        const onReady = function (ev) {
-          if (ev.data && ev.data.zwEvent === "ready" && cur.contentWindow === ev.source) {
-            fadeOut();
-            window.removeEventListener("message", onReady);
-          }
-        };
-        window.addEventListener("message", onReady);
-        reg.timer(fadeOut, 10000); // engine never signaled: uncover anyway
+    // Same-kind switch: MOUNT A FRESH FRAME. webwallgl 3.0.0's load() is not
+    // re-entrant — a second load() on one instance rejects with a shader
+    // compile failure (same source included), so in-place loads are retired
+    // (D15). The new frame is inserted UNDER the current one: the old picture
+    // stays on top as the live cover of the assembly and leaves with the
+    // chosen effect the moment the new engine reports ready. The old WebGL
+    // context dies only after the new one renders — no destroy/create churn.
+    const next = makeFrame(MARKER + "-live-next", src, "");
+    wpRoot().insertBefore(next, cur); // under cur: cur is the transition cover
+    applied = src;
+    bridge.start();
+    let settled = false;
+    const commitSwitch = function () {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("message", onSwitchReady);
+      clearTimeout(leaveTimer);
+      if (TRANS === "cut") { cur.remove(); next.id = MARKER + "-live"; return; }
+      const t = TSPD + "ms cubic-bezier(.4,0,.2,1)";
+      switch (TRANS) {
+        case "push":
+          cur.style.transition = "transform " + t;
+          cur.style.transform = "translateX(100%)";
+          break;
+        case "wipe":
+          cur.style.transition = "clip-path " + t;
+          cur.style.clipPath = "inset(0 0 0 100%)";
+          break;
+        case "iris":
+          cur.style.transition = "clip-path " + t;
+          cur.style.clipPath = "circle(0% at 50% 50%)";
+          break;
+        case "zoom":
+          cur.style.transition = "transform " + t + ", opacity " + t;
+          cur.style.transform = "scale(1.18)";
+          cur.style.opacity = "0";
+          break;
+        default: // fade
+          cur.style.transition = "opacity " + t;
+          cur.style.opacity = "0";
       }
-      try {
-        cur.contentWindow.postMessage({ zw: "load", type: b.type, src: b.src, file: b.file || "", fit: b.fit, fps: Number(b.fps) || 30, muted: b.muted, poster: b.poster || "" }, "*");
-      } catch (e) { /* frame gone — the watchdogs remount */ }
-      applied = src;
-      bridge.start();
+      reg.timer(function () { cur.remove(); }, TSPD + 80);
+      next.id = MARKER + "-live";
     };
-    if (TRANS === "cut") {
-      doLoad("");
-      return "switch";
-    }
-    // Poster fallback: even when the snapshot times out (jpeg-encoding a
-    // 1080p canvas can take >250ms), the NEW wallpaper's poster covers the
-    // assembly — a switch must never show a bare clearing canvas.
-    const posterAbs = b.poster ? api + b.poster : "";
-    let snapped = false;
-    const onSnap = function (ev) {
-      if (snapped || !ev.data || ev.data.zwEvent !== "snap" || !cur.contentWindow || ev.source !== cur.contentWindow) return;
-      snapped = true;
-      window.removeEventListener("message", onSnap);
-      clearTimeout(snapTimer);
-      doLoad(ev.data.dataUrl || posterAbs);
+    const onSwitchReady = function (ev) {
+      if (!ev.data || ev.data.zwEvent !== "ready" || next.contentWindow !== ev.source) return;
+      commitSwitch();
     };
-    const snapTimer = setTimeout(function () {
-      if (snapped) return;
-      snapped = true;
-      window.removeEventListener("message", onSnap);
-      doLoad(posterAbs); // no snapshot in time — the poster still covers
-    }, 700);
-    window.addEventListener("message", onSnap);
-    try {
-      cur.contentWindow.postMessage({ zw: "snapshot" }, "*");
-    } catch (e) {
-      clearTimeout(snapTimer);
-      window.removeEventListener("message", onSnap);
-      doLoad(posterAbs);
-    }
+    window.addEventListener("message", onSwitchReady);
+    // The ledger owns the switch verdict (a failed source downgrades to
+    // poster-only, whose payload tears both frames down); this long cap is
+    // only the no-verdict belt — uncover the new frame's own poster instead
+    // of holding a stale cover forever.
+    const leaveTimer = reg.timer(commitSwitch, 60000);
     return "switch";
   }
 
