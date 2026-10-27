@@ -351,10 +351,37 @@
   // --- media watchdog (video layer) ------------------------------------------
   if (!S.visBound) {
     S.visBound = true;
+    // Auto-pause debounced: Chromium re-evaluates occlusion when the window's
+    // visual composition changes (opening settings, overlays) and can flip the
+    // page hidden→visible within a moment — an instant pause froze the last
+    // frame to a JPEG (visibly darker) that the resume then peeled off, the
+    // "opens darker, then brightens" flash. Only a HIDDEN state that persists
+    // pauses the renderer; a real minimize still does after 1.5s.
+    var pendingPause = null;
+    var schedulePause = function () {
+      if (pendingPause) return;
+      pendingPause = setTimeout(function () {
+        pendingPause = null;
+        S.__pauseTimer = null;
+        if (!document.hidden) return;
+        var v = document.getElementById(MARKER + "-video");
+        if (v) v.pause();
+        postAllFrames({ zw: "pause" });
+      }, 1500);
+      S.__pauseTimer = pendingPause;
+    };
+    var cancelPause = function () {
+      if (pendingPause) { clearTimeout(pendingPause); pendingPause = null; }
+    };
     on(document, "visibilitychange", function () {
-      var v = document.getElementById(MARKER + "-video");
-      if (v) { if (document.hidden) { v.pause(); } else { v.play().catch(function () {}); } }
-      postAllFrames({ zw: document.hidden ? "pause" : "resume" });
+      if (document.hidden) {
+        schedulePause();
+      } else {
+        cancelPause();
+        var v = document.getElementById(MARKER + "-video");
+        if (v) v.play().catch(function () {});
+        postAllFrames({ zw: "resume" });
+      }
     });
     var wake = function () {
       var v = document.getElementById(MARKER + "-video");
@@ -638,6 +665,7 @@
 
   // --- teardown (bootstrap heartbeat / reset script) ---------------------------
   window.__zwTeardownAgent = function () {
+    if (S.__pauseTimer) { clearTimeout(S.__pauseTimer); S.__pauseTimer = null; }
     if (sseHandle) { try { sseHandle.close(); } catch (e) {} sseHandle = null; }
     timers.forEach(function (t) { clearTimeout(t); clearInterval(t); });
     timers = [];

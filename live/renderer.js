@@ -191,7 +191,10 @@ function freezeFrame() {
   try {
     const c = inst.canvas instanceof HTMLCanvasElement ? inst.canvas : host.querySelector("canvas");
     if (c && c.width) {
-      host.style.background = `#000 url("${c.toDataURL("image/jpeg", 0.88)}") center / cover no-repeat`;
+      // 0.92: the frozen cover must read as the same picture as the live
+      // canvas — lower JPEG quality read as a visible "darker, muddier" flash
+      // whenever a pause/resume cycle uncovered it.
+      host.style.background = `#000 url("${c.toDataURL("image/jpeg", 0.92)}") center / cover no-repeat`;
     }
   } catch {
     // tainted canvas — leave whatever background is already there
