@@ -70275,7 +70275,7 @@ function bootstrapServe() {
 bootstrapServe();
 var server = new McpServer({
   name: "zcode-wallpaper",
-  version: "0.4.13"
+  version: "0.4.14"
 });
 var TOOL_NAMES = [
   "set_background",

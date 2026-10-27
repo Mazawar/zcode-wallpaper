@@ -53,7 +53,14 @@ export const TRANSITIONS = {
   "video/prep": { SET_SOURCE: true, VREADY: "video/shown", VLEAVE_BEGIN: "video/leaving", CLEAR: "none/idle" },
   "video/shown": { SET_SOURCE: true, VLEAVE_BEGIN: "video/leaving", CLEAR: "none/idle" },
   "video/leaving": { SET_SOURCE: true, VLEAVE_DONE: "none/idle" },
-  "live/poster": { SET_SOURCE: true },
+  "live/poster": {
+    SET_SOURCE: true,
+    // A poster phase with a real source arriving must be able to graduate:
+    // 0.4.0-0.4.13 got stuck here (SWITCH_BEGIN rejected) when a payload
+    // carried a live URL while the machine idled in poster.
+    SWITCH_BEGIN: "live/switching",
+    READY: "live/shown",
+  },
   "live/loading": {
     SET_SOURCE: true,
     READY: "live/shown",

@@ -118,11 +118,7 @@ function loadCurrent() {
     .load(source)
     .then(() => inst.setVolume(volume))
     .then(() => {
-      try {
-        parent.postMessage({ zwEvent: "ready" }, "*");
-      } catch {
-        /* parent gone */
-      }
+      signalReady(); // frame-flow watch may already have fired — idempotent
     })
     .catch(() => {
       /* reported through the error event */
@@ -161,11 +157,28 @@ async function captureOnce() {
 
 let framesSeen = 0;
 let posterTimer = null;
+// "ready" is signalled by the FIRST FLOWING FRAMES, not by the engine's
+// load() promise — on in-place loads that promise never settled (observed:
+// engine rendered at 30fps while the host waited for ready and fell through
+// the 10s uncover fallback on EVERY switch — "switching is slow" was exactly
+// this fixed 10s). Once per load; the load().then() path also signals, the
+// flag makes it idempotent.
+let readySent = false;
+function signalReady() {
+  if (readySent) return;
+  readySent = true;
+  try {
+    parent.postMessage({ zwEvent: "ready" }, "*");
+  } catch {
+    /* parent gone */
+  }
+}
 // Re-armable poster watch: each load starts with the poster covering the
 // canvas; three seconds of flowing frames drops it and captures Monet's
 // first frame. (Was a one-shot interval — in-place reloads need it again.)
 function armPosterWatch() {
   framesSeen = 0;
+  readySent = false;
   if (posterTimer) clearInterval(posterTimer);
   posterTimer = setInterval(() => {
     const fps = Math.round(inst.stats?.fps ?? 0);
@@ -174,6 +187,7 @@ function armPosterWatch() {
       clearInterval(posterTimer);
       posterTimer = null;
       host.style.background = ""; // real frames are flowing; drop the poster
+      signalReady();
       captureOnce();
     }
   }, 1000);

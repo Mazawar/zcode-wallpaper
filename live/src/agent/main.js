@@ -150,7 +150,7 @@ import { createLedger } from "./ledger.js";
       : VIDEO_SRC ? KIND.VIDEO
       : WPIMG ? KIND.IMAGE
       : KIND.NONE;
-    if (machine.kind !== kind) machine.fire("SET_SOURCE", { kind, hasPoster: !!UNDERLAY });
+    if (machine.kind !== kind) machine.fire("SET_SOURCE", { kind, hasPoster: !!failedInfo });
 
     let wp = wpRoot();
     if (WPIMG || VIDEO_SRC || LIVE_SRC || (kind === KIND.LIVE && UNDERLAY)) {
@@ -164,10 +164,14 @@ import { createLedger } from "./ledger.js";
     }
 
     // Live actor: mounting/switching reports back and steers the machine.
+    // hasPoster:false on entry — the poster phase is RESERVED for degraded
+    // (failedInfo) payloads; a real live URL always enters loading.
     if (kind === KIND.LIVE && !failedInfo) {
       const mode = liveframe.applySrc(LIVE_SRC, { trans: TRANS, tspd: TSPD, apiBase: API, videoIncoming: false });
       if (mode === "mount") {
-        if (machine.phase !== "live/loading") machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
+        if (machine.phase !== "live/loading" && machine.phase !== "live/shown" && machine.phase !== "live/switching") {
+          machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
+        }
         ledger.watch(currentSourceId());
       } else if (mode === "switch") {
         if (machine.phase !== "live/switching") machine.fire("SWITCH_BEGIN");

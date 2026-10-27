@@ -14,7 +14,14 @@
     "video/prep": { SET_SOURCE: true, VREADY: "video/shown", VLEAVE_BEGIN: "video/leaving", CLEAR: "none/idle" },
     "video/shown": { SET_SOURCE: true, VLEAVE_BEGIN: "video/leaving", CLEAR: "none/idle" },
     "video/leaving": { SET_SOURCE: true, VLEAVE_DONE: "none/idle" },
-    "live/poster": { SET_SOURCE: true },
+    "live/poster": {
+      SET_SOURCE: true,
+      // A poster phase with a real source arriving must be able to graduate:
+      // 0.4.0-0.4.13 got stuck here (SWITCH_BEGIN rejected) when a payload
+      // carried a live URL while the machine idled in poster.
+      SWITCH_BEGIN: "live/switching",
+      READY: "live/shown"
+    },
     "live/loading": {
       SET_SOURCE: true,
       READY: "live/shown",
@@ -871,7 +878,7 @@
       }
       style.textContent = payload.css;
       const kind = failedInfo ? KIND.LIVE : LIVE_SRC ? KIND.LIVE : VIDEO_SRC ? KIND.VIDEO : WPIMG ? KIND.IMAGE : KIND.NONE;
-      if (machine.kind !== kind) machine.fire("SET_SOURCE", { kind, hasPoster: !!UNDERLAY });
+      if (machine.kind !== kind) machine.fire("SET_SOURCE", { kind, hasPoster: !!failedInfo });
       let wp = wpRoot();
       if (WPIMG || VIDEO_SRC || LIVE_SRC || kind === KIND.LIVE && UNDERLAY) {
         if (!wp) {
@@ -885,7 +892,9 @@
       if (kind === KIND.LIVE && !failedInfo) {
         const mode = liveframe.applySrc(LIVE_SRC, { trans: TRANS, tspd: TSPD, apiBase: API, videoIncoming: false });
         if (mode === "mount") {
-          if (machine.phase !== "live/loading") machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
+          if (machine.phase !== "live/loading" && machine.phase !== "live/shown" && machine.phase !== "live/switching") {
+            machine.fire("SET_SOURCE", { kind: KIND.LIVE, hasPoster: false });
+          }
           ledger.watch(currentSourceId());
         } else if (mode === "switch") {
           if (machine.phase !== "live/switching") machine.fire("SWITCH_BEGIN");
