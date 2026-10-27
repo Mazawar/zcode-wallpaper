@@ -52541,13 +52541,31 @@ async function startServe(opts) {
     const startedAt = Date.now();
     let zcodeSeenAt = 0;
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
+    const cfgPath = path11.join(os2.homedir(), ".zcode", "cli", "config.json");
+    const checkDisabled = async () => {
+      if (!pluginDisabledIn(cfgPath)) return false;
+      console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
+      await shutdownServe().catch(() => void 0);
+      process.exit(0);
+    };
+    let disableDebounce;
+    try {
+      const watcher = fs16.watch(path11.dirname(cfgPath), (event, file2) => {
+        if (file2 !== path11.basename(cfgPath)) return;
+        clearTimeout(disableDebounce);
+        disableDebounce = setTimeout(() => void checkDisabled(), 250);
+      });
+      watcher.on("error", () => {
+        try {
+          watcher.close();
+        } catch {
+        }
+      });
+    } catch {
+    }
     setInterval(() => {
       void (async () => {
-        if (pluginDisabledIn(path11.join(os2.homedir(), ".zcode", "cli", "config.json"))) {
-          console.log("serve: plugin disabled in ZCode \u2014 restoring default appearance and exiting");
-          await shutdownServe().catch(() => void 0);
-          process.exit(0);
-        }
+        if (await checkDisabled()) return;
         const zcode = await isZcodeProcessRunning2().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
         const now = Date.now();

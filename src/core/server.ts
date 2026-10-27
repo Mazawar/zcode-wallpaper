@@ -769,17 +769,43 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     const startedAt = Date.now();
     let zcodeSeenAt = 0;
     const { isZcodeProcessRunning } = await import("./launch.js");
+    const cfgPath = path.join(os.homedir(), ".zcode", "cli", "config.json");
+
+    // Explicit disable beats every timeout heuristic: the moment ZCode's
+    // config says this plugin is off, restore default appearance and exit
+    // (a disabled-restart via shortcut then shows nothing at all, instead
+    // of the wallpaper lingering for the no-host grace window).
+    const checkDisabled = async (): Promise<boolean> => {
+      if (!pluginDisabledIn(cfgPath)) return false;
+      console.log("serve: plugin disabled in ZCode — restoring default appearance and exiting");
+      await shutdownServe().catch(() => undefined);
+      process.exit(0);
+    };
+
+    // Event-driven enablement watch: settle a disable the MOMENT ZCode
+    // persists it instead of waiting out the 5s tick. Watch the DIRECTORY,
+    // not the file — an atomic write (temp file + rename) invalidates a
+    // file-level handle, while the directory watch survives replacements —
+    // then debounce: change events can fire before the write completes.
+    // The 5s tick stays as the backstop (watchers can silently miss).
+    let disableDebounce: NodeJS.Timeout | undefined;
+    try {
+      const watcher = fs.watch(path.dirname(cfgPath), (event, file) => {
+        if (file !== path.basename(cfgPath)) return;
+        clearTimeout(disableDebounce);
+        disableDebounce = setTimeout(() => void checkDisabled(), 250);
+      });
+      watcher.on("error", () => {
+        /* watcher died — the 5s tick still covers us */
+        try { watcher.close(); } catch { /* already closed */ }
+      });
+    } catch {
+      /* watching unsupported here — the 5s tick alone decides */
+    }
+
     setInterval(() => {
       void (async () => {
-        // Explicit disable beats every timeout heuristic: the moment ZCode's
-        // config says this plugin is off, restore default appearance and exit
-        // (a disabled-restart via shortcut then shows nothing at all, instead
-        // of the wallpaper lingering for the no-host grace window).
-        if (pluginDisabledIn(path.join(os.homedir(), ".zcode", "cli", "config.json"))) {
-          console.log("serve: plugin disabled in ZCode — restoring default appearance and exiting");
-          await shutdownServe().catch(() => undefined);
-          process.exit(0);
-        }
+        if (await checkDisabled()) return;
         const zcode = await isZcodeProcessRunning().catch(() => true);
         if (zcode) zcodeSeenAt = Date.now();
         const now = Date.now();
