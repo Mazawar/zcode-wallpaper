@@ -78,9 +78,22 @@
   壁纸层之下盖住边缘（payload `wallBlur` 驱动，垫图同步压暗避免亮边）；垫图全部不可得时
   （如无预览的视频壁纸）才保留 1.04 兜底。
 
-- **D17 Windows 快捷方式直接带参，废除 wscript+VBS 早启包装（1.0.2）**：早启包装的收益只有
+- **D17 Windows 快捷方式直接带参，废除 wscript+VBS 早启包装（1.0.2，同日被 D18 修订：包装恢复但加固）**：早启包装的收益只有
   serve 提前 ~9s（插件宿主起来后同样注入已加载的渲染页），代价却是启动链上多两个可断点——
   VBS 三次实爆：0.3.1 编译错误、0.4.1 卸载后路径悬空、1.0.2 时期 nvm 链接迁移暴露 node 路径
   硬编码（FileExists 只守 cli.js 不守 node，sh.Run 抛错即吞掉启动 ZCode 那行）。改为 .lnk 直接
   指向 ZCode.exe + 规范参数（CDP 端口 + 防遮挡），node/插件卸载/路径迁移从此与启动无关；
   遗留 wscript 快捷方式按 meta 迁移，无引用后自动清理 zw-launch.vbs/json。mac/linux 包装器不变。
+
+- **D18 早启包装恢复并加固（1.0.2，撤 D17 的"废除"，改立硬规则）**：用户裁定——早启值得保留
+  （渲染页 ~1s 就绪 vs 宿主 ~13s），且插件**不得改动计算机配置**（注册表 Run/开机自启/
+  LaunchAgent 等一律禁区；只准动用户自己的启动快捷方式与插件数据目录）。包装是跨系统
+  早启的唯一合规形态：win=wscript+VBS（不闪黑窗的唯一原生宿主）、mac=启动器 .app、
+  linux=.desktop wrapper。Windows 三炸的教训不归罪形态而归罪实现，v4 包装四条硬规则：
+  ①node 与插件**双探存在**才起 serve（1.0.2 事故根因：只探了 cli 没探 node）；
+  ②On Error Resume Next 兜底 + 启动 ZCode 那行**无条件执行**——本文件永不可能阻塞启动；
+  ③node/cli/zcode 路径每次插件会话重新烘焙（ensure 每趟全量比对重写，nvm 迁移最多
+  退化一届"无早启"，下次会话自愈）；④serve 配套：--early 在 ZCode 消失 60s 后退出，
+  health 暴露 version，宿主发现端口上是旧代际 serve 即 POST /api/retire 令其退役
+  （根治"部署了没生效"的驻留旧码问题）。mac/linux wrapper 同步加 node 探测（其后台
+  失败本就不阻塞启动行，属一致性收尾）。

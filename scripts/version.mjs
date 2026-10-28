@@ -35,7 +35,7 @@ function patch(file, fn) {
 patch("package.json", (s) => s.replace(/("version":\s*)"\d+\.\d+\.\d+"/, `$1"${v}"`));
 patch(".zcode-plugin/plugin.json", (s) => s.replace(/("version":\s*)"\d+\.\d+\.\d+"/, `$1"${v}"`));
 patch("marketplace.json", (s) => s.replace(/("version":\s*)"\d+\.\d+\.\d+"/g, `$1"${v}"`));
-patch("src/mcp/server.ts", (s) => s.replace(/(version:\s*)"\d+\.\d+\.\d+"/, `$1"${v}"`));
+patch("src/core/version.ts", (s) => s.replace(/(VERSION = ")\d+\.\d+\.\d+(")/, `$1${v}$2`));
 // README references the zip generically (x.y.z) — replace only concrete versions.
 const readme = path.join(root, "README.md");
 const rb = fs.readFileSync(readme, "utf8");

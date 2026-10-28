@@ -26,6 +26,7 @@ import { detectWallpaperType } from "../core/wallpaperType.js";
 import { enumerateWallpapers, resolveSourceDir, type WallpaperEntry } from "../core/steam.js";
 import { storedCustomSources } from "../core/configApi.js";
 import { DEFAULT_API_PORT } from "../core/inject.js";
+import { VERSION } from "../core/version.js";
 
 function bootstrapServe(): void {
   try {
@@ -56,8 +57,18 @@ function bootstrapServe(): void {
       if (hosting) return;
       fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) })
         .then((r) => r.json())
-        .then((body) => {
+        .then(async (body) => {
           if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign service");
+          const serving = (body as { version?: string })?.version;
+          // Missing version = a pre-D18 serve — treat as stale too.
+          if (serving !== VERSION) {
+            // An older plugin generation's serve still owns the port (the
+            // shortcut wrapper's early serve can linger across an update):
+            // retire it, then take the port with THIS generation's code.
+            await fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/retire`, { method: "POST" }).catch(() => undefined);
+            await new Promise((r) => setTimeout(r, 1500));
+            throw new Error("stale serve retired");
+          }
         })
         .catch(() => {
           import("../core/server.js")
@@ -125,7 +136,7 @@ bootstrapServe();
 
 const server = new McpServer({
   name: "zcode-wallpaper",
-  version: "1.0.2",
+  version: VERSION,
 });
 
 /** Registry of the tools this server exposes (used by tests / docs). */

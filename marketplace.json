@@ -13,7 +13,7 @@
         "en": "Live Wallpaper Engine scene wallpapers inside ZCode: real-time WebWallGL rendering (particles / SceneScript / mouse parallax, no recording), a native settings section, cross-machine .zw.zip packages, and Monet dynamic theming.",
         "zh-CN": "在 ZCode 桌面客户端内实时渲染 Wallpaper Engine 场景壁纸：WebWallGL 实时渲染（粒子 / SceneScript / 鼠标视差，不录屏），原生设置区块、跨机 .zw.zip 资源包与 Monet 动态取色。"
       },
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": {
         "name": "Mazawar",
         "url": "https://github.com/Mazawar"
@@ -38,5 +38,5 @@
       ]
     }
   ],
-  "version": "1.0.2"
+  "version": "1.0.3"
 }

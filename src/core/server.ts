@@ -33,6 +33,7 @@ import { loadConfig, saveConfig, dataDir } from "./launch.js";
 import { safeJoin, sendStaticFile } from "./media.js";
 import { transferBegin, transferChunk, transferSnapshot } from "./ledger.js";
 import { liveFailureOf, recordLiveFailure, clearLiveFailure } from "./livefail.js";
+import { VERSION } from "./version.js";
 import { enumerateWallpapers, resolveSourceDir } from "./steam.js";
 import { currentConfig, publicConfig, persisted, sanitize, storedCustomSources, hasBackup, readBackup, writeBackup } from "./configApi.js";
 import { primeAssets, invalidateAssets } from "./assets.js";
@@ -486,7 +487,19 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       }
 
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort });
+        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, version: VERSION });
+        return;
+      }
+
+      // A newer plugin generation asks a stale serve to step aside (D18):
+      // the shortcut wrapper's serve can linger across an update and keep
+      // serving old code from the port it still owns.
+      if (req.method === "POST" && url.pathname === "/api/retire") {
+        sendJson(res, 200, { ok: true, pid: process.pid });
+        console.log(`serve: retired by a newer plugin generation (was v${VERSION})`);
+        setImmediate(() => {
+          void shutdownServe().catch(() => undefined).then(() => process.exit(0));
+        });
         return;
       }
 
@@ -979,6 +992,16 @@ export async function startServe(opts: ServeOptions): Promise<void> {
         }
         if (!hostSeen && now - startedAt > 180_000 && zcode) {
           console.log("serve: no plugin host appeared within 3 minutes — plugin not enabled, exiting");
+          await shutdownServe().catch(() => undefined);
+          process.exit(0);
+        }
+        // ZCode gone for a full minute: nothing left to serve. The shortcut
+        // wrapper starts a fresh serve on every launch, so exiting here both
+        // frees the port and guarantees the next session runs CURRENT plugin
+        // code — a lingering serve from an earlier install generation would
+        // otherwise keep owning the port with stale code after an update.
+        if (zcodeSeenAt > 0 && now - zcodeSeenAt > 60_000) {
+          console.log("serve: ZCode no longer running — exiting (the shortcut wrapper respawns me)");
           await shutdownServe().catch(() => undefined);
           process.exit(0);
         }
