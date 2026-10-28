@@ -37,7 +37,7 @@
 
   ![画面与播放页签：画面滑杆、适配方式、帧率上限、Monet 取色](docs/appearance-playback.jpg)
 - **CLI**：`node dist/cli.js launch | apply <path-or-id> | wallpapers | colors | reset | status | serve`
-- **Agent**：对 ZCode 里的助手说「换个壁纸」即可（或 `/wallpaper`）；工具见技能 `wallpaper`。
+- **Agent**：对 ZCode 里的助手说「换个壁纸」即可（或 `/wallpaper`）；工具见技能 `wallpaper`。排查/修壁纸问题见技能 `wallpaper-doctor`（症状表 + 日志位置 + 安全修复操作，专为任意机器上的 agent 设计）。
 
 ## 面板没出现 / 壁纸全无？
 
@@ -50,6 +50,11 @@
 ## 工作原理（两分钟版）
 
 ```
+用户双击图标 ──▶ 启动包装器（win: VBS / mac: 启动器.app / linux: .desktop wrapper）
+                  ├─ 隐窗先起 serve --early（渲染页 ~1s 就绪即注入）
+                  └─ 带参启动 ZCode（--remote-debugging-port=28256 + 防遮挡）
+                       └─ 插件宿主 ~10s 后由 ZCode 拉起 → 与早启 serve 会合（心跳共存，
+                          版本不同则退役旧代）；serve 挂了宿主 10s 重拉，包装器 25s 二次启动
 Steam 工坊订阅 ──枚举──▶ serve (127.0.0.1:28257)
                           ├─ /agent.js /panel.js   页面运行时（真文件，部署即最新）
                           ├─ /live/index.html      WebWallGL 渲染页
