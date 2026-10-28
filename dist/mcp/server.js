@@ -59011,6 +59011,8 @@ async function ensureWindowsShortcuts(port) {
   }
   if (links.length === 0) return result;
   const launcher = launcherHome();
+  const vbsFile = path11.join(launcher.dir, "zw-launch.vbs");
+  const metaFile = path11.join(launcher.dir, "zw-launch.json");
   const antiOcclusion = ANTI_OCCLUSION_FLAGS;
   for (const lnk of links) {
     const script = `
@@ -59018,14 +59020,12 @@ $ErrorActionPreference = 'Stop'
 try {
   $ws = New-Object -ComObject WScript.Shell
   $s = $ws.CreateShortcut('${lnk.replace(/'/g, "''")}')
-  $vbs = '${path11.join(launcher.dir, "zw-launch.vbs").replace(/'/g, "''")}'
-  $meta = Get-Content -Raw '${path11.join(launcher.dir, "zw-launch.json").replace(/'/g, "''")}' -ErrorAction SilentlyContinue | ConvertFrom-Json
+  $meta = Get-Content -Raw '${metaFile.replace(/'/g, "''")}' -ErrorAction SilentlyContinue | ConvertFrom-Json
   $zcode = $null
   if ($s.TargetPath -match 'ZCode\\.exe$') { $zcode = $s.TargetPath }
   elseif ($s.TargetPath -match 'wscript\\.exe$' -and ([string]$s.Arguments) -match 'zw-launch\\.vbs') {
-    # A wrapper from ANY install generation (the shortcut can be pinned to a
-    # plugin-cache path that a later update prunes). Its sibling meta json
-    # names the ZCode exe; ours is the fallback.
+    # Legacy wrapper shortcut (pre-1.0.2): its sibling meta json names the
+    # ZCode exe \u2014 migrate it to the direct-flag form.
     $vbsArg = ([regex]::Match([string]$s.Arguments, '"([^"]+zw-launch\\.vbs)"')).Groups[1].Value
     if (-not $vbsArg) { $vbsArg = (([string]$s.Arguments -split ' ')[0] -replace '^"|"$','') }
     if ($vbsArg -and (Test-Path $vbsArg)) {
@@ -59049,27 +59049,18 @@ try {
   if (-not $zcode) { Write-Output 'ok|not-zcode'; exit }
   if (-not (Test-Path $zcode)) { Write-Output 'ok|zcode-missing'; exit }
   $anti = @('${antiOcclusion.join("', '")}')
-  # rebuild zcode args: strip wrapper reference + managed flags, append canonical
+  # rebuild zcode args: strip any leftover wrapper reference + managed flags, append canonical
   $argStr = ([string]$s.Arguments) -replace '^"[^"]*zw-launch.vbs"s*','' -replace '^S*zw-launch.vbss*',''
   $parts = @($argStr -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
   $canonical = @('--remote-debugging-port=${port}') + $anti
   $zargs = ($parts + $canonical) -join ' '
-  $newArgs = '"' + $vbs + '" ' + $zargs
-  # Wrapper staleness: an .lnk can already be perfectly pointed at a wrapper
-  # whose CONTENT is broken or outdated (0.3.0 shipped one without the
-  # sh.Run prefix; pre-0.4.1 ones broke launches after uninstall). The
-  # zw-wrapper-vN marker detects that \u2014 bump N with every wrapper change and
-  # a stale wrapper is regenerated without touching the shortcut.
-  $stale = -not (Test-Path $vbs) -or -not ((Get-Content -Raw $vbs -ErrorAction SilentlyContinue) -match 'zw-wrapper-v3')
-  if (-not $stale -and $s.TargetPath -eq 'wscript.exe' -and ([string]$s.Arguments) -eq $newArgs) { Write-Output 'ok|has-flag'; exit }
-  if ($s.TargetPath -ne 'wscript.exe' -or ([string]$s.Arguments) -ne $newArgs) {
-    $icon = $zcode + ',0'
-    if (-not $s.IconLocation -or $s.IconLocation -eq ',0' -or $s.IconLocation -like '*zw-launch*') { $s.IconLocation = $icon }
-    $s.WorkingDirectory = Split-Path $zcode -Parent
-    $s.TargetPath = 'wscript.exe'
-    $s.Arguments = $newArgs
-    $s.Save()
-  }
+  if ($s.TargetPath -eq $zcode -and ([string]$s.Arguments) -eq $zargs) { Write-Output 'ok|has-flag'; exit }
+  # restore the icon the wrapper era stole (only when unset or ours)
+  if (-not $s.IconLocation -or $s.IconLocation -eq ',0' -or $s.IconLocation -like '*zw-launch*') { $s.IconLocation = $zcode + ',0' }
+  $s.WorkingDirectory = Split-Path $zcode -Parent
+  $s.TargetPath = $zcode
+  $s.Arguments = $zargs
+  $s.Save()
   Write-Output ('updated|' + $zcode)
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
     try {
@@ -59077,48 +59068,30 @@ try {
       const out = stdout.trim();
       if (out.startsWith("updated")) {
         result.updated.push(lnk);
-        const zcode = out.slice(out.indexOf("|") + 1);
-        if (zcode) writeEarlyLaunchVbs(port, zcode, launcher);
       } else if (out.startsWith("err")) result.failed.push({ path: lnk, reason: out.slice(4) });
       else result.skipped.push(lnk);
     } catch (err) {
       result.failed.push({ path: lnk, reason: err.message });
     }
   }
-  return result;
+  if (fs16.existsSync(vbsFile) && result.failed.length === 0) {
+    const list = links.map((l2) => `'${l2.replace(/'/g, "''")}'`).join(", ");
+    const script = `
+$ws = New-Object -ComObject WScript.Shell
+$refs = @(${list}) | Where-Object {
+  try { $l = $ws.CreateShortcut($_); ($l.TargetPath -match 'wscript\\.exe$') -and (([string]$l.Arguments) -match 'zw-launch\\.vbs') } catch { $true }
 }
-function writeEarlyLaunchVbs(port, zcode, launcher) {
-  const anti = ANTI_OCCLUSION_FLAGS;
-  const cli = path11.join(launcher.root, "dist", "cli.js");
-  const node = process.execPath;
-  if (!fs16.existsSync(cli) || !fs16.existsSync(node)) return;
-  const DQ = String.fromCharCode(34);
-  const vbq = (v) => DQ + DQ + v + DQ + DQ;
-  const serveCmd = [vbq(node), vbq(cli), "serve", "--early", "--port", String(port), "--api-port", String(port + 1)].join(" ");
-  const zcodeCmd = [vbq(zcode), "--remote-debugging-port=" + port].concat(anti).join(" ");
-  const lines = [
-    String.fromCharCode(39) + " zcode-wallpaper early launch zw-wrapper-v3 (generated by the plugin)",
-    String.fromCharCode(39) + " Starts the wallpaper serve hidden BEFORE ZCode so the renderer page",
-    String.fromCharCode(39) + " is injected the moment it exists (plugin hosts spawn ~10s later).",
-    String.fromCharCode(39) + " If the plugin was uninstalled, the serve step is skipped and ZCode",
-    String.fromCharCode(39) + " still launches normally.",
-    'Set sh = CreateObject("WScript.Shell")',
-    'Set fso = CreateObject("Scripting.FileSystemObject")',
-    // FileExists takes a plain string literal (single quotes) — NOT the
-    // doubled sh.Run command-line escaping (cscript compile-checks this).
-    "If fso.FileExists(" + DQ + cli + DQ + ") Then",
-    "  sh.Run " + DQ + serveCmd + DQ + ", 0, False",
-    "End If",
-    "sh.Run " + DQ + zcodeCmd + DQ + ", 1, False"
-  ];
-  try {
-    const metaPath = path11.join(launcher.dir, "zw-launch.json");
-    const prev = fs16.existsSync(metaPath) ? JSON.parse(fs16.readFileSync(metaPath, "utf8")) : {};
-    fs16.writeFileSync(metaPath, JSON.stringify({ ...prev, zcode, port }, null, 1));
-    const crlf = String.fromCharCode(13, 10);
-    fs16.writeFileSync(path11.join(launcher.dir, "zw-launch.vbs"), lines.join(crlf) + crlf, { encoding: "utf-8" });
-  } catch {
+if ($refs) { Write-Output 'in-use' } else { Write-Output 'retired' }`;
+    try {
+      const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", script], { timeout: 15e3, windowsHide: true });
+      if (stdout.trim() === "retired") {
+        fs16.rmSync(vbsFile, { force: true });
+        fs16.rmSync(metaFile, { force: true });
+      }
+    } catch {
+    }
   }
+  return result;
 }
 async function ensureMacLauncher(port) {
   const result = { updated: [], skipped: [], failed: [] };
