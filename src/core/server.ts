@@ -378,6 +378,11 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   const { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
 
+  // Set by the CDP-absent watchdog below; surfaced through /api/health so
+  // any agent diagnosing a "installed but panel-less" machine lands on the
+  // answer instead of guessing.
+  let cdpAbsent = false;
+
   // Auto-rotation clock (dsh-style): shared by the 30s tick below and the
   // /api/config handler, so (re-)enabling rotation never fires an immediate
   // switch — the first rotation happens a full interval after the toggle.
@@ -516,7 +521,15 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       }
 
       if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, { ok: true, service: "zcode-wallpaper", pid: process.pid, cdpPort, apiPort, version: VERSION });
+        sendJson(res, 200, {
+          ok: true,
+          service: "zcode-wallpaper",
+          pid: process.pid,
+          cdpPort,
+          apiPort,
+          version: VERSION,
+          ...(cdpAbsent ? { cdp: "absent — this ZCode launch has no debug port; restart ZCode to get injection back" } : {}),
+        });
         return;
       }
 
@@ -996,15 +1009,18 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   // Early-launch serve (ZW_EARLY=1, started hidden by the shortcut wrapper
   // BEFORE ZCode): it owns the session until the plugin host's MCP shows up
   // (it heartbeats /api/host-alive every 10s; the host sees this serve
-  // healthy and never starts its own). Lifecycle: no host within 3 minutes of
-  // ZCode running means the plugin is disabled/uninstalled — reset the UI
-  // and exit; a host that goes silent for 45s after being seen means the
-  // plugin was disabled mid-session — same. Handing back never happens
-  // (port handoff would flash); the early serve simply is the serve.
+  // healthy and never starts its own). Lifecycle exits: the enablement watch
+  // (explicit disable) and the uninstall watch own those verdicts — a host
+  // that never spawned must NOT kill the serve (2026-10-28: host-spawn races
+  // left the wallpaper as the only casualty); a host that goes silent for
+  // 45s while ZCode still runs is treated as a mid-session disable; ZCode
+  // gone for 60s ends the session (the wrapper respawns the serve on every
+  // launch, and this guarantees the next session runs CURRENT plugin code).
+  // Handing back never happens (port handoff would flash); the early serve
+  // simply is the serve.
   if (process.env.ZW_EARLY === "1") {
     let hostSeen = false;
     let lastHostAlive = 0;
-    const startedAt = Date.now();
     let zcodeSeenAt = 0;
     const { isZcodeProcessRunning } = await import("./launch.js");
 
@@ -1020,16 +1036,6 @@ export async function startServe(opts: ServeOptions): Promise<void> {
           await shutdownServe().catch(() => undefined);
           process.exit(0);
         }
-        if (!hostSeen && now - startedAt > 180_000 && zcode) {
-          console.log("serve: no plugin host appeared within 3 minutes — plugin not enabled, exiting");
-          await shutdownServe().catch(() => undefined);
-          process.exit(0);
-        }
-        // ZCode gone for a full minute: nothing left to serve. The shortcut
-        // wrapper starts a fresh serve on every launch, so exiting here both
-        // frees the port and guarantees the next session runs CURRENT plugin
-        // code — a lingering serve from an earlier install generation would
-        // otherwise keep owning the port with stale code after an update.
         if (zcodeSeenAt > 0 && now - zcodeSeenAt > 60_000) {
           console.log("serve: ZCode no longer running — exiting (the shortcut wrapper respawns me)");
           await shutdownServe().catch(() => undefined);
@@ -1077,6 +1083,42 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       .then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort))
       .then((r) => { if (r.updated.length) console.log(`serve: ${r.updated.length} shortcut(s) point at the early launcher`); })
       .catch(() => undefined);
+
+    // CDP-absent watchdog (D24): a launch through an unwrapped/foreign
+    // shortcut (updater refreshed the .lnk, shortcut renamed or living
+    // outside the scanned folders, direct ZCode.exe start) means NO debug
+    // port for this whole session — injection is impossible no matter how
+    // healthy the serve is, and the only fix is restarting ZCode. Detect
+    // it, heal the shortcuts for the NEXT launch, and say so loudly.
+    // (2026-10-28: a second machine sat "installed but panel-less" for
+    // exactly this reason with nothing pointing at the cause.)
+    const bootAt = Date.now();
+    setInterval(() => {
+      void (async () => {
+        if (cdpAbsent || heldWindowCount() > 0) return;
+        const { isZcodeProcessRunning } = await import("./launch.js");
+        if (!(await isZcodeProcessRunning().catch(() => false))) return;
+        let cdpUp = false;
+        try {
+          const r = await fetch(`http://127.0.0.1:${cdpPort}/json/version`, { signal: AbortSignal.timeout(1200) });
+          cdpUp = r.ok;
+        } catch {
+          cdpUp = false;
+        }
+        if (cdpUp) return;
+        // grace: right after boot the renderer takes ~1s; 45s with zero held
+        // sessions and a dead port means the launch truly bypassed the wrapper
+        if (Date.now() - bootAt < 45_000) return;
+        cdpAbsent = true;
+        console.log(
+          "serve: ZCode is running WITHOUT the CDP debug port — this launch bypassed the wrapped shortcut. " +
+          "Shortcuts healed for the next launch; RESTART ZCode to get the wallpaper back."
+        );
+        import("./shortcuts.js")
+          .then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort))
+          .catch(() => undefined);
+      })();
+    }, 15_000);
   }
 
   await migrateLegacyVideo();

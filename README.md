@@ -39,6 +39,10 @@
 - **CLI**：`node dist/cli.js launch | apply <path-or-id> | wallpapers | colors | reset | status | serve`
 - **Agent**：对 ZCode 里的助手说「换个壁纸」即可（或 `/wallpaper`）；工具见技能 `wallpaper`。
 
+## 面板没出现 / 壁纸全无？
+
+九成是**那一次 ZCode 启动没带调试端口**（快捷方式被覆盖、未被包装，或直接运行了 ZCode.exe）——注入通道只在进程启动那一刻存在，serve 再健康也注不进去。插件会自动修复快捷方式，并在 `wallpaper_status` 里标注 `cdp: absent`；**完全退出 ZCode 再从（已修复的）图标启动一次即恢复**。
+
 ## 没有 Wallpaper Engine 的机器能用吗？
 
 能。Steam/WE 只影响「自动列出工坊订阅」；`.zw.zip` / 裸 `.pkg` / 视频 / 图片导入完全不依赖它们——A 电脑导出 → B 电脑装插件 → 导入即用。

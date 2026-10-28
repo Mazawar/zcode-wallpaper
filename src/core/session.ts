@@ -32,10 +32,10 @@ function mergedStored(): BeautifyConfig {
   return { ...DEFAULT_CONFIG, ...(loadConfig() as Partial<BeautifyConfig>) };
 }
 
-async function serveHealth(apiPort: number): Promise<{ ok: boolean; service?: string; pid?: number }> {
+async function serveHealth(apiPort: number): Promise<{ ok: boolean; service?: string; pid?: number; cdp?: string }> {
   try {
     const res = await fetch(`http://127.0.0.1:${apiPort}/api/health`, { signal: AbortSignal.timeout(1200) });
-    return (await res.json()) as { ok: boolean; service?: string; pid?: number };
+    return (await res.json()) as { ok: boolean; service?: string; pid?: number; cdp?: string };
   } catch {
     return { ok: false };
   }
@@ -261,14 +261,19 @@ export async function wallpaperStatus(): Promise<Record<string, unknown>> {
   }, {});
   const imported = Array.isArray(config.customSources) ? config.customSources.length : 0;
   if (imported > 0) counts.imported = imported;
+  const health = await serveHealth(config.apiPort);
   return {
     steamRoots: lib.steamRoots,
     // null = Wallpaper Engine not installed — optional, imports still work.
     wallpaperEngine: lib.we?.root ?? null,
     counts,
-    serve: (await isServeAlive(config.apiPort))
+    serve: health.ok && health.service === "zcode-wallpaper"
       ? `http://127.0.0.1:${config.apiPort}`
       : "not running",
+    // Present when ZCode is running WITHOUT the CDP debug port (this launch
+    // bypassed the wrapped shortcut) — injection is impossible until ZCode
+    // is restarted; the shortcuts are healed automatically in the meantime.
+    ...(health.cdp ? { cdp: health.cdp, hint: "restart ZCode to get the wallpaper back" } : {}),
     current: config.live
       ? { title: config.live.title, sourceId: config.live.sourceId, kind: config.live.kind, fps: config.liveFps, muted: config.liveMuted }
       : config.mediaType ?? null,
