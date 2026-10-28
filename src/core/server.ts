@@ -66,10 +66,32 @@ const MAX_BODY_BYTES = MAX_WALLPAPER_BYTES + 1024 * 1024;
 const serveLog: string[] = [];
 {
   const orig = console.log.bind(console);
+  // D22 observability: manual and MCP-embedded serves also persist their
+  // ring lines to <dataDir>/zw-serve.log — the same file the v6 wrapper's
+  // zw-serve.cmd appends the early serve's stdout to. A serve that died
+  // used to take its only log with it; now the exit reason survives. The
+  // early serve itself is EXCLUDED: its stdout is already redirected into
+  // the file by the wrapper batch, and double-appending would duplicate
+  // every line.
+  let teeCount = 0;
+  const tee = (line: string): void => {
+    if (process.env.ZW_EARLY === "1") return;
+    try {
+      const file = path.join(dataDir(), "zw-serve.log");
+      fs.appendFileSync(file, line + "\n", "utf8");
+      if (++teeCount % 400 === 0 && fs.statSync(file).size > 524_288) {
+        fs.renameSync(file, file + ".old");
+      }
+    } catch {
+      /* persistence must never break logging */
+    }
+  };
   console.log = (...args: unknown[]) => {
     try {
-      serveLog.push(`${new Date().toISOString().slice(11, 19)} ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ").slice(0, 200)}`);
+      const line = `${new Date().toISOString().slice(11, 19)} ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ").slice(0, 200)}`;
+      serveLog.push(line);
       if (serveLog.length > 400) serveLog.shift();
+      tee(line);
     } catch {
       /* recording must never break logging */
     }
@@ -872,6 +894,7 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   });
 
   console.log(`serve: control API on http://127.0.0.1:${apiPort} — Ctrl+C to stop`);
+  console.log(`serve: pid=${process.pid} early=${process.env.ZW_EARLY === "1" ? "1" : "0"} mcpHost=${process.env.ZW_SPAWNED_BY_MCP === "1" ? "1" : "0"} v${VERSION}`);
   console.log(`serve: injecting into ZCode renderers on CDP port ${cdpPort}`);
   console.log(`serve: webwallgl engine: ${engineFile() ?? "NOT FOUND (npm install webwallgl)"}`);
 
