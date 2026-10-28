@@ -59205,7 +59205,7 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
     '  lf.WriteLine Year(Now) & "-" & Right("0" & Month(Now), 2) & "-" & Right("0" & Day(Now), 2) & " " & Right("0" & Hour(Now), 2) & ":" & Right("0" & Minute(Now), 2) & ":" & Right("0" & Second(Now), 2) & " vbs: " & m',
     "  lf.Close",
     "End Sub",
-    'ZLog "wrapper v6 boot"',
+    'ZLog "wrapper v7 boot"',
     "If fso.FileExists(" + DQ + node + DQ + ") And fso.FileExists(" + DQ + cli + DQ + ") Then",
     '  ZLog "spawning serve via zw-serve.cmd"',
     "  sh.Run " + DQ + cmdFile + DQ + ", 0, False",
