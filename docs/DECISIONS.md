@@ -97,3 +97,12 @@
   health 暴露 version，宿主发现端口上是旧代际 serve 即 POST /api/retire 令其退役
   （根治"部署了没生效"的驻留旧码问题）。mac/linux wrapper 同步加 node 探测（其后台
   失败本就不阻塞启动行，属一致性收尾）。
+
+- **D19 启动目标运行时自愈（1.0.4，D18 的收尾）**：包装的最后残余风险=烘焙的 ZCode 路径失效
+  （应用挪动/换盘重装）→ 双击无反应。VBS v5 启动行前按**通用信号链**重找目标，不预设安装习惯：
+  烘焙路径 → %ZCODE_WINDOWS_APP_INSTALL_DIR%/Program Files/LOCALAPPDATA 标准位 → **WMI 查运行中的
+  ZCode.exe 实例路径**（任意安装位置）→ **扫描桌面/开始菜单 .lnk 找仍指向 ZCode.exe 的条目**（搬家后
+  安装器新写的快捷方式就是信号）→ 盘符根目录 ZCode\ZCode.exe 约定（兜底的兜底）→ 全落空弹 ASCII
+  明示框（wscript 无 BOM 按 ANSI 读，包装内禁非 ASCII），提示直启一次即自愈。实测：伪烘焙路径下全链
+  与去 WMI 链都能找回 D:\ZCode\ZCode.exe。mac 同理：open -a 改按应用名调用（自动搜 /Applications +
+  ~/Applications，路径挪动不断链）。
