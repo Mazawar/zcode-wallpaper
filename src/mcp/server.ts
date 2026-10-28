@@ -10,6 +10,7 @@
  */
 
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -342,14 +343,33 @@ server.registerTool(
 await server.connect(new StdioServerTransport());
 
 // Lifecycle, event-driven: ZCode closes our stdio pipe on plugin disable /
-// app close. At that moment restore ZCode's default appearance and stop the
-// in-process serve — disable is immediate, and a re-enabled plugin brings
-// the stored wallpaper back by itself. (Hard kills are covered by the
-// injected page scripts' heartbeat self-clean.)
+// app close — AND on benign host recycles (new conversation session,
+// workspace switch, plugin update). Observed 2026-10-28 16:07: a recycle
+// spawned the successor MCP host ~5s later, so an unconditional restore
+// tore a healthy wallpaper out of the page mid-session — the visible
+// wallpaper blink. Only the DISABLE case must reset the UI (a re-enabled
+// plugin brings the stored wallpaper back by itself). On every other
+// stdio-close exit WITHOUT restoring: the page-side agent keeps the live
+// iframe mounted and reconnects its SSE to the successor serve on its own;
+// app close kills the renderer anyway. Hard kills and a mid-session
+// disable toggle stay covered by the serve's 5s enablement tick.
 async function gracefulShutdown(): Promise<void> {
+  let restore = true;
   try {
-    const { shutdownServe } = await import("../core/server.js");
-    await shutdownServe();
+    const srv = await import("../core/server.js");
+    const cfgPath = path.join(os.homedir(), ".zcode", "cli", "config.json");
+    restore = srv.pluginDisabledBy(cfgPath) !== null;
+    console.error(
+      `[serve] stdio closed — plugin ${restore ? "disabled: restoring default appearance" : "still enabled: leaving the wallpaper mounted for the successor serve"}`,
+    );
+  } catch {
+    /* unreadable enablement state — fall back to restore-on-exit */
+  }
+  try {
+    if (restore) {
+      const { shutdownServe } = await import("../core/server.js");
+      await shutdownServe();
+    }
   } catch {
     /* best effort */
   }
