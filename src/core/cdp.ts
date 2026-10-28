@@ -139,6 +139,8 @@ export interface InjectionPayload {
   fit?: "cover" | "contain" | "stretch";
   /** Poster URL painted UNDER the live layer — dsh's persistent underlay. */
   livePoster?: string;
+  /** True when the layer carries a CSS blur — its edge bleed needs the backdrop underlay. */
+  wallBlur?: boolean;
   /** Mute state for the native loop-video layer. */
   videoMuted?: boolean;
   /** Switch effect (dsh's family) + speed, applied to the outgoing overlay. */

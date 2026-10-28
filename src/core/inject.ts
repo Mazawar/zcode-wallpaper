@@ -10,6 +10,8 @@
  *            into the live renderer still stream this way
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import {
   buildResetScript,
   injectIntoTarget,
@@ -173,6 +175,28 @@ export function buildPayload(config: BeautifyConfig, assets?: WallpaperAssets, o
   const position = `${Math.round(focusX * 100)}% ${Math.round(focusY * 100)}%`;
   const bgSize = resolved === "stretch" ? "100% 100%" : resolved;
 
+  const visible = config.wallpaperVisible;
+
+  // Underlay painted under the wallpaper layer: the live poster (dsh's
+  // persistent underlay), or for native-video wallpapers the preview image.
+  // A CSS blur on the viewport-sized layer bleeds past its edges into
+  // transparency; a heavily blurred copy of the same picture behind the
+  // layer hides that bleed WITHOUT zooming the framing (D16).
+  let underlay: string | undefined;
+  if (visible) {
+    if (config.live?.poster) {
+      underlay = `http://127.0.0.1:${config.apiPort}/files/${config.live.sourceId}/${config.live.poster
+        .split(/[\\/]/)
+        .map(encodeURIComponent)
+        .join("/")}`;
+    } else if (config.mediaType === "video" && config.monetSourcePath && fs.existsSync(config.monetSourcePath)) {
+      const id = /\/files\/([^/]+)\//.exec(config.sceneVideoUrl ?? "")?.[1];
+      if (id) {
+        underlay = `http://127.0.0.1:${config.apiPort}/files/${id}/${encodeURIComponent(path.basename(config.monetSourcePath))}`;
+      }
+    }
+  }
+
   // dsh-style picture knobs: a media filter plus a compositor transform on the
   // wallpaper layer. 100 = untouched; position maps 0–100 to ±25% of the layer.
   const fx: string[] = [];
@@ -182,7 +206,12 @@ export function buildPayload(config: BeautifyConfig, assets?: WallpaperAssets, o
   if ((config.wallSaturate ?? 100) !== 100) fx.push(`saturate(${config.wallSaturate}%)`);
   const tx = ((config.posX ?? 50) - 50) / 2;
   const ty = ((config.posY ?? 50) - 50) / 2;
-  const layerScale = ((config.layerScale ?? 100) / 100) * (config.blur > 0 ? 1.04 : 1);
+  // With an underlay (or the image itself) behind the blurred layer the edge
+  // bleed is covered and the framing stays untouched; the fixed 4% overscale
+  // survives only as the fallback when blur is on but no underlay image
+  // exists at all (e.g. a video wallpaper without a preview).
+  const blurEdge = config.blur > 0 && !underlay && !(visible && config.mediaType === "image" && assets?.dataUri) ? 1.04 : 1;
+  const layerScale = ((config.layerScale ?? 100) / 100) * blurEdge;
   const transform = `translate(${tx}%, ${ty}%)${config.flip ? " scaleX(-1)" : ""} scale(${layerScale})`;
   const layerOpacity = 1 - (config.wallOpacity ?? 0) / 100;
 
@@ -214,7 +243,9 @@ html, body { background: transparent !important; }
 }
 #zcode-wallpaper-backdrop[data-on="1"] { display: block; }`);
   if (config.dim > 0) {
-    parts.push(`#zcode-wallpaper-wallpaper::after {
+    // The backdrop gets the same dim: where the blurred layer fades into it
+    // at the screen edges, an undimmed backdrop would read as a bright rim.
+    parts.push(`#zcode-wallpaper-wallpaper::after, #zcode-wallpaper-backdrop::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -244,7 +275,6 @@ html, body { background: transparent !important; }
     parts.push(`[class*="bg-background"] { background-color: var(--color-background) !important; }`);
   }
 
-  const visible = config.wallpaperVisible;
   const liveSrc = visible && config.mediaType === "live" ? opts.liveUrl : undefined;
   const videoSrc = visible && config.mediaType === "video" ? config.sceneVideoUrl : undefined;
   const wallpaperDataUri =
@@ -256,15 +286,13 @@ html, body { background: transparent !important; }
     videoSrc,
     videoMuted: config.liveMuted !== false,
     liveSrc,
-    // dsh's persistent underlay: the poster under the live layer, so a
-    // blank/reloading/stalled engine shows a still instead of nothing.
-    livePoster:
-      visible && config.live?.poster
-        ? `http://127.0.0.1:${config.apiPort}/files/${config.live.sourceId}/${config.live.poster
-            .split(/[\\/]/)
-            .map(encodeURIComponent)
-            .join("/")}`
-        : undefined,
+    // Under the live layer this is dsh's persistent underlay (a blank or
+    // reloading engine shows a still instead of nothing); under a blurred
+    // wallpaper of any kind it doubles as the edge-bleed cover (D16).
+    livePoster: underlay,
+    // Drives the agent's backdrop underlay decision — CSS blur on the layer
+    // means its edges fade and need something beneath them.
+    wallBlur: config.blur > 0,
     fit: visible ? resolved : "cover",
     transition: config.switchTransition ?? "fade",
     transitionSpeed: config.switchTransitionSpeed ?? "normal",

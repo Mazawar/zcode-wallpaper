@@ -765,6 +765,7 @@
     const rec = createRecorder(reg);
     let VIDEO_SRC = "", LIVE_SRC = "", TRANS = "fade", TSPD = 600;
     let VMUTED = true, VFIT = "cover", WPIMG = "", FIT = "cover", UNDERLAY = "";
+    let BLURON = false;
     let failedInfo = null;
     function wpRoot() {
       return document.getElementById(MARKER + "-wallpaper");
@@ -850,6 +851,7 @@
       WPIMG = payload.wallpaperDataUri || "";
       FIT = payload.fit || "cover";
       UNDERLAY = payload.livePoster || "";
+      BLURON = payload.wallBlur === true;
       failedInfo = payload.liveFailed || null;
       if (S.cssText === payload.css && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
       S.cssText = payload.css;
@@ -902,7 +904,7 @@
       if (kind !== KIND.VIDEO && WPIMG && wp) wp.style.backgroundImage = "url(" + WPIMG + ")";
       else if (kind !== KIND.VIDEO && wp && !LIVE_SRC && !failedInfo) wp.style.backgroundImage = "none";
       const bp = document.getElementById(MARKER + "-backdrop");
-      const underlayWanted = FIT === "contain" && WPIMG || (LIVE_SRC || failedInfo) && UNDERLAY;
+      const underlayWanted = FIT === "contain" && WPIMG || (LIVE_SRC || failedInfo) && UNDERLAY || BLURON && (WPIMG || UNDERLAY);
       if (underlayWanted) {
         let b = bp;
         if (!b) {

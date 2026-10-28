@@ -23,7 +23,8 @@ import {
   wallpaperStatus,
 } from "../core/session.js";
 import { detectWallpaperType } from "../core/wallpaperType.js";
-import { enumerateWallpapers } from "../core/steam.js";
+import { enumerateWallpapers, resolveSourceDir, type WallpaperEntry } from "../core/steam.js";
+import { storedCustomSources } from "../core/configApi.js";
 import { DEFAULT_API_PORT } from "../core/inject.js";
 
 function bootstrapServe(): void {
@@ -124,7 +125,7 @@ bootstrapServe();
 
 const server = new McpServer({
   name: "zcode-wallpaper",
-  version: "1.0.1",
+  version: "1.0.2",
 });
 
 /** Registry of the tools this server exposes (used by tests / docs). */
@@ -176,19 +177,37 @@ server.registerTool(
 server.registerTool(
   "list_wallpapers",
   {
-    title: "List Wallpaper Engine wallpapers",
+    title: "List local wallpapers",
     description:
-      "Enumerate the local Wallpaper Engine library: subscribed Steam workshop wallpapers plus WE's own default/my projects. Returns id, title, type (scene/video/web) and size for each — pass an id to set_background / import_scene_wallpaper.",
+      "Enumerate the local wallpaper library: Wallpaper Engine workshop subscriptions, WE's own default/my projects, and wallpapers imported on this machine (.pkg / .zw.zip / video / image). Returns id, title, type (scene/video/web) and size for each — pass an id to set_background. A Wallpaper Engine install is OPTIONAL: imported wallpapers and direct file paths (set_background / import_scene_wallpaper) work without it.",
     inputSchema: {},
   },
   async () => {
     const lib = await enumerateWallpapers();
-    const lines = lib.wallpapers.map(
-      (w) => `- ${w.id} | ${w.type} | ${(w.sizeBytes / 1024 / 1024).toFixed(1)}MB | ${w.title}${w.workshopId ? ` (workshop ${w.workshopId})` : ""}`
-    );
+    // Same merge the panel's /api/wallpapers does: Steam/WE enumeration has no
+    // idea about locally imported sources, and without them an agent on a
+    // WE-less machine reads "0 wallpapers" and wrongly concludes nothing works.
+    const custom = storedCustomSources();
+    const customs: WallpaperEntry[] = [];
+    for (const c of custom) {
+      const entry = await resolveSourceDir(c.id, custom);
+      if (entry) customs.push(entry);
+    }
+    const format = (w: WallpaperEntry) =>
+      `- ${w.id} | ${w.type} | ${(w.sizeBytes / 1024 / 1024).toFixed(1)}MB | ${w.title}` +
+      (w.origin === "custom" ? " (imported)" : w.workshopId ? ` (workshop ${w.workshopId})` : "");
+    const lines = [...customs, ...lib.wallpapers].map(format);
+    if (lines.length === 0) {
+      lines.push(
+        "Tip: the library is empty — you can still set a wallpaper without Wallpaper Engine: " +
+        "pass a local image / scene directory / .pkg / .zw.zip / video path to set_background."
+      );
+    }
+    const total = customs.length + lib.wallpapers.length;
     const head = lib.we
-      ? `Wallpaper Engine: ${lib.we.root} — ${lib.wallpapers.length} wallpapers`
-      : `Wallpaper Engine not found (steam roots: ${lib.steamRoots.join(", ") || "none"}) — ${lib.wallpapers.length} wallpapers`;
+      ? `Wallpaper Engine: ${lib.we.root} — ${total} wallpapers (${customs.length} imported)`
+      : `Wallpaper Engine not installed — OPTIONAL, imports and direct paths still work ` +
+        `(steam roots: ${lib.steamRoots.join(", ") || "none"}) — ${total} wallpapers (${customs.length} imported)`;
     return { content: [{ type: "text", text: [head, ...lines].join("\n") }] };
   }
 );
@@ -298,7 +317,7 @@ server.registerTool(
   "wallpaper_status",
   {
     title: "Wallpaper status",
-    description: "Report the wallpaper engine state: Steam roots, Wallpaper Engine install, library counts, serve process and the currently applied wallpaper.",
+    description: "Report the wallpaper state: Steam roots, Wallpaper Engine install (null = not installed; optional — imported wallpapers still work), library counts including locally imported sources, serve process and the currently applied wallpaper.",
     inputSchema: {},
   },
   async () => {

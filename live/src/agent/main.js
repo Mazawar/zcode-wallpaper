@@ -41,6 +41,7 @@ import { createLedger } from "./ledger.js";
   // Current payload-derived values (shared with actors via apply() opts).
   let VIDEO_SRC = "", LIVE_SRC = "", TRANS = "fade", TSPD = 600;
   let VMUTED = true, VFIT = "cover", WPIMG = "", FIT = "cover", UNDERLAY = "";
+  let BLURON = false; // payload.wallBlur — layer blur needs the backdrop underlay (D16)
   let failedInfo = null; // payload.liveFailed — degraded, poster-only mode
 
   function wpRoot() { return document.getElementById(MARKER + "-wallpaper"); }
@@ -139,6 +140,7 @@ import { createLedger } from "./ledger.js";
     WPIMG = payload.wallpaperDataUri || "";
     FIT = payload.fit || "cover";
     UNDERLAY = payload.livePoster || "";
+    BLURON = payload.wallBlur === true;
     failedInfo = payload.liveFailed || null;
 
     if (S.cssText === payload.css && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
@@ -220,7 +222,13 @@ import { createLedger } from "./ledger.js";
     else if (kind !== KIND.VIDEO && wp && !LIVE_SRC && !failedInfo) wp.style.backgroundImage = "none";
 
     const bp = document.getElementById(MARKER + "-backdrop");
-    const underlayWanted = (FIT === "contain" && WPIMG) || ((LIVE_SRC || failedInfo) && UNDERLAY);
+    // BLURON: the layer's blur filter bleeds past its edges into transparency
+    // (D16) — the blurred backdrop of the same picture covers that bleed so
+    // the framing needs no overscale.
+    const underlayWanted =
+      (FIT === "contain" && WPIMG) ||
+      ((LIVE_SRC || failedInfo) && UNDERLAY) ||
+      (BLURON && (WPIMG || UNDERLAY));
     if (underlayWanted) {
       let b = bp;
       if (!b) {

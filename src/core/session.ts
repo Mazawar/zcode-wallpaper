@@ -252,13 +252,17 @@ export async function resetAppearance(port?: number): Promise<number> {
 export async function wallpaperStatus(): Promise<Record<string, unknown>> {
   const lib = await enumerateWallpapers();
   const config = mergedStored();
+  const counts = lib.wallpapers.reduce<Record<string, number>>((acc, w) => {
+    acc[w.type] = (acc[w.type] ?? 0) + 1;
+    return acc;
+  }, {});
+  const imported = Array.isArray(config.customSources) ? config.customSources.length : 0;
+  if (imported > 0) counts.imported = imported;
   return {
     steamRoots: lib.steamRoots,
+    // null = Wallpaper Engine not installed — optional, imports still work.
     wallpaperEngine: lib.we?.root ?? null,
-    counts: lib.wallpapers.reduce<Record<string, number>>((acc, w) => {
-      acc[w.type] = (acc[w.type] ?? 0) + 1;
-      return acc;
-    }, {}),
+    counts,
     serve: (await isServeAlive(config.apiPort))
       ? `http://127.0.0.1:${config.apiPort}`
       : "not running",

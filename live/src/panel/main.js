@@ -127,15 +127,17 @@ import { MARKER, createMountLoop } from "./mount.js";
 
     const head = el("div", "flex flex-wrap items-center justify-between gap-2");
     const headText = el("div");
-    headText.appendChild(el("h3", CLS.title, "壁纸引擎"));
+    const titleRow = el("div", "flex items-center gap-2");
+    titleRow.appendChild(el("h3", CLS.title, "壁纸引擎"));
+    const verBadge = el("span", CLS.badge, "p" + PANEL_VERSION);
+    verBadge.title = "面板构建版本（对比插件版本可发现未重启的旧面板）";
+    titleRow.appendChild(verBadge);
+    headText.appendChild(titleRow);
     headText.appendChild(el("p", CLS.desc, "使用 Wallpaper Engine 订阅的壁纸：场景为实时渲染（保留粒子、脚本与鼠标视差），图片与视频亦可作为背景。"));
     head.appendChild(headText);
     ui.badge = el("span", CLS.badge, "…");
-    ui.badge.title = "面板构建版本";
+    ui.badge.title = "当前壁纸状态";
     head.appendChild(ui.badge);
-    const verBadge = el("span", CLS.badge, "p" + PANEL_VERSION);
-    verBadge.title = "面板构建版本（对比插件版本可发现未重启的旧面板）";
-    head.appendChild(verBadge);
     section.appendChild(head);
 
     // Live hard-failure banner (D6): honest empty state with a retry, never a

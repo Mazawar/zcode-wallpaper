@@ -539,7 +539,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.1";
+    const PANEL_VERSION = false ? "dev" : "1.0.2";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -653,15 +653,17 @@
       section.id = MARKER;
       const head = el("div", "flex flex-wrap items-center justify-between gap-2");
       const headText = el("div");
-      headText.appendChild(el("h3", CLS.title, "\u58C1\u7EB8\u5F15\u64CE"));
+      const titleRow = el("div", "flex items-center gap-2");
+      titleRow.appendChild(el("h3", CLS.title, "\u58C1\u7EB8\u5F15\u64CE"));
+      const verBadge = el("span", CLS.badge, "p" + PANEL_VERSION);
+      verBadge.title = "\u9762\u677F\u6784\u5EFA\u7248\u672C\uFF08\u5BF9\u6BD4\u63D2\u4EF6\u7248\u672C\u53EF\u53D1\u73B0\u672A\u91CD\u542F\u7684\u65E7\u9762\u677F\uFF09";
+      titleRow.appendChild(verBadge);
+      headText.appendChild(titleRow);
       headText.appendChild(el("p", CLS.desc, "\u4F7F\u7528 Wallpaper Engine \u8BA2\u9605\u7684\u58C1\u7EB8\uFF1A\u573A\u666F\u4E3A\u5B9E\u65F6\u6E32\u67D3\uFF08\u4FDD\u7559\u7C92\u5B50\u3001\u811A\u672C\u4E0E\u9F20\u6807\u89C6\u5DEE\uFF09\uFF0C\u56FE\u7247\u4E0E\u89C6\u9891\u4EA6\u53EF\u4F5C\u4E3A\u80CC\u666F\u3002"));
       head.appendChild(headText);
       ui.badge = el("span", CLS.badge, "\u2026");
-      ui.badge.title = "\u9762\u677F\u6784\u5EFA\u7248\u672C";
+      ui.badge.title = "\u5F53\u524D\u58C1\u7EB8\u72B6\u6001";
       head.appendChild(ui.badge);
-      const verBadge = el("span", CLS.badge, "p" + PANEL_VERSION);
-      verBadge.title = "\u9762\u677F\u6784\u5EFA\u7248\u672C\uFF08\u5BF9\u6BD4\u63D2\u4EF6\u7248\u672C\u53EF\u53D1\u73B0\u672A\u91CD\u542F\u7684\u65E7\u9762\u677F\uFF09";
-      head.appendChild(verBadge);
       section.appendChild(head);
       ui.failBox = el("div");
       ui.failBox.style.cssText = "display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--color-border,#ffffff1a);border-radius:10px;font-size:13px;color:var(--color-foreground,#eee);";
