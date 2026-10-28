@@ -26,6 +26,7 @@ import { promisify } from "node:util";
 import { liveDir, engineFile } from "./paths.js";
 import {
   DEFAULT_API_PORT,
+  DEFAULT_CONFIG,
   type BeautifyConfig,
 } from "./inject.js";
 import { loadWallpaper } from "./monet.js";
@@ -1036,10 +1037,18 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   // Launch-shortcut sync also runs here (not only in the MCP bootstrap): the
   // early serve exists before any plugin host, and a healthy serve keeps the
   // host from ever starting its own — this is the only reliable hook it has.
-  import("./shortcuts.js")
-    .then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort))
-    .then((r) => { if (r.updated.length) console.log(`serve: ${r.updated.length} shortcut(s) point at the early launcher`); })
-    .catch(() => undefined);
+  // Canonical ports only: an ad-hoc serve on custom --port/--api-port (dev
+  // verification, second instance) must never rewrite the user's real launch
+  // shortcuts. 1.0.5's verification serve on 28258/28289 did exactly that —
+  // the next real boot came up with CDP on the throwaway port, the plugin
+  // host's serve saw nothing on 28256, and the wallpaper died mid-session
+  // when the early serve misread "no heartbeats" as "plugin disabled".
+  if (cdpPort === DEFAULT_CONFIG.port && apiPort === DEFAULT_API_PORT) {
+    import("./shortcuts.js")
+      .then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort))
+      .then((r) => { if (r.updated.length) console.log(`serve: ${r.updated.length} shortcut(s) point at the early launcher`); })
+      .catch(() => undefined);
+  }
 
   await migrateLegacyVideo();
   // The session loop never resolves: poll, hold, self-heal. Pages that come

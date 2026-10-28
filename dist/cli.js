@@ -48909,7 +48909,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.5";
+    VERSION = "1.0.6";
   }
 });
 
@@ -53058,9 +53058,11 @@ async function startServe(opts) {
       await applySource(next, runtimeConfig()).catch(() => void 0);
     })();
   }, 3e4);
-  Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort)).then((r2) => {
-    if (r2.updated.length) console.log(`serve: ${r2.updated.length} shortcut(s) point at the early launcher`);
-  }).catch(() => void 0);
+  if (cdpPort === DEFAULT_CONFIG.port && apiPort === DEFAULT_API_PORT) {
+    Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort)).then((r2) => {
+      if (r2.updated.length) console.log(`serve: ${r2.updated.length} shortcut(s) point at the early launcher`);
+    }).catch(() => void 0);
+  }
   await migrateLegacyVideo();
   await startSessionLoop(runtimeConfig, apiPort);
 }
