@@ -24,6 +24,49 @@ import { buildVariableOverrides, buildTransparencyOverrides } from "./tokens.js"
 
 export type WallpaperFit = "cover" | "contain" | "smart" | "stretch";
 
+export type LiveQualityPreset = "low" | "balanced" | "high" | "ultra";
+
+/**
+ * D20: one user-facing preset expands into the engine's render knobs. This
+ * table is the ONLY place presets exist — the renderer page never learns
+ * preset names, it only ever receives the expanded URL params (see
+ * buildLiveUrl), so hot updates and fresh mounts can't drift apart.
+ *
+ *   dpr   cap on devicePixelRatio for the render backing store (0 = native);
+ *         rendering at ≤1× logical pixels is the biggest lever on HiDPI
+ *         laptops (DPR 1.5/2 render 2.25–4× the pixels for a wallpaper that
+ *         sits behind a translucent UI)
+ *   aa    anti-aliasing tier; pq particles; pp post-processing tier
+ *   vts   video texture upload scale (video wallpapers only)
+ *   aq    engine autoQuality — mount-only (no hot setter): it also acts as
+ *         the software-rendering safety net (no GPU → drop post + shrink
+ *         canvas), so the two lower presets keep it on; a hot preset change
+ *         applies it on the next renderer mount, the other knobs immediately
+ */
+export interface LiveQualityKnobs {
+  dpr: number;
+  aa: "off" | "fxaa" | "msaa2" | "msaa4";
+  pq: "off" | "low" | "medium" | "high";
+  pp: "off" | "low" | "medium" | "high";
+  vts: number;
+  aq: boolean;
+}
+
+export const LIVE_QUALITY_PRESETS: Record<LiveQualityPreset, LiveQualityKnobs> = {
+  low: { dpr: 0.75, aa: "off", pq: "low", pp: "off", vts: 0.5, aq: true },
+  // Default: full logical resolution (native on DPR-1 screens), mid effect
+  // tiers, adaptive safety net — visible quality with roughly half the GPU
+  // cost of "ultra" on HiDPI machines. 1.0.4 and before always rendered
+  // "ultra" (D20).
+  balanced: { dpr: 1, aa: "fxaa", pq: "medium", pp: "medium", vts: 1, aq: true },
+  high: { dpr: 0, aa: "msaa2", pq: "high", pp: "high", vts: 1, aq: false },
+  ultra: { dpr: 0, aa: "msaa4", pq: "high", pp: "high", vts: 1, aq: false },
+};
+
+export function liveQualityKnobs(preset: LiveQualityPreset | undefined): LiveQualityKnobs {
+  return LIVE_QUALITY_PRESETS[preset ?? "balanced"] ?? LIVE_QUALITY_PRESETS.balanced;
+}
+
 export interface LiveSourceRef {
   /** Registry id served under /files/<id>/. */
   sourceId: string;
@@ -57,6 +100,8 @@ export interface BeautifyConfig {
   live?: LiveSourceRef;
   liveFps?: number;
   liveMuted?: boolean;
+  /** Render quality preset (D20) — expanded by LIVE_QUALITY_PRESETS. */
+  liveQuality?: LiveQualityPreset;
   // ── dsh-style picture knobs: media filter + framing on the wallpaper layer ──
   /** Percent, 100 = untouched (brightness 40–160 / contrast 40–200 / saturate 0–200). */
   wallBrightness?: number;
@@ -97,6 +142,7 @@ export const DEFAULT_CONFIG: BeautifyConfig = {
   fit: "cover",
   liveFps: 30,
   liveMuted: true,
+  liveQuality: "balanced",
   wallBrightness: 100,
   wallContrast: 100,
   wallSaturate: 100,
@@ -126,12 +172,22 @@ export function buildLiveUrl(config: BeautifyConfig): string | undefined {
   // Videos play at the media's native cadence — the scene fps cap (30) exists
   // to budget scene GPU cost and must not halve a 60fps loop.
   const fps = config.live.kind === "video" ? 60 : (config.liveFps ?? 30);
+  // D20 render knobs — always emitted (dpr=0 = native), so a hot preset change
+  // can always reach the renderer through the {zw:"cfg"} message, including
+  // lifting a previously-set resolution cap.
+  const k = liveQualityKnobs(config.liveQuality);
   const q = new URLSearchParams({
     type: config.live.kind,
     src: config.live.sourceId,
     fit: config.fit === "contain" ? "contain" : config.fit === "stretch" ? "stretch" : "cover",
     fps: String(fps),
     muted: config.liveMuted === false ? "0" : "1",
+    dpr: String(k.dpr),
+    aa: k.aa,
+    pq: k.pq,
+    pp: k.pp,
+    vts: String(k.vts),
+    aq: k.aq ? "1" : "0",
   });
   // live.file is stored pre-encoded (applySource composes it via
   // encodeURIComponent). URLSearchParams encodes again on set(), so decode

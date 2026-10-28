@@ -6,8 +6,12 @@
  * audio reaction) and mounts web wallpapers with the WE API shim. This page is
  * only the host adapter:
  *   - URL protocol: type (scene|video|web), src (source id), file (relative
- *     media path for video), fit, fps, muted, dpr, poster
+ *     media path for video), fit, fps, muted, poster
  *     poster (preview image to show until the first frame)
+ *     D20 render knobs (host-expanded presets, see inject.ts
+ *     LIVE_QUALITY_PRESETS): dpr (cap on devicePixelRatio, 0 = native),
+ *     aa / pq / pp (anti-aliasing / particles / post tiers), vts (video
+ *     texture scale), aq (engine auto-degrade; mount-only — no hot setter)
  *   - input bridge: parent window postMessage {zw:'ptr'|'ptrup'|'ptrleave'|
  *     'wheel'|'pause'|'resume'} -> inst.pushPointer / pause / resume, so the
  *     scene reacts to the real cursor moving over the ZCode UI above it
@@ -82,17 +86,31 @@ function sourceOf(cfg) {
   return httpSource(base);
 }
 
+// D20 render quality: the host expands a preset into these knobs (the page
+// never sees preset names). Absent params fall back to the "balanced" values,
+// so a bare URL behaves like the shipped default instead of maxing the GPU.
+const AA_TIERS = new Set(["off", "fxaa", "msaa2", "msaa4"]);
+const TIER = new Set(["off", "low", "medium", "high"]);
+const tierOf = (v, allowed, fallback) => (allowed.has(v) ? v : fallback);
+// cap > 0 = never render above cap × CSS pixels; HiDPI screens (DPR 1.5/2
+// render 2.25–4× the pixels) are where the savings live. 0 = engine auto
+// (device DPR, native).
+function capDpr(cap) {
+  return cap > 0 ? Math.min(window.devicePixelRatio || 1, cap) : 0;
+}
+
 const inst = createScene(host, {
   fit: fitOf(params.get("fit")),
   fps: Number(params.get("fps")) || 30,
   volume,
-  renderDpr: Number(params.get("dpr")) || 0,
-  // Full fidelity: no texture downsampling, original particle/post settings,
-  // MSAA like Wallpaper Engine, and no automatic quality degradation — the
-  // wallpaper renders exactly as authored (perf is managed via the fps cap).
-  videoTexScale: 1,
-  autoQuality: false,
-  quality: { antiAliasing: "msaa4", particles: "high", postProcessing: "high" },
+  renderDpr: capDpr(Number(params.get("dpr")) || 0),
+  videoTexScale: Number(params.get("vts")) || 1,
+  autoQuality: params.get("aq") !== "0",
+  quality: {
+    antiAliasing: tierOf(params.get("aa"), AA_TIERS, "fxaa"),
+    particles: tierOf(params.get("pq"), TIER, "medium"),
+    postProcessing: tierOf(params.get("pp"), TIER, "medium"),
+  },
   onDiagnostic: (msg, level) => diag(msg, level),
 });
 
@@ -292,12 +310,23 @@ window.addEventListener("message", (ev) => {
         // parent gone — mid-swap
       }
     }
-    // Hot config update (same wallpaper, changed fit/fps/volume) — avoids a
-    // full reload (and the reload flash) for tweaks the engine applies live.
+    // Hot config update (same wallpaper, changed fit/fps/volume/quality) —
+    // avoids a full reload (and the reload flash) for tweaks the engine
+    // applies live. setRenderDpr is the heavy one: it rebuilds the canvas and
+    // re-mounts the scene (engine-owned); the rest apply in place.
     else if (d.zw === "cfg") {
       if (d.fit) inst.setFit(fitOf(d.fit));
       if (d.fps) inst.setFps(Number(d.fps) || 30);
       if (typeof d.volume === "number") inst.setVolume(Math.max(0, Math.min(1, d.volume)));
+      if (d.dpr !== undefined && d.dpr !== "") inst.setRenderDpr(capDpr(Number(d.dpr) || 0));
+      if (d.q && typeof d.q === "object") {
+        const patch = {};
+        if (AA_TIERS.has(d.q.aa)) patch.antiAliasing = d.q.aa;
+        if (TIER.has(d.q.pq)) patch.particles = d.q.pq;
+        if (TIER.has(d.q.pp)) patch.postProcessing = d.q.pp;
+        if (Object.keys(patch).length) inst.setQuality(patch);
+      }
+      if (typeof d.vts === "number" && d.vts > 0) inst.setVideoTexScale(d.vts);
     }
   } catch {
     /* bridge failures must not break the render loop */

@@ -75,6 +75,7 @@ export function publicConfig(config: BeautifyConfig) {
     live: config.live ?? null,
     liveFps: config.liveFps ?? 30,
     liveMuted: config.liveMuted ?? true,
+    liveQuality: config.liveQuality ?? "balanced",
     wallBrightness: config.wallBrightness ?? 100,
     wallContrast: config.wallContrast ?? 100,
     wallSaturate: config.wallSaturate ?? 100,
@@ -104,6 +105,7 @@ export function sanitize(body: any): Partial<BeautifyConfig> {
   if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
   if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
   if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
+  if (["low", "balanced", "high", "ultra"].includes(body?.liveQuality)) out.liveQuality = body.liveQuality;
   // dsh-style picture knobs
   if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
   if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));

@@ -47547,15 +47547,25 @@ var init_tokens = __esm({
 // src/core/inject.ts
 import fs7 from "node:fs";
 import path3 from "node:path";
+function liveQualityKnobs(preset) {
+  return LIVE_QUALITY_PRESETS[preset ?? "balanced"] ?? LIVE_QUALITY_PRESETS.balanced;
+}
 function buildLiveUrl(config) {
   if (!config.live) return void 0;
   const fps = config.live.kind === "video" ? 60 : config.liveFps ?? 30;
+  const k = liveQualityKnobs(config.liveQuality);
   const q = new URLSearchParams({
     type: config.live.kind,
     src: config.live.sourceId,
     fit: config.fit === "contain" ? "contain" : config.fit === "stretch" ? "stretch" : "cover",
     fps: String(fps),
-    muted: config.liveMuted === false ? "0" : "1"
+    muted: config.liveMuted === false ? "0" : "1",
+    dpr: String(k.dpr),
+    aa: k.aa,
+    pq: k.pq,
+    pp: k.pp,
+    vts: String(k.vts),
+    aq: k.aq ? "1" : "0"
   });
   if (config.live.file) {
     let raw = config.live.file;
@@ -47702,13 +47712,23 @@ async function resetZCode(port) {
   }
   return count;
 }
-var DEFAULT_CONFIG, DEFAULT_API_PORT;
+var LIVE_QUALITY_PRESETS, DEFAULT_CONFIG, DEFAULT_API_PORT;
 var init_inject = __esm({
   "src/core/inject.ts"() {
     "use strict";
     init_cdp();
     init_monet();
     init_tokens();
+    LIVE_QUALITY_PRESETS = {
+      low: { dpr: 0.75, aa: "off", pq: "low", pp: "off", vts: 0.5, aq: true },
+      // Default: full logical resolution (native on DPR-1 screens), mid effect
+      // tiers, adaptive safety net — visible quality with roughly half the GPU
+      // cost of "ultra" on HiDPI machines. 1.0.4 and before always rendered
+      // "ultra" (D20).
+      balanced: { dpr: 1, aa: "fxaa", pq: "medium", pp: "medium", vts: 1, aq: true },
+      high: { dpr: 0, aa: "msaa2", pq: "high", pp: "high", vts: 1, aq: false },
+      ultra: { dpr: 0, aa: "msaa4", pq: "high", pp: "high", vts: 1, aq: false }
+    };
     DEFAULT_CONFIG = {
       port: 28256,
       apiPort: 28257,
@@ -47719,6 +47739,7 @@ var init_inject = __esm({
       fit: "cover",
       liveFps: 30,
       liveMuted: true,
+      liveQuality: "balanced",
       wallBrightness: 100,
       wallContrast: 100,
       wallSaturate: 100,
@@ -48080,7 +48101,8 @@ function baseConfig(opts, stored) {
     wallpaperVisible: opts.wallpaperVisible ?? stored.wallpaperVisible ?? DEFAULT_CONFIG.wallpaperVisible,
     fit: opts.fit ?? stored.fit ?? DEFAULT_CONFIG.fit,
     liveFps: opts.liveFps ?? stored.liveFps ?? DEFAULT_CONFIG.liveFps,
-    liveMuted: opts.liveMuted ?? stored.liveMuted ?? DEFAULT_CONFIG.liveMuted
+    liveMuted: opts.liveMuted ?? stored.liveMuted ?? DEFAULT_CONFIG.liveMuted,
+    liveQuality: opts.liveQuality ?? stored.liveQuality ?? DEFAULT_CONFIG.liveQuality
   };
 }
 async function reapplyStored(opts = {}) {
@@ -48186,6 +48208,7 @@ async function applyColorsOnly(opts) {
     if (opts.fit !== void 0) patch.fit = opts.fit;
     if (opts.liveFps !== void 0) patch.liveFps = opts.liveFps;
     if (opts.liveMuted !== void 0) patch.liveMuted = opts.liveMuted;
+    if (opts.liveQuality !== void 0) patch.liveQuality = opts.liveQuality;
     const r2 = await serveApi(config.apiPort, "/api/config", patch);
     return Number(r2.windows ?? 0);
   }
@@ -48886,7 +48909,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.4";
+    VERSION = "1.0.5";
   }
 });
 
@@ -48942,6 +48965,7 @@ function publicConfig(config) {
     live: config.live ?? null,
     liveFps: config.liveFps ?? 30,
     liveMuted: config.liveMuted ?? true,
+    liveQuality: config.liveQuality ?? "balanced",
     wallBrightness: config.wallBrightness ?? 100,
     wallContrast: config.wallContrast ?? 100,
     wallSaturate: config.wallSaturate ?? 100,
@@ -48970,6 +48994,7 @@ function sanitize(body) {
   if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
   if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
   if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
+  if (["low", "balanced", "high", "ultra"].includes(body?.liveQuality)) out.liveQuality = body.liveQuality;
   if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
   if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
   if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
@@ -53097,6 +53122,8 @@ Commands:
     --dim <0-100>                Darken the wallpaper (default 25)
     --fit <mode>                 cover | contain | smart (default cover)
     --fps <10-60>                Live scene frame-rate cap (default 30)
+    --quality <preset>           Live render quality: low | balanced | high |
+                                 ultra (default balanced)
     --unmute                     Play the wallpaper's own audio
     --port <N>                   CDP port (default 28256)
   wallpapers                     List subscribed Wallpaper Engine wallpapers
@@ -53169,6 +53196,7 @@ Quit ZCode completely (including any tray icon), then run \`zcode-wallpaper laun
           blur: flag("--blur") !== void 0 ? Number(flag("--blur")) : void 0,
           dim: flag("--dim") !== void 0 ? Number(flag("--dim")) : void 0,
           liveFps: flag("--fps") !== void 0 ? Number(flag("--fps")) : void 0,
+          liveQuality: flag("--quality"),
           liveMuted: has("--unmute") ? false : void 0
         });
         console.log(

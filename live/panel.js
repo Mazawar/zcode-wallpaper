@@ -539,7 +539,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.4";
+    const PANEL_VERSION = false ? "dev" : "1.0.5";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -625,6 +625,7 @@
         if (rot) setSwitch(rot, !!c.rotationEnabled);
         setSeg(f, "fit", c.fit || "cover");
         setSeg(f, "fps", String(c.liveFps || 30));
+        setSeg(f, "qual", c.liveQuality || "balanced");
         setSeg(f, "trans", c.switchTransition || "fade");
         setSeg(f, "tspd", c.switchTransitionSpeed || "normal");
         setSeg(f, "rotmin", String(c.rotationMinutes || 30));
@@ -816,6 +817,13 @@
         pushConfig({ liveMuted: v });
       }, "\u9759\u97F3", "mute"));
       tabPlay.appendChild(rLive.r);
+      const rQual = prow("\u6E32\u67D3\u8D28\u91CF", "\u6863\u4F4D\u6253\u5305\u5206\u8FA8\u7387\u4E0A\u9650\u3001\u6297\u952F\u9F7F\u3001\u7C92\u5B50\u4E0E\u540E\u5904\u7406\uFF1A\u7701\u7535=0.75\xD7\u903B\u8F91\u5206\u8FA8\u7387+\u5173\u7279\u6548\uFF1B\u5747\u8861=1\xD7+\u4E2D\u6863\u7279\u6548\uFF08\u9ED8\u8BA4\uFF09\uFF1B\u9AD8\u753B\u8D28/\u6781\u81F4=\u539F\u751F\u5206\u8FA8\u7387+\u9AD8\u6863\u7279\u6548\u3002\u5373\u6539\u5373\u70ED\u66F4\u751F\u6548\u3002");
+      rQual.right.style.flex = "1 1 0";
+      rQual.right.style.minWidth = "260px";
+      rQual.right.appendChild(makeSeg([["low", "\u7701\u7535"], ["balanced", "\u5747\u8861"], ["high", "\u9AD8\u753B\u8D28"], ["ultra", "\u6781\u81F4"]], "balanced", function(v) {
+        pushConfig({ liveQuality: v });
+      }, "qual", true));
+      tabPlay.appendChild(rQual.r);
       const rFlip = prow("\u6C34\u5E73\u7FFB\u8F6C", "\u955C\u50CF\u6574\u4E2A\u58C1\u7EB8\u5C42\uFF0C\u7EAF\u5408\u6210\u5668\u64CD\u4F5C\u3002");
       rFlip.right.appendChild(makeSwitch(false, function(v) {
         pushConfig({ flip: v });

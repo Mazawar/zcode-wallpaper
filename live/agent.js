@@ -282,7 +282,7 @@
     const out = {};
     try {
       const q = new URL(u, location.href).searchParams;
-      ["type", "src", "file", "fit", "fps", "muted", "poster"].forEach(function(k) {
+      ["type", "src", "file", "fit", "fps", "muted", "poster", "dpr", "aa", "pq", "pp", "vts"].forEach(function(k) {
         out[k] = q.get(k) || "";
       });
     } catch (e) {
@@ -395,7 +395,11 @@
       const a = queryOf(appliedUrl);
       const b = queryOf(src);
       if (a.src && a.src === b.src && a.type === b.type) {
-        postAll({ zw: "cfg", fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === "0" ? 1 : 0 });
+        var msg = { zw: "cfg", fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === "0" ? 1 : 0 };
+        if (b.dpr !== "") msg.dpr = b.dpr;
+        if (b.aa !== "" || b.pq !== "" || b.pp !== "") msg.q = { aa: b.aa, pq: b.pq, pp: b.pp };
+        if (b.vts !== "") msg.vts = Number(b.vts);
+        postAll(msg);
         applied = src;
         bridge.start();
         return "hot";

@@ -25,6 +25,7 @@ export interface ApplyOptions {
   fit?: "cover" | "contain" | "smart";
   liveFps?: number;
   liveMuted?: boolean;
+  liveQuality?: "low" | "balanced" | "high" | "ultra";
 }
 
 function mergedStored(): BeautifyConfig {
@@ -71,6 +72,7 @@ function baseConfig(opts: ApplyOptions, stored: Partial<BeautifyConfig>): Beauti
     fit: opts.fit ?? stored.fit ?? DEFAULT_CONFIG.fit,
     liveFps: opts.liveFps ?? stored.liveFps ?? DEFAULT_CONFIG.liveFps,
     liveMuted: opts.liveMuted ?? stored.liveMuted ?? DEFAULT_CONFIG.liveMuted,
+    liveQuality: opts.liveQuality ?? stored.liveQuality ?? DEFAULT_CONFIG.liveQuality,
   };
 }
 
@@ -222,6 +224,7 @@ export async function applyColorsOnly(opts: ApplyOptions): Promise<number> {
     if (opts.fit !== undefined) patch.fit = opts.fit;
     if (opts.liveFps !== undefined) patch.liveFps = opts.liveFps;
     if (opts.liveMuted !== undefined) patch.liveMuted = opts.liveMuted;
+    if (opts.liveQuality !== undefined) patch.liveQuality = opts.liveQuality;
     const r = await serveApi(config.apiPort, "/api/config", patch);
     return Number(r.windows ?? 0);
   }

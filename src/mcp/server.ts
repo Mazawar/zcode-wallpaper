@@ -261,7 +261,7 @@ server.registerTool(
   {
     title: "Tune ZCode appearance",
     description:
-      "Adjust the live ZCode appearance without changing the wallpaper: blur radius, dim level, Monet colors on/off, wallpaper visibility, framing, and for live scene wallpapers the frame-rate cap and audio mute.",
+      "Adjust the live ZCode appearance without changing the wallpaper: blur radius, dim level, Monet colors on/off, wallpaper visibility, framing, and for live scene wallpapers the frame-rate cap, render quality preset and audio mute.",
     inputSchema: {
       blur: z.number().min(0).max(100).optional().describe("Wallpaper blur radius in px"),
       dim: z.number().min(0).max(100).optional().describe("Wallpaper darkening 0-100"),
@@ -269,10 +269,11 @@ server.registerTool(
       wallpaper_visible: z.boolean().optional().describe("Translucent surfaces showing the wallpaper (true) or opaque surfaces (false)"),
       fit: z.enum(["cover", "contain", "smart"]).optional().describe("Framing: cover fills and crops, contain letterboxes with a blurred backdrop, smart analyzes the picture locally and picks the best framing + focus point"),
       fps: z.number().min(10).max(60).optional().describe("Live scene render frame-rate cap (15/30/60)"),
+      quality: z.enum(["low", "balanced", "high", "ultra"]).optional().describe("Live render quality preset (default balanced): low = 0.75x resolution + effects off (weak GPUs), balanced = 1x + mid effects, high/ultra = native resolution + high effects (ultra adds MSAA4) — what 1.0.4 and before always rendered"),
       muted: z.boolean().optional().describe("Mute/unmute the live wallpaper's own audio"),
     },
   },
-  async ({ blur, dim, monet, wallpaper_visible, fit, fps, muted }) => {
+  async ({ blur, dim, monet, wallpaper_visible, fit, fps, quality, muted }) => {
     try {
       const windows = await applyColorsOnly({
         blur,
@@ -281,6 +282,7 @@ server.registerTool(
         wallpaperVisible: wallpaper_visible,
         fit,
         liveFps: fps,
+        liveQuality: quality,
         liveMuted: muted,
       });
       return { content: [{ type: "text", text: `Appearance updated in ${windows} window(s).` }] };

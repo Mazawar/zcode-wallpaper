@@ -27,6 +27,8 @@ Commands:
     --dim <0-100>                Darken the wallpaper (default 25)
     --fit <mode>                 cover | contain | smart (default cover)
     --fps <10-60>                Live scene frame-rate cap (default 30)
+    --quality <preset>           Live render quality: low | balanced | high |
+                                 ultra (default balanced)
     --unmute                     Play the wallpaper's own audio
     --port <N>                   CDP port (default 28256)
   wallpapers                     List subscribed Wallpaper Engine wallpapers
@@ -103,6 +105,7 @@ async function main(): Promise<void> {
           blur: flag("--blur") !== undefined ? Number(flag("--blur")) : undefined,
           dim: flag("--dim") !== undefined ? Number(flag("--dim")) : undefined,
           liveFps: flag("--fps") !== undefined ? Number(flag("--fps")) : undefined,
+          liveQuality: flag("--quality") as "low" | "balanced" | "high" | "ultra" | undefined,
           liveMuted: has("--unmute") ? false : undefined,
         });
         console.log(

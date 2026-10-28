@@ -14,7 +14,7 @@ function queryOf(u) {
   const out = {};
   try {
     const q = new URL(u, location.href).searchParams;
-    ["type", "src", "file", "fit", "fps", "muted", "poster"].forEach(function (k) { out[k] = q.get(k) || ""; });
+    ["type", "src", "file", "fit", "fps", "muted", "poster", "dpr", "aa", "pq", "pp", "vts"].forEach(function (k) { out[k] = q.get(k) || ""; });
   } catch (e) { /* bad url */ }
   return out;
 }
@@ -130,9 +130,15 @@ export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
     const a = queryOf(appliedUrl);
     const b = queryOf(src);
     if (a.src && a.src === b.src && a.type === b.type) {
-      // Same wallpaper, only fit/fps/muted changed: hot-update via postMessage
-      // (setting src would reload the iframe and flash).
-      postAll({ zw: "cfg", fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === "0" ? 1 : 0 });
+      // Same wallpaper, only fit/fps/muted/quality changed: hot-update via
+      // postMessage (setting src would reload the iframe and flash). The D20
+      // render knobs ride along when the URL carries them (pre-D20 URLs
+      // simply omit them and keep their legacy behavior).
+      var msg = { zw: "cfg", fit: b.fit, fps: Number(b.fps) || 30, volume: b.muted === "0" ? 1 : 0 };
+      if (b.dpr !== "") msg.dpr = b.dpr;
+      if (b.aa !== "" || b.pq !== "" || b.pp !== "") msg.q = { aa: b.aa, pq: b.pq, pp: b.pp };
+      if (b.vts !== "") msg.vts = Number(b.vts);
+      postAll(msg);
       applied = src;
       bridge.start();
       return "hot";

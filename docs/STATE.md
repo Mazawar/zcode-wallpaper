@@ -53,6 +53,17 @@
 过场效果退场。旧画面就是装配期的封面——没有快照、没有覆盖层 img。切换预算归 ledger
 统一管（换帧即一次首挂，尺寸感知预算天然适用），switch-cap 传感器已撤销。
 
+## 渲染质量档位（D20）
+
+配置键 `liveQuality`（省电/均衡/高画质/极致，默认**均衡**）由 serve 侧
+`inject.ts LIVE_QUALITY_PRESETS`（唯一展开表）展开成 live URL 参数：
+`dpr`（DPR **上限**，min(deviceDPR, cap)，0=原生；恒下发含 0，热更才能抬回）、
+`aa/pq/pp`（抗锯齿/粒子/后处理档）、`vts`（视频纹理倍率）、`aq`（引擎自动降档，
+仅挂载期生效——无热更 setter）。渲染页不认识档位名，只消费参数；缺参回落均衡值。
+改档位不改壁纸 = URL 变化但 src/type 不变 → liveframe 走既有热更路径
+`{zw:"cfg"}` postMessage → 引擎 `setQuality/setVideoTexScale/setRenderDpr` 就地生效
+（setRenderDpr 内部重建画布重挂场景，引擎自治）。
+
 ## 看门狗 = 状态机的传感器
 
 | 传感器 | 间隔 | 触发的事件 | 施加器响应 |

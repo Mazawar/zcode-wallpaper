@@ -106,3 +106,16 @@
   明示框（wscript 无 BOM 按 ANSI 读，包装内禁非 ASCII），提示直启一次即自愈。实测：伪烘焙路径下全链
   与去 WMI 链都能找回 D:\ZCode\ZCode.exe。mac 同理：open -a 改按应用名调用（自动搜 /Applications +
   ~/Applications，路径挪动不断链）。
+
+- **D20 渲染质量档位化，默认降半档（1.0.5）**：1.0.4 及以前渲染页把引擎拧死在「极致」
+  （msaa4 + 粒子/后处理 high + 原生 DPR + autoQuality 关）——低配机器（尤其 HiDPI 笔记本，
+  DPR 1.5/2 意味着 2.25–4× 像素）毫无退路。现改为单一配置键 `liveQuality` 四档
+  （省电/均衡/高画质/极致），默认**均衡**（≤1×逻辑分辨率 + fxaa + 粒子/后处理 medium +
+  autoQuality 开，HiDPI 上 GPU 成本约为极致的一半）；需要满画质的自行切高画质/极致。
+  展开表只存在于 `inject.ts LIVE_QUALITY_PRESETS` 一处：宿主把档位展开成 live URL 参数
+  （dpr/aa/pq/pp/vts/aq，渲染页永远不认识档位名），挂载即生效；同源热更（不改壁纸只改档位）
+  走既有 `{zw:"cfg"}` postMessage → 引擎 `setQuality/setVideoTexScale/setRenderDpr` 就地生效，
+  不重载 iframe。已知边界：引擎 `autoQuality`（含无 GPU 自动关后处理的兜底）没有热更 setter，
+  档位切换里它的变化要到下次挂载才生效——两个高档位本来就关它，影响面极小。
+  `dpr` 参数语义从「目标 DPR」改为「DPR 上限」（min(deviceDPR, cap)，0=原生），URL 里恒下发
+  （含 0），保证热更永远能把先前压低的分辨率抬回去。

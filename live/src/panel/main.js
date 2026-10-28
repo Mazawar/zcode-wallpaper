@@ -96,6 +96,7 @@ import { MARKER, createMountLoop } from "./mount.js";
       const rot = q("rot"); if (rot) setSwitch(rot, !!c.rotationEnabled);
       setSeg(f, "fit", c.fit || "cover");
       setSeg(f, "fps", String(c.liveFps || 30));
+      setSeg(f, "qual", c.liveQuality || "balanced");
       setSeg(f, "trans", c.switchTransition || "fade");
       setSeg(f, "tspd", c.switchTransitionSpeed || "normal");
       setSeg(f, "rotmin", String(c.rotationMinutes || 30));
@@ -282,6 +283,14 @@ import { MARKER, createMountLoop } from "./mount.js";
     rLive.right.appendChild(fpsSeg);
     rLive.right.appendChild(makeSwitch(true, function (v) { pushConfig({ liveMuted: v }); }, "静音", "mute"));
     tabPlay.appendChild(rLive.r);
+
+    // D20 渲染质量：档位打包了分辨率上限/抗锯齿/粒子/后处理（低配友好，
+    // 高配自行拉满），切换即热更生效（引擎 setQuality/setRenderDpr）。
+    const rQual = prow("渲染质量", "档位打包分辨率上限、抗锯齿、粒子与后处理：省电=0.75×逻辑分辨率+关特效；均衡=1×+中档特效（默认）；高画质/极致=原生分辨率+高档特效。即改即热更生效。");
+    rQual.right.style.flex = "1 1 0";
+    rQual.right.style.minWidth = "260px";
+    rQual.right.appendChild(makeSeg([["low", "省电"], ["balanced", "均衡"], ["high", "高画质"], ["ultra", "极致"]], "balanced", function (v) { pushConfig({ liveQuality: v }); }, "qual", true));
+    tabPlay.appendChild(rQual.r);
 
     const rFlip = prow("水平翻转", "镜像整个壁纸层，纯合成器操作。");
     rFlip.right.appendChild(makeSwitch(false, function (v) { pushConfig({ flip: v }); }, "翻转", "flip"));
