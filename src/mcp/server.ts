@@ -36,9 +36,6 @@ function bootstrapServe(): void {
     // restarts them after a crash — which is exactly the lifecycle the
     // wallpaper needs, with no watching protocol of our own. Multiple hosts
     // (multi-window) race for the port; the losers idle and re-check.
-    // ZW_DATA_DIR points at a plugin-scoped dir when ZCode spawns us — strip
-    // it early so every module uses the shared default data dir.
-    delete process.env.ZW_DATA_DIR;
 
     // CRITICAL: in THIS process stdout is the MCP JSON-RPC channel. The
     // serve logs through console.log — any stray write corrupts the framing

@@ -12,16 +12,34 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { listTargets } from "./cdp.js";
+import { pluginRoot } from "./paths.js";
 
 export interface StoredConfig extends Record<string, unknown> {
   port?: number;
 }
 
 export function dataDir(): string {
-  return (
-    process.env.ZW_DATA_DIR ??
-    path.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper")
-  );
+  // D23: data follows the plugin mechanism. Resolution order:
+  //   1. ZW_DATA_DIR — injected by ZCode when it spawns the MCP host;
+  //   2. derived from the install layout — installs live under
+  //      plugins/cache/<marketplace>/<plugin>/<version>, so the mechanism
+  //      data dir is plugins/data/<plugin>@<marketplace>. This is how the
+  //      env-less actors (the wrapper's early serve, a cache-tree CLI run)
+  //      land on the SAME dir as the MCP host without any env plumbing;
+  //   3. fallback — repo/dev runs (no cache layout) get their own sandbox
+  //      dir, distinct from any installed instance.
+  if (process.env.ZW_DATA_DIR) return process.env.ZW_DATA_DIR;
+  const sep = path.sep;
+  const parts = pluginRoot.split(sep);
+  const n = parts.length;
+  if (n >= 5 && parts[n - 4] === "cache" && parts[n - 5] === "plugins") {
+    // keep the chain through plugins/, swap cache -> data, drop the
+    // <marketplace>/<plugin>/<version> tail, append <plugin>@<marketplace>
+    const rebuilt = parts.slice(0, n - 3);
+    rebuilt[n - 4] = "data";
+    return rebuilt.join(sep) + sep + parts[n - 2] + "@" + parts[n - 3];
+  }
+  return path.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
 }
 
 export function configFile(): string {

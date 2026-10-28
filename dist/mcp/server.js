@@ -54883,7 +54883,16 @@ import fs7 from "node:fs";
 import os from "node:os";
 import path3 from "node:path";
 function dataDir() {
-  return process.env.ZW_DATA_DIR ?? path3.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
+  if (process.env.ZW_DATA_DIR) return process.env.ZW_DATA_DIR;
+  const sep = path3.sep;
+  const parts = pluginRoot.split(sep);
+  const n2 = parts.length;
+  if (n2 >= 5 && parts[n2 - 4] === "cache" && parts[n2 - 5] === "plugins") {
+    const rebuilt = parts.slice(0, n2 - 3);
+    rebuilt[n2 - 4] = "data";
+    return rebuilt.join(sep) + sep + parts[n2 - 2] + "@" + parts[n2 - 3];
+  }
+  return path3.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
 }
 function configFile() {
   return path3.join(dataDir(), "config.json");
@@ -54968,6 +54977,7 @@ var init_launch = __esm({
   "src/core/launch.ts"() {
     "use strict";
     init_cdp();
+    init_paths();
     ZCODE_EXE_CANDIDATES = process.platform === "win32" ? [
       process.env.ZCODE_WINDOWS_APP_INSTALL_DIR ? path3.join(process.env.ZCODE_WINDOWS_APP_INSTALL_DIR, "ZCode.exe") : void 0,
       "C:\\Program Files\\ZCode\\ZCode.exe",
@@ -55421,7 +55431,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.8";
+    VERSION = "1.0.9";
   }
 });
 
@@ -60130,10 +60140,16 @@ var init_server = __esm({
     {
       const orig = console.log.bind(console);
       let teeCount = 0;
+      let teeDirReady = false;
       const tee = (line) => {
         if (process.env.ZW_EARLY === "1") return;
         try {
-          const file2 = path12.join(dataDir(), "zw-serve.log");
+          const dir = dataDir();
+          if (!teeDirReady) {
+            fs17.mkdirSync(dir, { recursive: true });
+            teeDirReady = true;
+          }
+          const file2 = path12.join(dir, "zw-serve.log");
           fs17.appendFileSync(file2, line + "\n", "utf8");
           if (++teeCount % 400 === 0 && fs17.statSync(file2).size > 524288) {
             fs17.renameSync(file2, file2 + ".old");
@@ -70639,7 +70655,6 @@ init_inject();
 init_version();
 function bootstrapServe() {
   try {
-    delete process.env.ZW_DATA_DIR;
     console.log = ((...args) => {
       console.error("[serve]", ...args);
     });

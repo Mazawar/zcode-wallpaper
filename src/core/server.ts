@@ -74,10 +74,16 @@ const serveLog: string[] = [];
   // the file by the wrapper batch, and double-appending would duplicate
   // every line.
   let teeCount = 0;
+  let teeDirReady = false;
   const tee = (line: string): void => {
     if (process.env.ZW_EARLY === "1") return;
     try {
-      const file = path.join(dataDir(), "zw-serve.log");
+      const dir = dataDir();
+      if (!teeDirReady) {
+        fs.mkdirSync(dir, { recursive: true });
+        teeDirReady = true;
+      }
+      const file = path.join(dir, "zw-serve.log");
       fs.appendFileSync(file, line + "\n", "utf8");
       if (++teeCount % 400 === 0 && fs.statSync(file).size > 524_288) {
         fs.renameSync(file, file + ".old");
