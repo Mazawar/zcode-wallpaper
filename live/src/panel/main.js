@@ -309,9 +309,12 @@ import { MARKER, createMountLoop } from "./mount.js";
     const actRow = el("div");
     actRow.style.cssText = "padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;";
     // Instant pause/resume: posted straight into the live renderer iframes in
-    // this page — no server roundtrip, no config change.
-    let livePaused = false;
-    const pauseBtn = button("暂停", function () {
+    // this page — no server roundtrip, no config change. The video layer is
+    // told through the agent's window channel, never by poking the element:
+    // the user-pause state the kick/wake watchdogs consult lives in the agent
+    // (a bare v.pause() got re-played by kickVideo within 2s).
+    let livePaused = !!(window.__zw && window.__zw.videoUserPaused);
+    const pauseBtn = button(livePaused ? "继续" : "暂停", function () {
       livePaused = !livePaused;
       pauseBtn.textContent = livePaused ? "继续" : "暂停";
       Array.prototype.forEach.call(document.querySelectorAll("iframe"), function (f) {
@@ -319,11 +322,18 @@ import { MARKER, createMountLoop } from "./mount.js";
           try { f.contentWindow.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*"); } catch (e) { /* mid-swap */ }
         }
       });
-      const v = document.getElementById("zcode-wallpaper-video");
-      if (v) { if (livePaused) { v.pause(); } else { v.play().catch(function () {}); } }
-    }, "暂停/恢复实时渲染");
+      try { window.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*"); } catch (e) { /* agent absent */ }
+    }, "暂停/恢复当前壁纸");
     actRow.appendChild(pauseBtn);
     actRow.appendChild(button("刷新", function () { refresh(); }));
+    // Unload: strip the current wallpaper and restore ZCode's default look.
+    // /api/reset backs the config up first —「还原上次壁纸」brings it back.
+    actRow.appendChild(button("卸载壁纸", function () {
+      post("/api/reset", {}).then(function (r) {
+        toast(r && r.error ? "卸载失败：" + r.error : "已卸载当前壁纸，恢复默认外观");
+        refresh();
+      }).catch(function () { toast("卸载失败：网络错误"); });
+    }, "移除当前装载的壁纸，恢复 ZCode 默认外观；底部「还原上次壁纸」可找回"));
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos — dispatched by file type.
     const importFile = el("input");

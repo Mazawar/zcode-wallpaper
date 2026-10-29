@@ -134,3 +134,14 @@
   跳过避免误重拉）、mac open -a 失败弹 osascript 明示框、.desktop 的 Exec 目标识别放宽为
   zcode 前缀（原精确等值是 Windows 改名快捷方式同款病）。**实测教训：孤儿子 shell 里再 & 出的
   孙进程不可靠（MSYS 实测延迟/可能被回收）——重拉命令必须作为该子 shell 的前台末命令**。
+
+- **D25 用户暂停压过看门狗（1.0.12）**：面板「暂停」对视频壁纸只生效一两秒——kickVideo 每 2s
+  巡检见 `paused && autoplay` 即判「管线冻结」强制 play（元素恒带 autoplay），focus/pointerdown
+  的 wake 也无条件 resume；live 渲染器早有 userPaused 语义（自动唤醒不得覆盖用户暂停），
+  视频通道一直没对齐。修复：video actor 增 `pause(user)/resume(user)/userPaused()`（自动
+  resume 见标志即 no-op；同 src 热更不再无条件 play，error 自愈 load() 后重申暂停；换新视频=
+  新意图，提交时清标志）；kickVideo 判定加 `!userPaused()`；面板不再直接戳 video 元素（本 bug
+  温床：暂停了元素却无人知晓），改 `window.postMessage({zw,user:true})` 由 agent 统一执态，
+  按钮初始态从 agent 标志同步。另：壁纸卡操作行加「卸载壁纸」按钮=既有 `/api/reset`（先备份，
+  footer「还原上次壁纸」可找回）——服务端与 MCP `reset_appearance` 早已具备，缺的只是显眼入口。
+  新守卫 `verify-pause-semantics.mjs`：DOM 桩上跑真实 actor，11 条断言钉死该语义。

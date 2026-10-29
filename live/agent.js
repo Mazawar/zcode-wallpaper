@@ -483,10 +483,14 @@
       if (src) {
         if (wpRoot()) wpRoot().style.backgroundImage = "none";
         if (vid && vid.getAttribute("src") === src) {
-          if (vid.error) vid.load();
+          if (vid.error) {
+            vid.load();
+            if (S.videoUserPaused) vid.pause();
+          }
           vid.muted = VMUTED;
           vid.style.objectFit = VFIT;
-          vid.play().catch(function() {
+          if (S.videoUserPaused) vid.pause();
+          else vid.play().catch(function() {
           });
           return "hot";
         }
@@ -509,6 +513,7 @@
           if (S.videoPrepToken !== myToken) return;
           committed = true;
           S.videoPrepSrc = null;
+          S.videoUserPaused = false;
           const old = findVideo();
           if (old) {
             old.removeAttribute("id");
@@ -585,11 +590,20 @@
       get currentSrc() {
         return currentSrc;
       },
-      pause() {
+      // user-pause mirrors the live renderer's semantics (renderer.js): an
+      // automatic wake (focus / pointerdown / visible / kick) must not override
+      // the user's pause; only a user resume clears the flag.
+      userPaused() {
+        return S.videoUserPaused === true;
+      },
+      pause(user) {
+        if (user) S.videoUserPaused = true;
         const v = findVideo();
         if (v) v.pause();
       },
-      resume() {
+      resume(user) {
+        if (user) S.videoUserPaused = false;
+        else if (S.videoUserPaused) return;
         const v = findVideo();
         if (v) v.play().catch(function() {
         });
@@ -639,7 +653,7 @@
     const kickVideo = function() {
       const v = video.findVideo();
       if (!v || document.hidden) return;
-      if (v.ended || v.paused && v.autoplay) {
+      if (v.ended || v.paused && v.autoplay && !video.userPaused()) {
         stallCount = 0;
         v.play().catch(function() {
         });
@@ -832,6 +846,11 @@
     }
     createWatchdogs({ reg, machine, video, postAll: bridge.postAll });
     reg.on(window, "message", function(ev) {
+      if (ev.data && ev.data.user === true && (ev.data.zw === "pause" || ev.data.zw === "resume")) {
+        if (ev.data.zw === "pause") video.pause(true);
+        else video.resume(true);
+        return;
+      }
       if (!ev.data || !ev.data.zwEvent) return;
       if (ev.data.zwEvent === "error") {
         rec("ENGINE", "error " + String(ev.data.message || "").slice(0, 90));

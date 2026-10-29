@@ -31,10 +31,16 @@ export function createVideoActor({ reg, rec, wpRoot, onReady }) {
       if (vid && vid.getAttribute("src") === src) {
         // Self-heal: an element that errored once (its fetch hit a serve
         // restart mid-boot) stays dead forever unless load() restarts it.
-        if (vid.error) vid.load();
+        // load() + autoplay restarts the element playing — re-assert the
+        // user's pause so a hot-update cannot unpause behind their back.
+        if (vid.error) {
+          vid.load();
+          if (S.videoUserPaused) vid.pause();
+        }
         vid.muted = VMUTED; // hot-update: same video, muted/fit tweak
         vid.style.objectFit = VFIT;
-        vid.play().catch(function () {});
+        if (S.videoUserPaused) vid.pause();
+        else vid.play().catch(function () {});
         return "hot";
       }
       if (S.videoPrepSrc === src) {
@@ -59,6 +65,7 @@ export function createVideoActor({ reg, rec, wpRoot, onReady }) {
         if (S.videoPrepToken !== myToken) return; // superseded by a newer pick
         committed = true;
         S.videoPrepSrc = null;
+        S.videoUserPaused = false; // a fresh pick is a fresh intent to play
         // The outgoing video FADES OUT while the preplayed one fades in —
         // removing it up front leaves a hard black gap under the fade.
         const old = findVideo();
@@ -129,7 +136,20 @@ export function createVideoActor({ reg, rec, wpRoot, onReady }) {
     apply,
     findVideo,
     get currentSrc() { return currentSrc; },
-    pause() { const v = findVideo(); if (v) v.pause(); },
-    resume() { const v = findVideo(); if (v) v.play().catch(function () {}); },
+    // user-pause mirrors the live renderer's semantics (renderer.js): an
+    // automatic wake (focus / pointerdown / visible / kick) must not override
+    // the user's pause; only a user resume clears the flag.
+    userPaused() { return S.videoUserPaused === true; },
+    pause(user) {
+      if (user) S.videoUserPaused = true;
+      const v = findVideo();
+      if (v) v.pause();
+    },
+    resume(user) {
+      if (user) S.videoUserPaused = false;
+      else if (S.videoUserPaused) return;
+      const v = findVideo();
+      if (v) v.play().catch(function () {});
+    },
   };
 }

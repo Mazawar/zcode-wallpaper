@@ -54,6 +54,14 @@
         "live/agent.js",
         "live/panel.js"
       ]
+    },
+    {
+      "id": "verify-pause-semantics.mjs",
+      "what": "视频用户暂停语义：用户暂停压过 kick/wake 看门狗与热更新，仅用户恢复或换新视频解除（DOM 桩上跑真实 actor）",
+      "files": [
+        "live/src/agent/video.js",
+        "live/src/agent/watchdogs.js"
+      ]
     }
   ]
 }

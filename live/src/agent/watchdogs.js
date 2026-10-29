@@ -60,7 +60,7 @@ export function createWatchdogs({ reg, machine, video, postAll }) {
   const kickVideo = function () {
     const v = video.findVideo();
     if (!v || document.hidden) return;
-    if (v.ended || (v.paused && v.autoplay)) {
+    if (v.ended || (v.paused && v.autoplay && !video.userPaused())) {
       stallCount = 0;
       v.play().catch(function () {});
     } else if (!v.paused && v.readyState >= 2 && lastClock === v.currentTime) {

@@ -112,6 +112,14 @@ import { createLedger } from "./ledger.js";
   // Engine signals: ready (first mount, fresh-frame switch, renderer
   // self-reload) and error (assembly failure — shader compile, broken pkg).
   reg.on(window, "message", function (ev) {
+    // User pause/resume from the settings panel (same document, posted on
+    // window — the panel must not poke the video element directly: state
+    // the kick/wake watchdogs consult lives here, not on the element).
+    if (ev.data && ev.data.user === true && (ev.data.zw === "pause" || ev.data.zw === "resume")) {
+      if (ev.data.zw === "pause") video.pause(true);
+      else video.resume(true);
+      return;
+    }
     if (!ev.data || !ev.data.zwEvent) return;
     if (ev.data.zwEvent === "error") {
       // A load that cannot assemble fails NOW — burning the whole first-frame

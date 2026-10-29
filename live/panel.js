@@ -539,7 +539,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.11";
+    const PANEL_VERSION = false ? "dev" : "1.0.12";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -841,8 +841,8 @@
       const libRow = tabLib;
       const actRow = el("div");
       actRow.style.cssText = "padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;";
-      let livePaused = false;
-      const pauseBtn = button("\u6682\u505C", function() {
+      let livePaused = !!(window.__zw && window.__zw.videoUserPaused);
+      const pauseBtn = button(livePaused ? "\u7EE7\u7EED" : "\u6682\u505C", function() {
         livePaused = !livePaused;
         pauseBtn.textContent = livePaused ? "\u7EE7\u7EED" : "\u6682\u505C";
         Array.prototype.forEach.call(document.querySelectorAll("iframe"), function(f) {
@@ -853,20 +853,23 @@
             }
           }
         });
-        const v = document.getElementById("zcode-wallpaper-video");
-        if (v) {
-          if (livePaused) {
-            v.pause();
-          } else {
-            v.play().catch(function() {
-            });
-          }
+        try {
+          window.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*");
+        } catch (e) {
         }
-      }, "\u6682\u505C/\u6062\u590D\u5B9E\u65F6\u6E32\u67D3");
+      }, "\u6682\u505C/\u6062\u590D\u5F53\u524D\u58C1\u7EB8");
       actRow.appendChild(pauseBtn);
       actRow.appendChild(button("\u5237\u65B0", function() {
         refresh();
       }));
+      actRow.appendChild(button("\u5378\u8F7D\u58C1\u7EB8", function() {
+        post("/api/reset", {}).then(function(r) {
+          toast(r && r.error ? "\u5378\u8F7D\u5931\u8D25\uFF1A" + r.error : "\u5DF2\u5378\u8F7D\u5F53\u524D\u58C1\u7EB8\uFF0C\u6062\u590D\u9ED8\u8BA4\u5916\u89C2");
+          refresh();
+        }).catch(function() {
+          toast("\u5378\u8F7D\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF");
+        });
+      }, "\u79FB\u9664\u5F53\u524D\u88C5\u8F7D\u7684\u58C1\u7EB8\uFF0C\u6062\u590D ZCode \u9ED8\u8BA4\u5916\u89C2\uFF1B\u5E95\u90E8\u300C\u8FD8\u539F\u4E0A\u6B21\u58C1\u7EB8\u300D\u53EF\u627E\u56DE"));
       const importFile = el("input");
       importFile.type = "file";
       importFile.accept = "image/*,.zip,.pkg,.mp4,.webm";
