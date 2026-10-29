@@ -326,14 +326,14 @@ import { MARKER, createMountLoop } from "./mount.js";
     }, "暂停/恢复当前壁纸");
     actRow.appendChild(pauseBtn);
     actRow.appendChild(button("刷新", function () { refresh(); }));
-    // Unload: strip the current wallpaper and restore ZCode's default look.
-    // /api/reset backs the config up first —「还原上次壁纸」brings it back.
+    // Unload: strip the current wallpaper only — the library and all picture
+    // knobs stay. /api/reset backs the config up first —「还原上次壁纸」undoes it.
     actRow.appendChild(button("卸载壁纸", function () {
       post("/api/reset", {}).then(function (r) {
-        toast(r && r.error ? "卸载失败：" + r.error : "已卸载当前壁纸，恢复默认外观");
+        toast(r && r.error ? "卸载失败：" + r.error : "已卸载当前壁纸");
         refresh();
       }).catch(function () { toast("卸载失败：网络错误"); });
-    }, "移除当前装载的壁纸，恢复 ZCode 默认外观；底部「还原上次壁纸」可找回"));
+    }, "卸掉当前背景，壁纸库与画面设置不受影响；误点可用下方「还原上次壁纸」找回"));
     // One import entry: a browser file chooser for images, .zw.zip packages,
     // .pkg scenes and videos — dispatched by file type.
     const importFile = el("input");
@@ -423,14 +423,21 @@ import { MARKER, createMountLoop } from "./mount.js";
     ui.pagerBox.style.cssText = "padding:2px 16px 12px;";
     libRow.appendChild(ui.pagerBox);
 
-    // footer actions
+    // footer actions — two distinct semantics (1.0.13): options reset never
+    // touches the wallpaper; restore only undoes an unload.
     const footRow = el("div", "px-4 py-3 flex items-center gap-2 justify-end");
-    footRow.appendChild(button("恢复默认外观", function () {
-      post("/api/reset", {}).then(function () { refresh(); });
-    }));
+    footRow.appendChild(button("恢复默认配置", function () {
+      post("/api/reset-options", {}).then(function (r) {
+        toast(r && r.error ? "重置失败：" + r.error : "设置已恢复默认，壁纸不变");
+        refresh();
+      }).catch(function () { toast("重置失败：网络错误"); });
+    }, "画面/播放等设置回到默认值；当前壁纸不变（卸载壁纸是另一个按钮）"));
     footRow.appendChild(button("还原上次壁纸", function () {
-      post("/api/restore", {}).then(function () { refresh(); });
-    }));
+      post("/api/restore", {}).then(function (r) {
+        if (r && r.error) toast("还原失败：" + r.error);
+        refresh();
+      }).catch(function () { toast("还原失败：网络错误"); });
+    }, "撤销卸载：把上次卸载的壁纸原样装回来"));
     content.appendChild(footRow);
 
     card.appendChild(content);

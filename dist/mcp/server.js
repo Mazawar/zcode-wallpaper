@@ -55431,7 +55431,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.12";
+    VERSION = "1.0.13";
   }
 });
 
@@ -59793,21 +59793,40 @@ async function startServe(opts) {
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/reset") {
-        const stored = loadConfig();
+        const storedRaw = loadConfig();
+        const stored = storedRaw;
         if (stored.wallpaperPath || stored.live || stored.sceneVideoUrl) {
-          writeBackup(stored);
+          writeBackup(storedRaw);
         }
         await resetSessions();
-        saveConfig({
+        const unloaded = {
+          ...DEFAULT_CONFIG,
           ...stored,
           wallpaperPath: void 0,
           mediaType: void 0,
           live: void 0,
           sceneVideoUrl: void 0,
           monetSourcePath: void 0
-        });
+        };
+        saveConfig(persisted(unloaded));
+        await publishConfig(unloaded).catch(() => void 0);
         invalidateAssets();
         sendJson(res, 200, { ok: true, hasBackup: true });
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/reset-options") {
+        const stored = loadConfig();
+        const next = {
+          ...stored,
+          ...DEFAULT_CONFIG,
+          port: stored.port ?? DEFAULT_CONFIG.port,
+          apiPort: stored.apiPort ?? DEFAULT_CONFIG.apiPort,
+          rotationEnabled: false
+          // absent from DEFAULT_CONFIG; explicit false stops a running rotation
+        };
+        saveConfig(persisted(next));
+        await publishConfig(next);
+        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/restore") {
@@ -70975,8 +70994,8 @@ server.registerTool(
 server.registerTool(
   "reset_appearance",
   {
-    title: "Reset ZCode appearance",
-    description: "Remove the wallpaper and color overrides, restoring ZCode's default appearance.",
+    title: "Unload the wallpaper",
+    description: "Unload the current wallpaper (no background; picture settings and the imported library are kept; the old config is backed up). To only reset picture/playback options while keeping the wallpaper, tell the user to use the panel's \u6062\u590D\u9ED8\u8BA4\u914D\u7F6E button instead.",
     inputSchema: {}
   },
   async () => {

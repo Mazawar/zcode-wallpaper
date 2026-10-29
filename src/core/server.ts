@@ -590,21 +590,46 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       }
 
       if (req.method === "POST" && url.pathname === "/api/reset") {
-        const stored = loadConfig();
+        const storedRaw = loadConfig();
+        const stored = storedRaw as Partial<BeautifyConfig>;
         if (stored.wallpaperPath || stored.live || stored.sceneVideoUrl) {
-          writeBackup(stored);
+          writeBackup(storedRaw);
         }
         await resetSessions();
-        saveConfig({
+        const unloaded: BeautifyConfig = {
+          ...DEFAULT_CONFIG,
           ...stored,
           wallpaperPath: undefined,
           mediaType: undefined,
           live: undefined,
           sceneVideoUrl: undefined,
           monetSourcePath: undefined,
-        });
+        };
+        saveConfig(persisted(unloaded));
+        // resetSessions can miss a window (CDP hiccup); a live agent that
+        // survived gets the cleared payload pushed so no window keeps a
+        // wallpaper the user just unloaded.
+        await publishConfig(unloaded).catch(() => void 0);
         invalidateAssets();
         sendJson(res, 200, { ok: true, hasBackup: true });
+        return;
+      }
+
+      // Options-only reset (1.0.13): picture/playback knobs return to their
+      // defaults; the current wallpaper, its identity fields and the imported
+      // library are NOT touched — that is what 卸载壁纸 (/api/reset) is for.
+      if (req.method === "POST" && url.pathname === "/api/reset-options") {
+        const stored = loadConfig() as Partial<BeautifyConfig>;
+        const next: BeautifyConfig = {
+          ...stored,
+          ...DEFAULT_CONFIG,
+          port: stored.port ?? DEFAULT_CONFIG.port,
+          apiPort: stored.apiPort ?? DEFAULT_CONFIG.apiPort,
+          rotationEnabled: false, // absent from DEFAULT_CONFIG; explicit false stops a running rotation
+        };
+        saveConfig(persisted(next));
+        await publishConfig(next);
+        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
         return;
       }
 

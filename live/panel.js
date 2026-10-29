@@ -539,7 +539,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.12";
+    const PANEL_VERSION = false ? "dev" : "1.0.13";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -864,12 +864,12 @@
       }));
       actRow.appendChild(button("\u5378\u8F7D\u58C1\u7EB8", function() {
         post("/api/reset", {}).then(function(r) {
-          toast(r && r.error ? "\u5378\u8F7D\u5931\u8D25\uFF1A" + r.error : "\u5DF2\u5378\u8F7D\u5F53\u524D\u58C1\u7EB8\uFF0C\u6062\u590D\u9ED8\u8BA4\u5916\u89C2");
+          toast(r && r.error ? "\u5378\u8F7D\u5931\u8D25\uFF1A" + r.error : "\u5DF2\u5378\u8F7D\u5F53\u524D\u58C1\u7EB8");
           refresh();
         }).catch(function() {
           toast("\u5378\u8F7D\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF");
         });
-      }, "\u79FB\u9664\u5F53\u524D\u88C5\u8F7D\u7684\u58C1\u7EB8\uFF0C\u6062\u590D ZCode \u9ED8\u8BA4\u5916\u89C2\uFF1B\u5E95\u90E8\u300C\u8FD8\u539F\u4E0A\u6B21\u58C1\u7EB8\u300D\u53EF\u627E\u56DE"));
+      }, "\u5378\u6389\u5F53\u524D\u80CC\u666F\uFF0C\u58C1\u7EB8\u5E93\u4E0E\u753B\u9762\u8BBE\u7F6E\u4E0D\u53D7\u5F71\u54CD\uFF1B\u8BEF\u70B9\u53EF\u7528\u4E0B\u65B9\u300C\u8FD8\u539F\u4E0A\u6B21\u58C1\u7EB8\u300D\u627E\u56DE"));
       const importFile = el("input");
       importFile.type = "file";
       importFile.accept = "image/*,.zip,.pkg,.mp4,.webm";
@@ -974,16 +974,22 @@
       ui.pagerBox.style.cssText = "padding:2px 16px 12px;";
       libRow.appendChild(ui.pagerBox);
       const footRow = el("div", "px-4 py-3 flex items-center gap-2 justify-end");
-      footRow.appendChild(button("\u6062\u590D\u9ED8\u8BA4\u5916\u89C2", function() {
-        post("/api/reset", {}).then(function() {
+      footRow.appendChild(button("\u6062\u590D\u9ED8\u8BA4\u914D\u7F6E", function() {
+        post("/api/reset-options", {}).then(function(r) {
+          toast(r && r.error ? "\u91CD\u7F6E\u5931\u8D25\uFF1A" + r.error : "\u8BBE\u7F6E\u5DF2\u6062\u590D\u9ED8\u8BA4\uFF0C\u58C1\u7EB8\u4E0D\u53D8");
           refresh();
+        }).catch(function() {
+          toast("\u91CD\u7F6E\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF");
         });
-      }));
+      }, "\u753B\u9762/\u64AD\u653E\u7B49\u8BBE\u7F6E\u56DE\u5230\u9ED8\u8BA4\u503C\uFF1B\u5F53\u524D\u58C1\u7EB8\u4E0D\u53D8\uFF08\u5378\u8F7D\u58C1\u7EB8\u662F\u53E6\u4E00\u4E2A\u6309\u94AE\uFF09"));
       footRow.appendChild(button("\u8FD8\u539F\u4E0A\u6B21\u58C1\u7EB8", function() {
-        post("/api/restore", {}).then(function() {
+        post("/api/restore", {}).then(function(r) {
+          if (r && r.error) toast("\u8FD8\u539F\u5931\u8D25\uFF1A" + r.error);
           refresh();
+        }).catch(function() {
+          toast("\u8FD8\u539F\u5931\u8D25\uFF1A\u7F51\u7EDC\u9519\u8BEF");
         });
-      }));
+      }, "\u64A4\u9500\u5378\u8F7D\uFF1A\u628A\u4E0A\u6B21\u5378\u8F7D\u7684\u58C1\u7EB8\u539F\u6837\u88C5\u56DE\u6765"));
       content.appendChild(footRow);
       card.appendChild(content);
       section.appendChild(card);

@@ -310,8 +310,9 @@ server.registerTool(
 server.registerTool(
   "reset_appearance",
   {
-    title: "Reset ZCode appearance",
-    description: "Remove the wallpaper and color overrides, restoring ZCode's default appearance.",
+    title: "Unload the wallpaper",
+    description:
+      "Unload the current wallpaper (no background; picture settings and the imported library are kept; the old config is backed up). To only reset picture/playback options while keeping the wallpaper, tell the user to use the panel's 恢复默认配置 button instead.",
     inputSchema: {},
   },
   async () => {
