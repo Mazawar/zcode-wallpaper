@@ -49022,12 +49022,33 @@ var init_livefail = __esm({
   }
 });
 
+// src/core/earlyWatch.ts
+function earlyHostTick(w, now, disabledNow) {
+  const hostSilent = w.hostSeen && w.lastHostAlive > 0 && now - w.lastHostAlive > HOST_SILENT_MS;
+  const zcodeAlive = w.zcodeSeenAt > 0 && now - w.zcodeSeenAt < ZCODE_RECENT_MS;
+  if (hostSilent && zcodeAlive) {
+    if (disabledNow) return { kind: "exit-restore" };
+    return w.churnLogged ? { kind: "none" } : { kind: "churn" };
+  }
+  if (w.zcodeSeenAt > 0 && now - w.zcodeSeenAt > ZCODE_GONE_MS) return { kind: "exit-zcode-gone" };
+  return { kind: "none" };
+}
+var HOST_SILENT_MS, ZCODE_RECENT_MS, ZCODE_GONE_MS;
+var init_earlyWatch = __esm({
+  "src/core/earlyWatch.ts"() {
+    "use strict";
+    HOST_SILENT_MS = 45e3;
+    ZCODE_RECENT_MS = 3e4;
+    ZCODE_GONE_MS = 6e4;
+  }
+});
+
 // src/core/version.ts
 var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.13";
+    VERSION = "1.0.14";
   }
 });
 
@@ -53156,26 +53177,28 @@ async function startServe(opts) {
     void checkDisabled();
   }, 5e3);
   if (process.env.ZW_EARLY === "1") {
-    let hostSeen = false;
-    let lastHostAlive = 0;
-    let zcodeSeenAt = 0;
+    const watch = { hostSeen: false, lastHostAlive: 0, zcodeSeenAt: 0, churnLogged: false };
     const { isZcodeProcessRunning: isZcodeProcessRunning2 } = await Promise.resolve().then(() => (init_launch(), launch_exports));
     setInterval(() => {
       void (async () => {
         const zcode = await isZcodeProcessRunning2().catch(() => true);
-        if (zcode) zcodeSeenAt = Date.now();
+        if (zcode) watch.zcodeSeenAt = Date.now();
         const now = Date.now();
         const lastAlive = globalThis.__zwHostAlive ?? 0;
-        if (lastAlive > lastHostAlive) {
-          lastHostAlive = lastAlive;
-          hostSeen = true;
+        if (lastAlive > watch.lastHostAlive) {
+          watch.lastHostAlive = lastAlive;
+          watch.hostSeen = true;
+          watch.churnLogged = false;
         }
-        if (hostSeen && lastAlive && now - lastAlive > 45e3 && now - zcodeSeenAt < 3e4) {
-          console.log("serve: plugin host gone (disabled?) \u2014 restoring default appearance and exiting");
+        const verdict = earlyHostTick(watch, now, !!pluginDisabledBy(cfgPath));
+        if (verdict.kind === "churn") {
+          watch.churnLogged = true;
+          console.log("serve: plugin host silent >45s but plugin still enabled \u2014 host churn assumed, staying up");
+        } else if (verdict.kind === "exit-restore") {
+          console.log("serve: plugin host gone + plugin disabled \u2014 restoring default appearance and exiting");
           await shutdownServe().catch(() => void 0);
           process.exit(0);
-        }
-        if (zcodeSeenAt > 0 && now - zcodeSeenAt > 6e4) {
+        } else if (verdict.kind === "exit-zcode-gone") {
           console.log("serve: ZCode no longer running \u2014 exiting (the shortcut wrapper respawns me)");
           await shutdownServe().catch(() => void 0);
           process.exit(0);
@@ -53240,6 +53263,7 @@ var init_server = __esm({
     init_media();
     init_ledger();
     init_livefail();
+    init_earlyWatch();
     init_version();
     init_steam();
     init_configApi();

@@ -62,6 +62,14 @@
         "live/src/agent/video.js",
         "live/src/agent/watchdogs.js"
       ]
+    },
+    {
+      "id": "verify-early-watch.mjs",
+      "what": "早启 serve 宿主看门狗语义：宿主静默≠禁用（宿主舰队换血不拆壁纸，仅显式禁用确证才 restore 退出；ZCode 消失 60s 结束会话）——esbuild 现场打包真实 earlyWatch 源跑全场景 + 钉死 server 接线（盲退日志行不得回归）",
+      "files": [
+        "src/core/earlyWatch.ts",
+        "src/core/server.ts"
+      ]
     }
   ]
 }

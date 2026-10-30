@@ -34,6 +34,7 @@ import { loadConfig, saveConfig, dataDir } from "./launch.js";
 import { safeJoin, sendStaticFile } from "./media.js";
 import { transferBegin, transferChunk, transferSnapshot } from "./ledger.js";
 import { liveFailureOf, recordLiveFailure, clearLiveFailure } from "./livefail.js";
+import { earlyHostTick, type EarlyHostWatch } from "./earlyWatch.js";
 import { VERSION } from "./version.js";
 import { enumerateWallpapers, resolveSourceDir } from "./steam.js";
 import { currentConfig, publicConfig, persisted, sanitize, storedCustomSources, hasBackup, readBackup, writeBackup } from "./configApi.js";
@@ -1034,34 +1035,42 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   // Early-launch serve (ZW_EARLY=1, started hidden by the shortcut wrapper
   // BEFORE ZCode): it owns the session until the plugin host's MCP shows up
   // (it heartbeats /api/host-alive every 10s; the host sees this serve
-  // healthy and never starts its own). Lifecycle exits: the enablement watch
-  // (explicit disable) and the uninstall watch own those verdicts — a host
-  // that never spawned must NOT kill the serve (2026-10-28: host-spawn races
-  // left the wallpaper as the only casualty); a host that goes silent for
-  // 45s while ZCode still runs is treated as a mid-session disable; ZCode
-  // gone for 60s ends the session (the wrapper respawns the serve on every
-  // launch, and this guarantees the next session runs CURRENT plugin code).
-  // Handing back never happens (port handoff would flash); the early serve
-  // simply is the serve.
+  // healthy and never starts its own). Lifecycle exits ride on EVIDENCE,
+  // never on host silence alone (D27): the enablement watch (explicit
+  // disable) and the uninstall watch own their verdicts — a host that never
+  // spawned must NOT kill the serve (2026-10-28: host-spawn races left the
+  // wallpaper as the only casualty); a host that goes silent while ZCode
+  // still runs is fleet churn unless the enablement state confirms disable
+  // (2026-10-30: a whole-fleet recycle was misread as a mid-session disable
+  // and tore the wallpaper down ~5s before the successor remounted it);
+  // ZCode gone for 60s ends the session (the wrapper respawns the serve on
+  // every launch, and this guarantees the next session runs CURRENT plugin
+  // code). Handing back never happens (port handoff would flash); the early
+  // serve simply is the serve.
   if (process.env.ZW_EARLY === "1") {
-    let hostSeen = false;
-    let lastHostAlive = 0;
-    let zcodeSeenAt = 0;
+    const watch: EarlyHostWatch = { hostSeen: false, lastHostAlive: 0, zcodeSeenAt: 0, churnLogged: false };
     const { isZcodeProcessRunning } = await import("./launch.js");
 
     setInterval(() => {
       void (async () => {
         const zcode = await isZcodeProcessRunning().catch(() => true);
-        if (zcode) zcodeSeenAt = Date.now();
+        if (zcode) watch.zcodeSeenAt = Date.now();
         const now = Date.now();
         const lastAlive = (globalThis as { __zwHostAlive?: number }).__zwHostAlive ?? 0;
-        if (lastAlive > lastHostAlive) { lastHostAlive = lastAlive; hostSeen = true; }
-        if (hostSeen && lastAlive && now - lastAlive > 45_000 && now - zcodeSeenAt < 30_000) {
-          console.log("serve: plugin host gone (disabled?) — restoring default appearance and exiting");
+        if (lastAlive > watch.lastHostAlive) {
+          watch.lastHostAlive = lastAlive;
+          watch.hostSeen = true;
+          watch.churnLogged = false; // heartbeats resumed — a later silence is a new episode
+        }
+        const verdict = earlyHostTick(watch, now, !!pluginDisabledBy(cfgPath));
+        if (verdict.kind === "churn") {
+          watch.churnLogged = true;
+          console.log("serve: plugin host silent >45s but plugin still enabled — host churn assumed, staying up");
+        } else if (verdict.kind === "exit-restore") {
+          console.log("serve: plugin host gone + plugin disabled — restoring default appearance and exiting");
           await shutdownServe().catch(() => undefined);
           process.exit(0);
-        }
-        if (zcodeSeenAt > 0 && now - zcodeSeenAt > 60_000) {
+        } else if (verdict.kind === "exit-zcode-gone") {
           console.log("serve: ZCode no longer running — exiting (the shortcut wrapper respawns me)");
           await shutdownServe().catch(() => undefined);
           process.exit(0);

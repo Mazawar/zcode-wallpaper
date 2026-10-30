@@ -1,6 +1,6 @@
 {
   "name": "zcode-wallpaper",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Live Wallpaper Engine wallpapers inside the ZCode desktop client: subscribed workshop scenes are rendered in real time with WebWallGL (no recording), plus Material Design 3 (Monet) dynamic theming via CDP injection.",
   "type": "module",
   "license": "MIT",
@@ -14,7 +14,7 @@
     "build": "tsc -p tsconfig.json --noEmit && node scripts/bundle.mjs",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "node scripts/verify-live-machine.mjs && node scripts/verify-contracts.mjs && node scripts/verify-guard-map.mjs && node scripts/verify-pause-semantics.mjs && node scripts/panel-check.mjs",
+    "verify": "node scripts/verify-live-machine.mjs && node scripts/verify-contracts.mjs && node scripts/verify-guard-map.mjs && node scripts/verify-pause-semantics.mjs && node scripts/verify-early-watch.mjs && node scripts/panel-check.mjs",
     "market": "node scripts/local-market.mjs"
   },
   "dependencies": {

@@ -147,3 +147,18 @@
   新守卫 `verify-pause-semantics.mjs`：DOM 桩上跑真实 actor，11 条断言钉死该语义。
 
 - **D26 卸载/重置/还原三分离（1.0.13）**：用户实测反馈「卸载壁纸和恢复默认外观功能一样了，我还原了为啥又给我恢复了」——日志/备份/config 实证：不是机制 bug（轮播未开、无自动恢复痕迹；备份=视频而 config 被写回的是场景=卸载后数秒内一次库内点击应用），是**三个按钮两种动作**的文案歧义：「恢复默认外观」「还原上次壁纸」中文近义，用户无法预判哪个按钮干什么。用户裁定三分语义：①**卸载壁纸**=卸掉当前背景（/api/reset 原语义，备份+清壁纸，库与设置不动）；②**恢复默认配置**=新端点 /api/reset-options，画面/播放键回 DEFAULT_CONFIG、显式关轮播，**壁纸/媒体库/端口不动**；③**还原上次壁纸**=只作为卸载的 undo（/api/restore）。附带：/api/reset 补 publishConfig（resetSessions 漏窗时 SSE 兜底清残留 agent）；MCP reset_appearance 描述改「卸载」并对齐面板语义。教训：**同屏多个破坏性相近按钮必须一词一义，「恢复/还原/重置」在中文 UI 里是同义陷阱**。
+
+- **D27 宿主静默≠禁用：早启看门狗证据化（1.0.14）**：2026-10-30 13:17 用户报「壁纸刚刚挂了」——完整证据链：ZCode
+  主进程未重启，~13:16:4x 插件宿主舰队整体换血（旧 mcp/server.js 全灭、新舰队+restoreSession 渲染进程
+  13:17:29-31 重建、无 crashpad/无 host-crash——是 ZCode 的正常调度非崩溃），心跳空窗 >45s 时早启 serve 的
+  「host silent 45s + ZCode 活着 = 会话中途禁用」启发式（盲目退出路径）直接 restore 默认外观退出=壁纸被
+  误杀，3 秒后接替宿主重挂（净损失 ~5s 闪失）。**结构性错误：把「宿主没心跳」当成了禁用证据——显式禁用
+  早有自己的权威探测器（enablement watch：pluginDisabledBy 5s tick + fs.watch；ZCode 停用必写 config），
+  静默本身不该有任何拆壁纸权限。**修复：判定抽成纯函数 `src/core/earlyWatch.ts`（`earlyHostTick`，可裸跑
+  契约同 state.js），语义改为——静默>45s 且 ZCode 活着时**先查 pluginDisabledBy**：确证禁用才 restore+退出
+  （保留原兜底意图）；未确证=宿主换血，**原地续命**（churn 日志一次/episode，心跳恢复/接替者 retire/
+  ZCode 退出三者最终裁决），心跳恢复时重置 episode 旗标（换血被吞不得掩盖后续真禁用）。ZCode 消失 60s
+  退出与「宿主从未出现不得杀 serve」两条原语义不变。新守卫 `verify-early-watch.mjs`：esbuild 现场打包真实
+  earlyWatch 源跑 12 场景（含事故场景回归钉）+ 三条接线钉（含「盲退日志行 `plugin host gone (disabled?)`
+  不得回归」）。教训：**退出路径的每个分支都要能回答「我的证据是什么」——没有证据的破坏性动作（restore
+  拆壁纸）宁可不做；心跳这类弱信号只能触发调查（复查权威状态），不能直接执行处决。**
