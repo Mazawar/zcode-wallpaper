@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- zcode-wallpaper marketplace icon (D32) — source of truth for
+       docs/icon.png (rendered by scripts/render-icon.ps1). Minimalist:
+       rounded square, indigo->violet gradient, white sun, two wave bands. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4F7DF9"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <clipPath id="frame">
+      <rect x="0" y="0" width="512" height="512" rx="112" ry="112"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect x="0" y="0" width="512" height="512" fill="url(#sky)"/>
+    <circle cx="336" cy="170" r="56" fill="#FFFFFF" opacity="0.95"/>
+    <path d="M0,336 C90,288 170,288 256,320 C342,352 422,352 512,320 L512,512 L0,512 Z" fill="#FFFFFF" opacity="0.35"/>
+    <path d="M0,392 C90,340 170,340 256,376 C342,412 422,412 512,376 L512,512 L0,512 Z" fill="#FFFFFF" opacity="0.92"/>
+  </g>
+</svg>

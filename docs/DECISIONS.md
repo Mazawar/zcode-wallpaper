@@ -221,3 +221,11 @@
   keydown 分发表扩展为三 combo 匹配（可编辑目标豁免按「命中的那个 combo」判修饰键）。面板：单行升级为「快捷键」分
   组三行录制框（hotkeyRow 工厂，Esc 取消/退格清除/占位符显示默认值）。验证：contracts 白名单链自动对账（24
   sanitize ⊆ 31 public）、verify-hotkey 接线钉扩展、隔离池真机 /api/switch 三连发（next 两张按序、random 换图）。
+
+- **D32 插件图标（1.0.18 内）**：按 plugin-creator 规范，icon 属于 **marketplace 条目**（`plugins[].icon`）而非
+  plugin.json，取**可达 HTTPS URL**（不 fabricate）——指向仓库 raw 文件
+  `raw.githubusercontent.com/Mazawar/zcode-wallpaper/main/docs/icon.png`，push main 后生效（本地市场在 URL 就绪前
+  只是不显示图标，无害）。设计=简约三元素：圆角方块（rx 22%）+ 靛→紫垂直渐变（#4F7DF9→#8B5CF6）+ 白太阳 + 双层白
+  波浪（壁纸的最小视觉叙事，16px 可读）。产出三件：docs/icon.svg（源）、docs/icon.png（512²，PowerShell GDI+
+  渲染，抗锯齿，圆角 clip 防波浪出方角）、scripts/render-icon.ps1（可重渲染）。validate-plugin 的
+  "Unresolved placeholder: dist/mcp/server.js" 是历史已知误报（esbuild 内联依赖源码的 TODO 注释，0.3.3 已确认）。
