@@ -40,7 +40,7 @@ Both dirs can exist; the ACTIVE one contains the freshest `zw-serve.log`.
 
 | Symptom | Root cause | Fix |
 |---|---|---|
-| Panel never appears, `cdp: absent` | Launch bypassed the wrapped shortcut (updater overwrote the .lnk, renamed shortcut, direct ZCode.exe start) | Restart ZCode; wrapper re-applied automatically (D24 also discovers shortcuts by TARGET, not name) |
+| Panel never appears, `cdp: absent` | Launch bypassed the wrapped shortcut (updater overwrote the .lnk, renamed shortcut, direct ZCode.exe start) | Restart ZCode; wrapper re-applied automatically (D24 discovers shortcuts by TARGET, not name; D30 also scans the all-users Public Desktop and, when nothing could be wrapped, creates a working fallback launcher `ZCode Wallpaper.lnk` on the user's own desktop) |
 | Wallpaper gone right after a plugin update | Old-generation serve lingered / handover | Host auto-retires stale versions; if needed `POST /api/retire`, then the host starts its own |
 | Wallpaper disappears when window is occluded/backgrounded | Anti-occlusion flags missing from the launch args | Verify shortcut args include `--disable-backgrounding-occluded-windows --disable-renderer-backgrounding`; restart |
 | ZCode won't start from the shortcut | Wrapper is hardened to be UNABLE to block launches (D18/D19: node+plugin existence guards, unconditional ZCode line, stale-path re-probe). If a dialog appears, even the probe failed. | Launch ZCode.exe directly from its install folder once — the plugin repairs the shortcut next session |

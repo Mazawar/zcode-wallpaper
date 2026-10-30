@@ -194,3 +194,17 @@
   /Linux sh wrapper 同步 v3（rm→轮询→sed 解析→case 回退），真机仍未验证（0.4.16 起悬置）。边界：CDP 端口每会话
   至多选一次（wrapper 期），会话中途不浮动（Chromium 启动后不可改）；wrapper 健康探测仍打烘焙 apiPort+1，浮动会话
   下二次拉起可能空转一次（无害，宿主 10s 环兜底）。
+
+- **D30 快捷方式覆盖缺口 + 备用启动器（1.0.17）**：Win10 机器报「桌面快捷方式没有重新指向」。根因分析：**扫描清单
+  从来没有所有用户公共桌面**（C:\Users\Public\Desktop）——安装器最常把桌面快捷方式放在这里，name/target 两阶段发现
+  再强也扫不到看不见的目录；而且公共桌面上管理员创建的 .lnk 普通权限改不动（rewrite 会落 failed 桶，此前只有日志
+  无兜底）。修复三层：①扫描清单加公共桌面（env PUBLIC）；②结果解析从 startsWith 粗判升级为 parseLnkOutcome 五码
+  细分（updated/has-flag/not-zcode/zcode-missing/err），**has-flag 计入 wrappedCount**（已包装=已覆盖）；③**兜底
+  创建（用户要求的「失败了就替换」）**：当 wrappedCount===0（全没扫到、全失败、或压根没有任何 ZCode 快捷方式）时，
+  解析 ZCode.exe（运行实例 WMI → 标准安装位 → 盘符根约定），在用户自己的桌面创建「ZCode Wallpaper.lnk」
+  （wscript+VBS+ZCode 图标，用户桌面永远可写）——命名以 ZCode 开头让下一趟扫描按名字回收、target 探测识别为
+  已包装，创建一次性、后续 pass 全走 fast-path；幂等（Arguments 精确匹配即 skip）。不做的事：不弹 UAC 提权重写
+  公共桌面条目（插件不得有惊喜式提权），旧图标原地保留、新图标保证可用。验证：verify-shortcuts.mjs（真实执行
+  创建脚本 + COM 读回断言 + 幂等 skip + 扫描覆盖钉）+ 本机 ensure 实跑预演。**手工运维坑：手工跑 ensure 必须
+  ZW_DATA_DIR 指向机制目录，否则 dataDir 落 dev 沙盒、.lnk 会被改指沙盒 VBS**（本机已当场修正；宿主/serve 进程
+  自身解析正确，不受影响）。

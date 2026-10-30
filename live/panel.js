@@ -623,7 +623,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.16";
+    const PANEL_VERSION = false ? "dev" : "1.0.17";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];

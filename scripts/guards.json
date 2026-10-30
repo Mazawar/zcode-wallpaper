@@ -92,6 +92,13 @@
         "src/cli.ts",
         "src/core/session.ts"
       ]
+    },
+    {
+      "id": "verify-shortcuts.mjs",
+      "what": "快捷方式覆盖与备用启动器（D30）：扫描清单覆盖公共桌面（Win10 报障缺口）、结果解析区分已包装/非 ZCode/失败、真实执行 fallback 创建脚本并 COM 读回断言（wscript+VBS+图标、幂等 skip）、仅当本趟零包装才创建的接线钉",
+      "files": [
+        "src/core/shortcuts.ts"
+      ]
     }
   ]
 }

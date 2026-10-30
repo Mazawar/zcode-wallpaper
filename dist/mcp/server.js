@@ -55561,7 +55561,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.16";
+    VERSION = "1.0.17";
   }
 });
 
@@ -59066,13 +59066,17 @@ var init_exec = __esm({
 var shortcuts_exports = {};
 __export(shortcuts_exports, {
   ANTI_OCCLUSION_FLAGS: () => ANTI_OCCLUSION_FLAGS,
+  FALLBACK_LNK_NAME: () => FALLBACK_LNK_NAME,
   buildAppBundlePlist: () => buildAppBundlePlist,
+  buildCreateFallbackScript: () => buildCreateFallbackScript,
   buildEarlyLaunchCommand: () => buildEarlyLaunchCommand,
   buildEarlyLaunchSh: () => buildEarlyLaunchSh,
   desktopEntryIsWrapped: () => desktopEntryIsWrapped,
   desktopEntryIsZcode: () => desktopEntryIsZcode,
   ensureShortcutsHaveCdpFlag: () => ensureShortcutsHaveCdpFlag,
+  parseLnkOutcome: () => parseLnkOutcome,
   rewriteDesktopEntry: () => rewriteDesktopEntry,
+  shortcutDirs: () => shortcutDirs,
   writeEarlyLaunchVbs: () => writeEarlyLaunchVbs
 });
 import fs17 from "node:fs";
@@ -59229,14 +59233,82 @@ async function ensureShortcutsHaveCdpFlag(port) {
 function shortcutDirs() {
   const home = process.env.USERPROFILE ?? "";
   const appData = process.env.APPDATA ?? "";
+  const pub = process.env.PUBLIC ?? "C:\\Users\\Public";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
     path12.join(home, "Desktop"),
     ...process.env.OneDrive ? [path12.join(process.env.OneDrive, "Desktop")] : [],
+    // The ALL-USERS desktop — installers commonly drop their shortcut here
+    // (D30 Win10 report: the desktop .lnk "never got wrapped" because this
+    // directory was never scanned; rewrites of admin-owned entries may still
+    // fail without elevation, which the fallback launcher covers).
+    path12.join(pub, "Desktop"),
     path12.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
     path12.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
     path12.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
   ];
+}
+function parseLnkOutcome(out) {
+  const seg = out.split("|");
+  const kind = seg[0] === "ok" ? seg[1] ?? "" : seg[0];
+  const rest = seg[0] === "ok" ? seg.slice(2) : seg.slice(1);
+  return { kind: kind ?? "", zcode: rest.join("|") };
+}
+async function resolveZcodeExe() {
+  const script = `
+$z = $null
+try { $z = (Get-CimInstance Win32_Process -Filter "Name='ZCode.exe'" | Select-Object -First 1).ExecutablePath } catch {}
+if (-not $z -or -not (Test-Path $z)) {
+  $cands = @()
+  if ($env:ZCODE_WINDOWS_APP_INSTALL_DIR) { $cands += (Join-Path $env:ZCODE_WINDOWS_APP_INSTALL_DIR 'ZCode.exe') }
+  $cands += 'C:\\Program Files\\ZCode\\ZCode.exe'
+  $cands += (Join-Path $env:LOCALAPPDATA 'Programs\\ZCode\\ZCode.exe')
+  foreach ($c in $cands) { if ($c -and (Test-Path $c)) { $z = $c; break } }
+}
+if (-not $z) { for ($d = 67; $d -le 90; $d++) { $p = ([char]$d + ':\\ZCode\\ZCode.exe'); if (Test-Path $p) { $z = $p; break } } }
+if ($z -and (Test-Path $z)) { Write-Output $z }`;
+  try {
+    const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", script], { timeout: 2e4, windowsHide: true });
+    return stdout.trim();
+  } catch {
+    return "";
+  }
+}
+function buildCreateFallbackScript(vbsFile, zcode, lnkPath) {
+  const q = (s2) => s2.replace(/'/g, "''");
+  return `
+$ErrorActionPreference = 'Stop'
+try {
+  $ws = New-Object -ComObject WScript.Shell
+  $s = $ws.CreateShortcut('${q(lnkPath)}')
+  $want = '"' + '${q(vbsFile)}' + '"'
+  if ((Test-Path '${q(lnkPath)}') -and ([string]$s.Arguments -eq $want)) { Write-Output 'skip'; exit }
+  $s.TargetPath = 'wscript.exe'
+  $s.Arguments = $want
+  $s.IconLocation = '${q(zcode)}' + ',0'
+  $s.WorkingDirectory = Split-Path '${q(zcode)}' -Parent
+  $s.Save()
+  Write-Output 'created'
+} catch { Write-Output ('err|' + $_.Exception.Message) }`;
+}
+async function createFallbackLauncher(launcher, zcode) {
+  const vbsFile = path12.join(launcher.dir, "zw-launch.vbs");
+  if (!fs17.existsSync(vbsFile)) return "";
+  const lnkPath = path12.join(shortcutDirs()[0], FALLBACK_LNK_NAME);
+  try {
+    const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildCreateFallbackScript(vbsFile, zcode, lnkPath)], {
+      timeout: 15e3,
+      windowsHide: true
+    });
+    const out = stdout.trim();
+    if (out === "created") {
+      console.log(`serve: no wrappable shortcut found \u2014 fallback launcher created (${lnkPath})`);
+      return lnkPath;
+    }
+    if (out === "skip") return "";
+  } catch {
+  }
+  return "";
 }
 async function ensureWindowsShortcuts(port) {
   const result = { updated: [], skipped: [], failed: [] };
@@ -59285,11 +59357,20 @@ if ($out.Count) { $out -join [char]10 }`;
     }
   }
   const links = [.../* @__PURE__ */ new Set([...nameMatched, ...targetMatched])];
-  if (links.length === 0) return result;
   const launcher = launcherHome();
+  if (links.length === 0) {
+    const zcode = await resolveZcodeExe();
+    if (zcode) {
+      writeEarlyLaunchVbs(port, zcode, launcher);
+      const created = await createFallbackLauncher(launcher, zcode);
+      if (created) result.updated.push(created);
+    }
+    return result;
+  }
   const vbsFile = path12.join(launcher.dir, "zw-launch.vbs");
   const metaFile = path12.join(launcher.dir, "zw-launch.json");
   let zcodeKnown = "";
+  let wrappedCount = 0;
   const antiOcclusion = ANTI_OCCLUSION_FLAGS;
   for (const lnk of links) {
     const script = `
@@ -59350,13 +59431,14 @@ try {
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
     try {
       const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", script], { timeout: 15e3, windowsHide: true });
-      const out = stdout.trim();
-      const zcode = out.includes("|") ? out.slice(out.indexOf("|") + 1) : "";
+      const { kind, zcode } = parseLnkOutcome(stdout.trim());
       if (zcode && !zcodeKnown) zcodeKnown = zcode;
-      if (out.startsWith("updated")) {
-        result.updated.push(lnk);
-      } else if (out.startsWith("err")) {
-        result.failed.push({ path: lnk, reason: out.slice(4) });
+      if (kind === "updated" || kind === "has-flag") {
+        wrappedCount++;
+        if (kind === "updated") result.updated.push(lnk);
+        else result.skipped.push(lnk);
+      } else if (kind === "err") {
+        result.failed.push({ path: lnk, reason: zcode });
       } else {
         result.skipped.push(lnk);
       }
@@ -59365,6 +59447,14 @@ try {
     }
   }
   if (zcodeKnown) writeEarlyLaunchVbs(port, zcodeKnown, launcher);
+  if (wrappedCount === 0) {
+    const zcode = zcodeKnown || await resolveZcodeExe();
+    if (zcode) {
+      writeEarlyLaunchVbs(port, zcode, launcher);
+      const created = await createFallbackLauncher(launcher, zcode);
+      if (created) result.updated.push(created);
+    }
+  }
   return result;
 }
 function writeEarlyLaunchVbs(port, zcode, launcher) {
@@ -59631,7 +59721,7 @@ async function ensureLinuxDesktopEntries(port) {
   void wrapperWritten;
   return result;
 }
-var ANTI_OCCLUSION_FLAGS, DESKTOP_MARKER, MAC_ZCODE_CANDIDATES;
+var ANTI_OCCLUSION_FLAGS, DESKTOP_MARKER, FALLBACK_LNK_NAME, MAC_ZCODE_CANDIDATES;
 var init_shortcuts = __esm({
   "src/core/shortcuts.ts"() {
     "use strict";
@@ -59642,6 +59732,7 @@ var init_shortcuts = __esm({
       "--disable-renderer-backgrounding"
     ];
     DESKTOP_MARKER = "X-zcode-wallpaper-exec";
+    FALLBACK_LNK_NAME = "ZCode Wallpaper.lnk";
     MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path12.join(os3.homedir(), "Applications", "ZCode.app")];
   }
 });

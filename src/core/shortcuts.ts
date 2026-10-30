@@ -253,18 +253,110 @@ export async function ensureShortcutsHaveCdpFlag(port: number): Promise<Shortcut
 
 // --- windows -------------------------------------------------------------------
 
+/** The fallback launcher's file name (D30). It deliberately starts with
+ *  "ZCode" so the NEXT ensure pass's name-scan recollects it and the
+ *  target-probe recognizes it as already-wrapped — creation is one-shot and
+ *  every later pass just fast-paths through it. */
+export const FALLBACK_LNK_NAME = "ZCode Wallpaper.lnk";
+
 /** Directories that hold ZCode launch shortcuts, in priority order. */
-function shortcutDirs(): string[] {
+export function shortcutDirs(): string[] {
   const home = process.env.USERPROFILE ?? "";
   const appData = process.env.APPDATA ?? "";
+  const pub = process.env.PUBLIC ?? "C:\\Users\\Public";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
     path.join(home, "Desktop"),
     ...(process.env.OneDrive ? [path.join(process.env.OneDrive, "Desktop")] : []),
+    // The ALL-USERS desktop — installers commonly drop their shortcut here
+    // (D30 Win10 report: the desktop .lnk "never got wrapped" because this
+    // directory was never scanned; rewrites of admin-owned entries may still
+    // fail without elevation, which the fallback launcher covers).
+    path.join(pub, "Desktop"),
     path.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
     path.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
     path.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar"),
   ];
+}
+
+/** Parses a per-lnk PowerShell outcome line ("updated|<zcode>",
+ *  "ok|has-flag|<zcode>", "ok|not-zcode", "ok|zcode-missing|<zcode>",
+ *  "err|<message>"). Exported for verify-shortcuts. */
+export function parseLnkOutcome(out: string): { kind: string; zcode: string } {
+  const seg = out.split("|");
+  const kind = seg[0] === "ok" ? seg[1] ?? "" : seg[0];
+  const rest = seg[0] === "ok" ? seg.slice(2) : seg.slice(1);
+  return { kind: kind ?? "", zcode: rest.join("|") };
+}
+
+/** Finds a ZCode.exe without any shortcut to lean on: a running instance
+ *  (any install location), then the standard install dirs, then the
+ *  X:\ZCode\ZCode.exe root convention. Empty string when nothing resolves. */
+async function resolveZcodeExe(): Promise<string> {
+  const script = `
+$z = $null
+try { $z = (Get-CimInstance Win32_Process -Filter "Name='ZCode.exe'" | Select-Object -First 1).ExecutablePath } catch {}
+if (-not $z -or -not (Test-Path $z)) {
+  $cands = @()
+  if ($env:ZCODE_WINDOWS_APP_INSTALL_DIR) { $cands += (Join-Path $env:ZCODE_WINDOWS_APP_INSTALL_DIR 'ZCode.exe') }
+  $cands += 'C:\\Program Files\\ZCode\\ZCode.exe'
+  $cands += (Join-Path $env:LOCALAPPDATA 'Programs\\ZCode\\ZCode.exe')
+  foreach ($c in $cands) { if ($c -and (Test-Path $c)) { $z = $c; break } }
+}
+if (-not $z) { for ($d = 67; $d -le 90; $d++) { $p = ([char]$d + ':\\ZCode\\ZCode.exe'); if (Test-Path $p) { $z = $p; break } } }
+if ($z -and (Test-Path $z)) { Write-Output $z }`;
+  try {
+    const { stdout } = await exec("powershell", ["-NoProfile", "-Command", script], { timeout: 20_000, windowsHide: true });
+    return stdout.trim();
+  } catch {
+    return "";
+  }
+}
+
+/** PowerShell that creates (or fast-path-skips) the fallback desktop
+ *  launcher: wscript + our VBS, ZCode icon. Idempotent — an existing launcher
+ *  with the exact wanted arguments is left untouched. */
+export function buildCreateFallbackScript(vbsFile: string, zcode: string, lnkPath: string): string {
+  const q = (s: string) => s.replace(/'/g, "''");
+  return `
+$ErrorActionPreference = 'Stop'
+try {
+  $ws = New-Object -ComObject WScript.Shell
+  $s = $ws.CreateShortcut('${q(lnkPath)}')
+  $want = '"' + '${q(vbsFile)}' + '"'
+  if ((Test-Path '${q(lnkPath)}') -and ([string]$s.Arguments -eq $want)) { Write-Output 'skip'; exit }
+  $s.TargetPath = 'wscript.exe'
+  $s.Arguments = $want
+  $s.IconLocation = '${q(zcode)}' + ',0'
+  $s.WorkingDirectory = Split-Path '${q(zcode)}' -Parent
+  $s.Save()
+  Write-Output 'created'
+} catch { Write-Output ('err|' + $_.Exception.Message) }`;
+}
+
+/** D30 fallback: when NO shortcut ended up wrapped (nothing found, or every
+ *  attempt failed — e.g. an admin-owned Public Desktop entry), create a
+ *  working launcher on the USER's own desktop. Returns the created (or
+ *  already-correct) .lnk path, empty string on failure. */
+async function createFallbackLauncher(launcher: { dir: string }, zcode: string): Promise<string> {
+  const vbsFile = path.join(launcher.dir, "zw-launch.vbs");
+  if (!fs.existsSync(vbsFile)) return "";
+  const lnkPath = path.join(shortcutDirs()[0], FALLBACK_LNK_NAME);
+  try {
+    const { stdout } = await exec("powershell", ["-NoProfile", "-Command", buildCreateFallbackScript(vbsFile, zcode, lnkPath)], {
+      timeout: 15_000,
+      windowsHide: true,
+    });
+    const out = stdout.trim();
+    if (out === "created") {
+      console.log(`serve: no wrappable shortcut found — fallback launcher created (${lnkPath})`);
+      return lnkPath;
+    }
+    if (out === "skip") return ""; // already correct — the next scan fast-paths it
+  } catch {
+    /* creation is best-effort */
+  }
+  return "";
 }
 
 async function ensureWindowsShortcuts(port: number): Promise<ShortcutSyncResult> {
@@ -329,7 +421,19 @@ if ($out.Count) { $out -join [char]10 }`;
   }
 
   const links = [...new Set([...nameMatched, ...targetMatched])];
-  if (links.length === 0) return result;
+  const launcher = launcherHome();
+
+  // D30: nothing wrappable exists at all — a machine whose shortcuts were
+  // deleted/renamed beyond recognition still deserves a working launcher.
+  if (links.length === 0) {
+    const zcode = await resolveZcodeExe();
+    if (zcode) {
+      writeEarlyLaunchVbs(port, zcode, launcher);
+      const created = await createFallbackLauncher(launcher, zcode);
+      if (created) result.updated.push(created);
+    }
+    return result;
+  }
 
   // Early-launch wrapper (D18, hardened): the .lnk points at a generated
   // .vbs that starts the wallpaper serve hidden BEFORE ZCode — the renderer
@@ -339,10 +443,13 @@ if ($out.Count) { $out -join [char]10 }`;
   // Node/cli paths are baked per machine and re-baked by every plugin
   // session (writeEarlyLaunchVbs below), so an nvm move degrades to "no
   // early serve" until the next session — never to "ZCode won't start".
-  const launcher = launcherHome();
   const vbsFile = path.join(launcher.dir, "zw-launch.vbs");
   const metaFile = path.join(launcher.dir, "zw-launch.json");
   let zcodeKnown = "";
+  // D30: how many entries ended up a WORKING wrapped launcher this pass
+  // (rewritten now, or already carrying the wrapper). The fallback creation
+  // below only fires when this stays zero.
+  let wrappedCount = 0;
 
   const antiOcclusion = ANTI_OCCLUSION_FLAGS;
   for (const lnk of links) {
@@ -404,13 +511,15 @@ try {
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
     try {
       const { stdout } = await exec("powershell", ["-NoProfile", "-Command", script], { timeout: 15_000, windowsHide: true });
-      const out = stdout.trim();
-      const zcode = out.includes("|") ? out.slice(out.indexOf("|") + 1) : "";
+      const { kind, zcode } = parseLnkOutcome(stdout.trim());
       if (zcode && !zcodeKnown) zcodeKnown = zcode;
-      if (out.startsWith("updated")) {
-        result.updated.push(lnk);
-      } else if (out.startsWith("err")) {
-        result.failed.push({ path: lnk, reason: out.slice(4) });
+      if (kind === "updated" || kind === "has-flag") {
+        // has-flag counts as wrapped: the entry already is a working launcher.
+        wrappedCount++;
+        if (kind === "updated") result.updated.push(lnk);
+        else result.skipped.push(lnk);
+      } else if (kind === "err") {
+        result.failed.push({ path: lnk, reason: zcode });
       } else {
         result.skipped.push(lnk);
       }
@@ -424,6 +533,19 @@ try {
   // vbs text embeds all four inputs (node, cli, zcode, port), so a content
   // compare against the file on disk is the complete staleness check.
   if (zcodeKnown) writeEarlyLaunchVbs(port, zcodeKnown, launcher);
+
+  // D30 fallback: every pass must end with at least one working launcher —
+  // when none did (admin-owned Public Desktop entries that can't be
+  // rewritten without elevation, resolution failures), put one on the user's
+  // OWN desktop, which is always writable.
+  if (wrappedCount === 0) {
+    const zcode = zcodeKnown || (await resolveZcodeExe());
+    if (zcode) {
+      writeEarlyLaunchVbs(port, zcode, launcher);
+      const created = await createFallbackLauncher(launcher, zcode);
+      if (created) result.updated.push(created);
+    }
+  }
   return result;
 }
 
