@@ -229,3 +229,20 @@
   波浪（壁纸的最小视觉叙事，16px 可读）。产出三件：docs/icon.svg（源）、docs/icon.png（512²，PowerShell GDI+
   渲染，抗锯齿，圆角 clip 防波浪出方角）、scripts/render-icon.ps1（可重渲染）。validate-plugin 的
   "Unresolved placeholder: dist/mcp/server.js" 是历史已知误报（esbuild 内联依赖源码的 TODO 注释，0.3.3 已确认）。
+
+- **D33 卸载还原 + wrapper 卸载存活（1.0.19）**：用户卸载插件后从快捷方式启动 ZCode 直接报「找不到脚本文件 zw-launch.vbs」
+  ——**0.4.1 卸载事故的结构性缺口没堵全**：当年给 VBS 加了「插件没了照样启动 ZCode」的 FileExists 守卫，但守卫写在
+  VBS 文件里，卸载把数据目录（连同 VBS）一起删掉，.lnk → wscript → 不存在的脚本，守卫根本没机会执行。ZCode 无卸载
+  钩子（插件卸载后我方代码不可能再运行），修复两层：①**还原**（主动）：卸载监视（installed_plugins.json 记录消失
+  3 拍）在恢复默认外观退出**之前**调 restoreWrappedShortcuts——宿主进程卸载后仍存活一个会话期（0.4.15 实测），这是
+  唯一的还原窗口；还原=把每个我方包装的 .lnk 改回直接指向 ZCode.exe（wrapper meta 恢复 zcode 路径 → resolveZcodeExe
+  兜底），剥我方 CDP+防遮挡参数、保留用户自有参数，幂等（已还原/not-ours 跳过）。②**存活**（被动兜底）：wrapper
+  四件套（vbs/cmd/meta/握手）搬到卸载不清理的自有目录 wrapperDir（win=%LOCALAPPDATA%\zcode-wallpaper，linux=
+  ~/.local/share/zcode-wallpaper，mac 启动器 bundle 本就在 ~/Applications 伞下）——就算还原窗口错过（卸载瞬间关
+  机/杀进程），悬空 .lnk 指向的 VBS 仍然存在，内置守卫照常「跳过 serve、无条件启动 ZCode」（无壁纸但能开）。发现/
+  握手文件（zw-launch.json=wrapper meta 二合一、zw-ports.txt）随 wrapper 目录走（D29 读者全部经 paths.wrapperDir）。
+  守卫：verify-shortcuts 真实执行还原脚本（包装→还原→COM 读回：target=meta 的 zcode、我方 flags 剥离、用户参数
+  保留、幂等、非我方不碰）+ wrapperDir/接线钉。**守卫抓到真实运维险情：verify-ports 曾把测试端口写进真实
+  LOCALAPPDATA wrapper meta——D33 后守卫重定向 LOCALAPPDATA 到临时目录，并当场清理了污染**。本机已用新代码跑
+  ensure：两个 .lnk 已迁指 wrapperDir（卸载安全的启动链）。边界：卸载瞬间强杀宿主则还原窗口错过（靠②兜底）；
+  wrapper 目录卸载后残留两个小文件（vbs+cmd，无害且自说明，重装后原地复用）。

@@ -1053,6 +1053,13 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     if (bootInstallId && !ownPluginId()) {
       if (++uninstallTicks >= 3) {
         console.log(`serve: install record for ${bootInstallId} gone (uninstalled) — restoring default appearance and exiting`);
+        // D33: hand the shortcuts back before exiting. ZCode has no uninstall
+        // hook, so this still-alive serve is the ONLY chance to unwrap the
+        // .lnk entries — skipping it left wscript targets pointing at the
+        // deleted wrapper and broke every shortcut launch.
+        await import("./shortcuts.js")
+          .then((m) => m.restoreWrappedShortcuts())
+          .catch(() => undefined);
         await shutdownServe().catch(() => undefined);
         process.exit(0);
       }

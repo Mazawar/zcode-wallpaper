@@ -25,7 +25,7 @@
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { dataDir } from "./launch.js";
+import { wrapperDir } from "./paths.js";
 
 /** First (preferred) port of the pool — the historical fixed CDP port.
  *  ZW_PORT_BASE shifts the whole pool (constrained environments; the guard
@@ -120,12 +120,14 @@ export interface SessionPorts {
 }
 
 /** The wrapper meta json doubles as session discovery (same file the
- *  shortcut-recovery logic reads zcode/node/cli from — merged, never replaced). */
+ *  shortcut-recovery logic reads zcode/node/cli from — merged, never
+ *  replaced). It lives in wrapperDir next to the .vbs: it IS wrapper state,
+ *  and the .lnk-recovery PS resolves it as the vbs's sibling (D33). */
 function discoveryPath(): string {
-  return path.join(dataDir(), "zw-launch.json");
+  return path.join(wrapperDir(), "zw-launch.json");
 }
 function handshakePath(): string {
-  return path.join(dataDir(), "zw-ports.txt");
+  return path.join(wrapperDir(), "zw-ports.txt");
 }
 
 export function readSessionPorts(): SessionPorts {
@@ -146,7 +148,7 @@ export function readSessionPorts(): SessionPorts {
  *  fallback ports, never to a failed boot. */
 export function writeSessionPorts(cdpPort: number, apiPort: number): void {
   try {
-    fs.mkdirSync(dataDir(), { recursive: true });
+    fs.mkdirSync(wrapperDir(), { recursive: true });
     let meta: Record<string, unknown> = {};
     try {
       meta = JSON.parse(fs.readFileSync(discoveryPath(), "utf8")) as Record<string, unknown>;

@@ -38,9 +38,15 @@ await esbuild.build({
 // Discovery must land in a scratch dir, and the pool must be hermetic: the
 // developer machine's real ZCode may hold 28256 RIGHT NOW (that is the point
 // of the feature), so shift the pool base to a scratch range for this run.
+// D33: discovery/handshake live in wrapperDir (= %LOCALAPPDATA% on win), so
+// the guard redirects that too — writing the REAL wrapper meta with test
+// ports would poison the next session's discovery.
 process.env.ZW_DATA_DIR = path.join(tmp, "data");
+process.env.LOCALAPPDATA = path.join(tmp, "localappdata");
 fs.mkdirSync(process.env.ZW_DATA_DIR, { recursive: true });
+fs.mkdirSync(process.env.LOCALAPPDATA, { recursive: true });
 const ports = await import(pathToFileURL(bundled).href);
+const wrapperHome = path.join(process.env.LOCALAPPDATA, "zcode-wallpaper");
 
 async function allFree(base) {
   for (let i = 0; i < 10; i++) {
@@ -103,14 +109,14 @@ await grace();
 ports.writeSessionPorts(B + 4, B + 5);
 const disc = ports.readSessionPorts();
 ok(disc.cdpPort === B + 4 && disc.apiPort === B + 5, "discovery round-trips through zw-launch.json");
-const hsRaw = fs.readFileSync(path.join(process.env.ZW_DATA_DIR, "zw-ports.txt"), "utf8");
+const hsRaw = fs.readFileSync(path.join(wrapperHome, "zw-ports.txt"), "utf8");
 ok(new RegExp(`^cdp=${B + 4}\\r?\\napi=${B + 5}\\r?\\n$`).test(hsRaw), "boot handshake is the flat two-line file");
 ok(/^[\x00-\x7F]*$/.test(hsRaw), "handshake is pure ASCII (VBS parses it as ANSI)");
 ok(ports.readHandshake().cdpPort === B + 4 && ports.readHandshake().apiPort === B + 5, "readHandshake parses both fields");
 // meta merge: existing fields (zcode/node/cli) must survive the port write
-fs.writeFileSync(path.join(process.env.ZW_DATA_DIR, "zw-launch.json"), JSON.stringify({ zcode: "X\\ZCode.exe", node: "n", cli: "c" }));
+fs.writeFileSync(path.join(wrapperHome, "zw-launch.json"), JSON.stringify({ zcode: "X\\ZCode.exe", node: "n", cli: "c" }));
 ports.writeSessionPorts(28256, 28257);
-const merged = JSON.parse(fs.readFileSync(path.join(process.env.ZW_DATA_DIR, "zw-launch.json"), "utf8"));
+const merged = JSON.parse(fs.readFileSync(path.join(wrapperHome, "zw-launch.json"), "utf8"));
 ok(merged.zcode === "X\\ZCode.exe" && merged.cdpPort === 28256, "discovery write merges, never replaces the wrapper meta");
 
 // ── the REAL generated Windows wrapper ───────────────────────────────────────

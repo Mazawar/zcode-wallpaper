@@ -11377,34 +11377,169 @@ var init_zod = __esm({
   }
 });
 
-// src/core/paths.ts
+// src/core/launch.ts
+var launch_exports = {};
+__export(launch_exports, {
+  configFile: () => configFile,
+  dataDir: () => dataDir,
+  findZcodeExecutable: () => findZcodeExecutable,
+  isZcodeProcessRunning: () => isZcodeProcessRunning,
+  launchZcode: () => launchZcode,
+  loadConfig: () => loadConfig,
+  saveConfig: () => saveConfig
+});
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+function dataDir() {
+  if (process.env.ZW_DATA_DIR) return process.env.ZW_DATA_DIR;
+  const sep = path.sep;
+  const parts = pluginRoot.split(sep);
+  const n2 = parts.length;
+  if (n2 >= 5 && parts[n2 - 4] === "cache" && parts[n2 - 5] === "plugins") {
+    const rebuilt = parts.slice(0, n2 - 3);
+    rebuilt[n2 - 4] = "data";
+    return rebuilt.join(sep) + sep + parts[n2 - 2] + "@" + parts[n2 - 3];
+  }
+  return path.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
+}
+function configFile() {
+  return path.join(dataDir(), "config.json");
+}
+function loadConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(configFile(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+function saveConfig(config2) {
+  fs.mkdirSync(dataDir(), { recursive: true });
+  fs.writeFileSync(configFile(), JSON.stringify(config2, null, 2));
+}
+function findZcodeExecutable() {
+  return ZCODE_EXE_CANDIDATES.map((p2) => p2).find((p2) => {
+    try {
+      return fs.statSync(p2).isFile();
+    } catch {
+      return false;
+    }
+  });
+}
+async function isZcodeProcessRunning() {
+  try {
+    if (process.platform === "win32") {
+      const { stdout: stdout2 } = await execFileAsync("tasklist", ["/NH", "/FI", "IMAGENAME eq ZCode.exe"]);
+      return stdout2.toLowerCase().includes("zcode.exe");
+    }
+    const name = process.platform === "darwin" ? "ZCode" : "zcode";
+    const { stdout } = await execFileAsync("pgrep", ["-x", name]);
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+async function launchZcode(port) {
+  try {
+    await listTargets(port);
+    return { started: false, reason: "already-running-with-cdp" };
+  } catch {
+  }
+  const exe = findZcodeExecutable();
+  if (!exe) throw new Error("ZCode executable not found; set ZCODE_WINDOWS_APP_INSTALL_DIR or install ZCode to the default path.");
+  if (await isZcodeProcessRunning()) {
+    return { started: false, reason: "running-without-cdp" };
+  }
+  const child = spawn(exe, [`--remote-debugging-port=${port}`], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true
+  });
+  child.unref();
+  let up = false;
+  for (let i2 = 0; i2 < 40; i2++) {
+    await new Promise((r2) => setTimeout(r2, 500));
+    try {
+      await listTargets(port);
+      up = true;
+      break;
+    } catch {
+    }
+  }
+  if (!up) {
+    throw new Error(
+      "ZCode was started but no CDP endpoint appeared. Another instance may already be running without the debug port \u2014 quit ZCode completely and run `zcode-wallpaper launch` again."
+    );
+  }
+  await new Promise((r2) => setTimeout(r2, 2e3));
+  try {
+    await listTargets(port);
+  } catch {
+    throw new Error(
+      "CDP came up but closed again immediately \u2014 a running ZCode instance took over via the single-instance lock. Quit ZCode completely and run `zcode-wallpaper launch` again."
+    );
+  }
+  return { started: true };
+}
+var ZCODE_EXE_CANDIDATES, execFileAsync;
+var init_launch = __esm({
+  "src/core/launch.ts"() {
+    "use strict";
+    init_cdp();
+    init_paths();
+    ZCODE_EXE_CANDIDATES = process.platform === "win32" ? [
+      process.env.ZCODE_WINDOWS_APP_INSTALL_DIR ? path.join(process.env.ZCODE_WINDOWS_APP_INSTALL_DIR, "ZCode.exe") : void 0,
+      "C:\\Program Files\\ZCode\\ZCode.exe",
+      path.join(os.homedir(), "AppData", "Local", "Programs", "ZCode", "ZCode.exe")
+    ].filter(Boolean) : process.platform === "darwin" ? ["/Applications/ZCode.app/Contents/MacOS/ZCode"] : ["/usr/bin/zcode", "/opt/ZCode/zcode"];
+    execFileAsync = promisify(execFile);
+  }
+});
+
+// src/core/paths.ts
+import fs2 from "node:fs";
+import os2 from "node:os";
+import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 function liveDir() {
-  return path.join(pluginRoot, "live");
+  return path2.join(pluginRoot, "live");
+}
+function wrapperDir() {
+  if (process.platform === "win32") {
+    return path2.join(
+      process.env.LOCALAPPDATA ?? path2.join(os2.homedir(), "AppData", "Local"),
+      "zcode-wallpaper"
+    );
+  }
+  if (process.platform === "linux") {
+    return path2.join(os2.homedir(), ".local", "share", "zcode-wallpaper");
+  }
+  return dataDir();
 }
 function engineFile() {
   const candidates = [
     process.env.ZW_ENGINE_FILE,
-    path.join(pluginRoot, "vendor", "webwallgl.global.min.js"),
-    path.join(pluginRoot, "node_modules", "webwallgl", "webwallgl.global.min.js")
+    path2.join(pluginRoot, "vendor", "webwallgl.global.min.js"),
+    path2.join(pluginRoot, "node_modules", "webwallgl", "webwallgl.global.min.js")
   ].filter(Boolean);
-  return candidates.find((p2) => fs.existsSync(p2));
+  return candidates.find((p2) => fs2.existsSync(p2));
 }
 var pluginRoot;
 var init_paths = __esm({
   "src/core/paths.ts"() {
     "use strict";
+    init_launch();
     pluginRoot = (() => {
-      let dir = path.dirname(fileURLToPath(import.meta.url));
+      let dir = path2.dirname(fileURLToPath(import.meta.url));
       for (let i2 = 0; i2 < 4; i2++) {
-        if (fs.existsSync(path.join(dir, ".zcode-plugin")) || fs.existsSync(path.join(dir, "live"))) return dir;
-        const parent = path.dirname(dir);
+        if (fs2.existsSync(path2.join(dir, ".zcode-plugin")) || fs2.existsSync(path2.join(dir, "live"))) return dir;
+        const parent = path2.dirname(dir);
         if (parent === dir) break;
         dir = parent;
       }
-      return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+      return path2.resolve(path2.dirname(fileURLToPath(import.meta.url)), "..", "..");
     })();
   }
 });
@@ -11423,7 +11558,7 @@ __export(cdp_exports, {
   pickRendererTargets: () => pickRendererTargets,
   readAgentCode: () => readAgentCode
 });
-import fs2 from "node:fs";
+import fs3 from "node:fs";
 async function listTargets(port, host = "127.0.0.1") {
   let res;
   try {
@@ -11524,7 +11659,7 @@ ${loader}
 })();`;
 }
 function readAgentCode() {
-  return fs2.readFileSync(`${liveDir()}/agent.js`.replace(/\\/g, "/"), "utf8");
+  return fs3.readFileSync(`${liveDir()}/agent.js`.replace(/\\/g, "/"), "utf8");
 }
 async function injectIntoTarget(target, payload) {
   const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
@@ -31530,13 +31665,13 @@ var require_await_to_js_umd = __commonJS({
 });
 
 // node_modules/@jimp/file-ops/dist/esm/index.js
-import { promises as fs3 } from "fs";
+import { promises as fs4 } from "fs";
 import { existsSync } from "fs";
 var readFile, writeFile;
 var init_esm13 = __esm({
   "node_modules/@jimp/file-ops/dist/esm/index.js"() {
-    readFile = fs3.readFile;
-    writeFile = fs3.writeFile;
+    readFile = fs4.readFile;
+    writeFile = fs4.writeFile;
   }
 });
 
@@ -34141,7 +34276,7 @@ var init_NotRegularFileError = __esm({
 
 // node_modules/strtok3/lib/FileTokenizer.js
 import { constants as constants2 } from "node:fs";
-import fs4, {} from "node:fs/promises";
+import fs5, {} from "node:fs/promises";
 var FileTokenizer;
 var init_FileTokenizer = __esm({
   "node_modules/strtok3/lib/FileTokenizer.js"() {
@@ -34160,7 +34295,7 @@ var init_FileTokenizer = __esm({
         getMaxBufferSize(options);
         throwIfAborted(options?.abortSignal);
         const flags = options?.regularFileOnly ? constants2.O_RDONLY | constants2.O_NONBLOCK : "r";
-        const fileHandle = await fs4.open(sourceFilePath, flags);
+        const fileHandle = await fs5.open(sourceFilePath, flags);
         try {
           const stat = await fileHandle.stat();
           if (options?.regularFileOnly && !stat.isFile()) {
@@ -38332,7 +38467,7 @@ __export(file_type_exports, {
 });
 import { ReadableStream as WebReadableStream } from "node:stream/web";
 import { pipeline, PassThrough, Readable } from "node:stream";
-import fs5 from "node:fs/promises";
+import fs6 from "node:fs/promises";
 import { constants as fileSystemConstants } from "node:fs";
 function isTokenizerStreamBoundsError(error2) {
   if (!(error2 instanceof RangeError) || error2.message !== "offset is out of bounds" || typeof error2.stack !== "string") {
@@ -38374,7 +38509,7 @@ var init_file_type = __esm({
       }
       async fromFile(path15) {
         this.options.signal?.throwIfAborted();
-        const fileHandle = await fs5.open(path15, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
+        const fileHandle = await fs6.open(path15, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
         const fileStat = await fileHandle.stat();
         if (!fileStat.isFile()) {
           await fileHandle.close();
@@ -54655,8 +54790,8 @@ var init_tokens = __esm({
 });
 
 // src/core/inject.ts
-import fs6 from "node:fs";
-import path2 from "node:path";
+import fs7 from "node:fs";
+import path3 from "node:path";
 function liveQualityKnobs(preset) {
   return LIVE_QUALITY_PRESETS[preset ?? "balanced"] ?? LIVE_QUALITY_PRESETS.balanced;
 }
@@ -54703,10 +54838,10 @@ function buildPayload(config2, assets, opts = {}) {
   if (visible) {
     if (config2.live?.poster) {
       underlay = `http://127.0.0.1:${config2.apiPort}/files/${config2.live.sourceId}/${config2.live.poster.split(/[\\/]/).map(encodeURIComponent).join("/")}`;
-    } else if (config2.mediaType === "video" && config2.monetSourcePath && fs6.existsSync(config2.monetSourcePath)) {
+    } else if (config2.mediaType === "video" && config2.monetSourcePath && fs7.existsSync(config2.monetSourcePath)) {
       const id = /\/files\/([^/]+)\//.exec(config2.sceneVideoUrl ?? "")?.[1];
       if (id) {
-        underlay = `http://127.0.0.1:${config2.apiPort}/files/${id}/${encodeURIComponent(path2.basename(config2.monetSourcePath))}`;
+        underlay = `http://127.0.0.1:${config2.apiPort}/files/${id}/${encodeURIComponent(path3.basename(config2.monetSourcePath))}`;
       }
     }
   }
@@ -54869,127 +55004,6 @@ var init_inject = __esm({
   }
 });
 
-// src/core/launch.ts
-var launch_exports = {};
-__export(launch_exports, {
-  configFile: () => configFile,
-  dataDir: () => dataDir,
-  findZcodeExecutable: () => findZcodeExecutable,
-  isZcodeProcessRunning: () => isZcodeProcessRunning,
-  launchZcode: () => launchZcode,
-  loadConfig: () => loadConfig,
-  saveConfig: () => saveConfig
-});
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
-import fs7 from "node:fs";
-import os from "node:os";
-import path3 from "node:path";
-function dataDir() {
-  if (process.env.ZW_DATA_DIR) return process.env.ZW_DATA_DIR;
-  const sep = path3.sep;
-  const parts = pluginRoot.split(sep);
-  const n2 = parts.length;
-  if (n2 >= 5 && parts[n2 - 4] === "cache" && parts[n2 - 5] === "plugins") {
-    const rebuilt = parts.slice(0, n2 - 3);
-    rebuilt[n2 - 4] = "data";
-    return rebuilt.join(sep) + sep + parts[n2 - 2] + "@" + parts[n2 - 3];
-  }
-  return path3.join(os.homedir(), ".zcode", "cli", "plugins", "data", "zcode-wallpaper");
-}
-function configFile() {
-  return path3.join(dataDir(), "config.json");
-}
-function loadConfig() {
-  try {
-    return JSON.parse(fs7.readFileSync(configFile(), "utf8"));
-  } catch {
-    return {};
-  }
-}
-function saveConfig(config2) {
-  fs7.mkdirSync(dataDir(), { recursive: true });
-  fs7.writeFileSync(configFile(), JSON.stringify(config2, null, 2));
-}
-function findZcodeExecutable() {
-  return ZCODE_EXE_CANDIDATES.map((p2) => p2).find((p2) => {
-    try {
-      return fs7.statSync(p2).isFile();
-    } catch {
-      return false;
-    }
-  });
-}
-async function isZcodeProcessRunning() {
-  try {
-    if (process.platform === "win32") {
-      const { stdout: stdout2 } = await execFileAsync("tasklist", ["/NH", "/FI", "IMAGENAME eq ZCode.exe"]);
-      return stdout2.toLowerCase().includes("zcode.exe");
-    }
-    const name = process.platform === "darwin" ? "ZCode" : "zcode";
-    const { stdout } = await execFileAsync("pgrep", ["-x", name]);
-    return stdout.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-async function launchZcode(port) {
-  try {
-    await listTargets(port);
-    return { started: false, reason: "already-running-with-cdp" };
-  } catch {
-  }
-  const exe = findZcodeExecutable();
-  if (!exe) throw new Error("ZCode executable not found; set ZCODE_WINDOWS_APP_INSTALL_DIR or install ZCode to the default path.");
-  if (await isZcodeProcessRunning()) {
-    return { started: false, reason: "running-without-cdp" };
-  }
-  const child = spawn(exe, [`--remote-debugging-port=${port}`], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true
-  });
-  child.unref();
-  let up = false;
-  for (let i2 = 0; i2 < 40; i2++) {
-    await new Promise((r2) => setTimeout(r2, 500));
-    try {
-      await listTargets(port);
-      up = true;
-      break;
-    } catch {
-    }
-  }
-  if (!up) {
-    throw new Error(
-      "ZCode was started but no CDP endpoint appeared. Another instance may already be running without the debug port \u2014 quit ZCode completely and run `zcode-wallpaper launch` again."
-    );
-  }
-  await new Promise((r2) => setTimeout(r2, 2e3));
-  try {
-    await listTargets(port);
-  } catch {
-    throw new Error(
-      "CDP came up but closed again immediately \u2014 a running ZCode instance took over via the single-instance lock. Quit ZCode completely and run `zcode-wallpaper launch` again."
-    );
-  }
-  return { started: true };
-}
-var ZCODE_EXE_CANDIDATES, execFileAsync;
-var init_launch = __esm({
-  "src/core/launch.ts"() {
-    "use strict";
-    init_cdp();
-    init_paths();
-    ZCODE_EXE_CANDIDATES = process.platform === "win32" ? [
-      process.env.ZCODE_WINDOWS_APP_INSTALL_DIR ? path3.join(process.env.ZCODE_WINDOWS_APP_INSTALL_DIR, "ZCode.exe") : void 0,
-      "C:\\Program Files\\ZCode\\ZCode.exe",
-      path3.join(os.homedir(), "AppData", "Local", "Programs", "ZCode", "ZCode.exe")
-    ].filter(Boolean) : process.platform === "darwin" ? ["/Applications/ZCode.app/Contents/MacOS/ZCode"] : ["/usr/bin/zcode", "/opt/ZCode/zcode"];
-    execFileAsync = promisify(execFile);
-  }
-});
-
 // src/core/ports.ts
 var ports_exports = {};
 __export(ports_exports, {
@@ -55060,10 +55074,10 @@ async function pickCdpPort(preferred) {
   return preferred ?? cands[0];
 }
 function discoveryPath() {
-  return path4.join(dataDir(), "zw-launch.json");
+  return path4.join(wrapperDir(), "zw-launch.json");
 }
 function handshakePath() {
-  return path4.join(dataDir(), "zw-ports.txt");
+  return path4.join(wrapperDir(), "zw-ports.txt");
 }
 function readSessionPorts() {
   try {
@@ -55079,7 +55093,7 @@ function readSessionPorts() {
 }
 function writeSessionPorts(cdpPort, apiPort) {
   try {
-    fs8.mkdirSync(dataDir(), { recursive: true });
+    fs8.mkdirSync(wrapperDir(), { recursive: true });
     let meta = {};
     try {
       meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
@@ -55112,7 +55126,7 @@ var PORT_POOL_SIZE;
 var init_ports = __esm({
   "src/core/ports.ts"() {
     "use strict";
-    init_launch();
+    init_paths();
     PORT_POOL_SIZE = 10;
   }
 });
@@ -55190,7 +55204,7 @@ var init_wallpaperType = __esm({
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 import fs10 from "node:fs";
-import os2 from "node:os";
+import os3 from "node:os";
 import path6 from "node:path";
 async function regQuery(key, value) {
   if (process.platform !== "win32") return void 0;
@@ -55235,7 +55249,7 @@ async function findSteamRoots() {
   push(process.env.ZW_STEAM_ROOT);
   push(await regQuery("HKCU\\Software\\Valve\\Steam", "SteamPath"));
   push(await regQuery("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"));
-  for (const d of commonSteamDirs(process.platform, os2.homedir())) push(d);
+  for (const d of commonSteamDirs(process.platform, os3.homedir())) push(d);
   return roots;
 }
 function parseLibraryFolders(vdfPath) {
@@ -55567,7 +55581,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.18";
+    VERSION = "1.0.19";
   }
 });
 
@@ -59079,16 +59093,18 @@ __export(shortcuts_exports, {
   buildCreateFallbackScript: () => buildCreateFallbackScript,
   buildEarlyLaunchCommand: () => buildEarlyLaunchCommand,
   buildEarlyLaunchSh: () => buildEarlyLaunchSh,
+  buildRestoreShortcutScript: () => buildRestoreShortcutScript,
   desktopEntryIsWrapped: () => desktopEntryIsWrapped,
   desktopEntryIsZcode: () => desktopEntryIsZcode,
   ensureShortcutsHaveCdpFlag: () => ensureShortcutsHaveCdpFlag,
   parseLnkOutcome: () => parseLnkOutcome,
+  restoreWrappedShortcuts: () => restoreWrappedShortcuts,
   rewriteDesktopEntry: () => rewriteDesktopEntry,
   shortcutDirs: () => shortcutDirs,
   writeEarlyLaunchVbs: () => writeEarlyLaunchVbs
 });
 import fs17 from "node:fs";
-import os3 from "node:os";
+import os4 from "node:os";
 import path12 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function launcherHome() {
@@ -59097,7 +59113,7 @@ function launcherHome() {
     if (fs17.existsSync(path12.join(dir, "dist", "cli.js"))) break;
     dir = path12.dirname(dir);
   }
-  const home = dataDir();
+  const home = wrapperDir();
   fs17.mkdirSync(home, { recursive: true });
   return { dir: home, root: dir };
 }
@@ -59232,6 +59248,65 @@ function rewriteDesktopEntry(content, wrapperPath) {
     return null;
   }
   return { next: out.join("\n"), original };
+}
+function buildRestoreShortcutScript(lnk, zcodeFallback, antiFlags) {
+  const q = (s2) => s2.replace(/'/g, "''");
+  return `
+$ErrorActionPreference = 'Stop'
+try {
+  $ws = New-Object -ComObject WScript.Shell
+  $s = $ws.CreateShortcut('${q(lnk)}')
+  $t = [string]$s.TargetPath
+  $a = [string]$s.Arguments
+  if (-not ($t -match 'wscript\\.exe$' -and $a -match 'zw-launch\\.vbs')) { Write-Output 'not-ours'; exit }
+  $anti = @('${antiFlags.join("', '")}')
+  $vbsArg = ([regex]::Match($a, '"([^"]+zw-launch\\.vbs)"')).Groups[1].Value
+  if (-not $vbsArg) { $vbsArg = (($a -split ' ')[0] -replace '^"|"$','') }
+  $z = $null
+  $metaPath = Join-Path (Split-Path $vbsArg -Parent) 'zw-launch.json'
+  if ($vbsArg -and (Test-Path $metaPath)) { try { $z = (Get-Content -Raw $metaPath | ConvertFrom-Json).zcode } catch {} }
+  if (-not $z -or -not (Test-Path $z)) { $z = '${q(zcodeFallback)}' }
+  if (-not $z -or -not (Test-Path $z)) { Write-Output 'no-zcode'; exit }
+  $rest = ($a -replace '^"[^"]*zw-launch\\.vbs"\\s*','') -replace '^\\S*zw-launch\\.vbs\\s*',''
+  $parts = @($rest -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
+  $s.TargetPath = $z
+  $s.Arguments = ($parts -join ' ')
+  $s.Save()
+  Write-Output ('restored|' + $z)
+} catch { Write-Output ('err|' + $_.Exception.Message) }`;
+}
+async function restoreWrappedShortcuts() {
+  const restored = [];
+  const zcode = await resolveZcodeExe();
+  const lnks = [];
+  const collect = (dir) => {
+    for (const f2 of fs17.readdirSync(dir)) if (f2.endsWith(".lnk")) lnks.push(path12.join(dir, f2));
+  };
+  for (const dir of shortcutDirs()) {
+    try {
+      collect(dir);
+      for (const sub of fs17.readdirSync(dir, { withFileTypes: true })) {
+        if (!sub.isDirectory()) continue;
+        try {
+          collect(path12.join(dir, sub.name));
+        } catch {
+        }
+      }
+    } catch {
+    }
+  }
+  for (const lnk of lnks) {
+    try {
+      const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildRestoreShortcutScript(lnk, zcode, ANTI_OCCLUSION_FLAGS)], {
+        timeout: 15e3,
+        windowsHide: true
+      });
+      if (stdout.trim().startsWith("restored")) restored.push(lnk);
+    } catch {
+    }
+  }
+  if (restored.length) console.log(`serve: ${restored.length} shortcut(s) restored to plain ZCode launches`);
+  return restored;
 }
 async function ensureShortcutsHaveCdpFlag(port) {
   if (process.platform === "darwin") return ensureMacLauncher(port);
@@ -59659,7 +59734,7 @@ async function ensureMacLauncher(port) {
     return result;
   }
   const appName = "ZCode Wallpaper.app";
-  const appDir = path12.join(os3.homedir(), "Applications", appName);
+  const appDir = path12.join(os4.homedir(), "Applications", appName);
   const scriptPath = path12.join(appDir, "Contents", "MacOS", "zw-launch");
   const plistPath = path12.join(appDir, "Contents", "Info.plist");
   const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path12.join(dir, "early.log"));
@@ -59681,7 +59756,7 @@ async function ensureMacLauncher(port) {
 }
 async function ensureLinuxDesktopEntries(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const base = path12.join(os3.homedir(), ".local", "share", "applications");
+  const base = path12.join(os4.homedir(), ".local", "share", "applications");
   const dirs = [base, path12.join(base, "ZCode")];
   const entries = [];
   for (const d of dirs) {
@@ -59734,14 +59809,14 @@ var init_shortcuts = __esm({
   "src/core/shortcuts.ts"() {
     "use strict";
     init_exec();
-    init_launch();
+    init_paths();
     ANTI_OCCLUSION_FLAGS = [
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding"
     ];
     DESKTOP_MARKER = "X-zcode-wallpaper-exec";
     FALLBACK_LNK_NAME = "ZCode Wallpaper.lnk";
-    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path12.join(os3.homedir(), "Applications", "ZCode.app")];
+    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path12.join(os4.homedir(), "Applications", "ZCode.app")];
   }
 });
 
@@ -59759,7 +59834,7 @@ __export(server_exports, {
 });
 import http from "node:http";
 import fs18 from "node:fs";
-import os4 from "node:os";
+import os5 from "node:os";
 import path13 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { execFile as execFile4 } from "node:child_process";
@@ -59883,7 +59958,7 @@ function pluginDisabledKeyIn(cfgPath) {
 function ownPluginId() {
   try {
     const rec = JSON.parse(
-      fs18.readFileSync(path13.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
+      fs18.readFileSync(path13.join(os5.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
     );
     let dir = path13.dirname(fileURLToPath3(import.meta.url));
     for (let i2 = 0; i2 < 6; i2++) {
@@ -59898,7 +59973,7 @@ function ownPluginId() {
 }
 function activeWorkspaceDirs() {
   try {
-    const logDir = path13.join(os4.homedir(), ".zcode", "cli", "log");
+    const logDir = path13.join(os5.homedir(), ".zcode", "cli", "log");
     const files = fs18.readdirSync(logDir).filter((f2) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f2)).sort();
     if (!files.length) return [];
     const file2 = path13.join(logDir, files[files.length - 1]);
@@ -60276,7 +60351,7 @@ async function startServe(opts) {
         const zip = new AdmZip();
         zip.addLocalFolder(entry.dir);
         const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path13.join(os4.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        const zipPath = path13.join(os5.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
         await zip.writeZipPromise(zipPath);
         const size = fs18.statSync(zipPath).size;
         res.writeHead(200, {
@@ -60293,7 +60368,7 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/import-package") {
         const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path13.join(os4.tmpdir(), `zw-import-${Date.now()}.zip`);
+        const tempZip = path13.join(os5.tmpdir(), `zw-import-${Date.now()}.zip`);
         await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
         try {
           const r2 = await importPackageFromFile(tempZip, runtimeConfig(), apply);
@@ -60317,7 +60392,7 @@ async function startServe(opts) {
         if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
           throw new Error(`unsupported file type: ${ext || "(none)"} \u2014 use .zip / .pkg / .mp4 / .webm`);
         }
-        const tempFile = path13.join(os4.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        const tempFile = path13.join(os5.tmpdir(), `zw-upl-${Date.now()}${ext}`);
         await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
         try {
           const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "\u5BFC\u5165\u7684\u58C1\u7EB8";
@@ -60457,8 +60532,8 @@ async function startServe(opts) {
       })();
     }, 3e4);
   }
-  const cfgPath = path13.join(os4.homedir(), ".zcode", "cli", "config.json");
-  const installRecordPath = path13.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
+  const cfgPath = path13.join(os5.homedir(), ".zcode", "cli", "config.json");
+  const installRecordPath = path13.join(os5.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
   const bootInstallId = ownPluginId();
   let uninstallTicks = 0;
   const checkDisabled = async () => {
@@ -60471,6 +60546,7 @@ async function startServe(opts) {
     if (bootInstallId && !ownPluginId()) {
       if (++uninstallTicks >= 3) {
         console.log(`serve: install record for ${bootInstallId} gone (uninstalled) \u2014 restoring default appearance and exiting`);
+        await Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.restoreWrappedShortcuts()).catch(() => void 0);
         await shutdownServe().catch(() => void 0);
         process.exit(0);
       }
@@ -60655,7 +60731,7 @@ var init_server = __esm({
 });
 
 // src/mcp/server.ts
-import os5 from "node:os";
+import os6 from "node:os";
 import path14 from "node:path";
 
 // node_modules/zod/v4/core/core.js
@@ -71392,7 +71468,7 @@ async function gracefulShutdown() {
   let restore = true;
   try {
     const srv = await Promise.resolve().then(() => (init_server(), server_exports));
-    const cfgPath = path14.join(os5.homedir(), ".zcode", "cli", "config.json");
+    const cfgPath = path14.join(os6.homedir(), ".zcode", "cli", "config.json");
     restore = srv.pluginDisabledBy(cfgPath) !== null;
     console.error(
       `[serve] stdio closed \u2014 plugin ${restore ? "disabled: restoring default appearance" : "still enabled: leaving the wallpaper mounted for the successor serve"}`

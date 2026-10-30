@@ -3,7 +3,7 @@
 > 由 `node scripts/verify-guard-map.mjs --write` 从 [scripts/guards.json](../scripts/guards.json) 重算；`verify-guard-map.mjs` 会重算并逐字比对。
 > **怎么用**：改了某个文件，在「文件 → 守卫」表里查该跑哪几条。守卫一律 `node scripts/<id>` 运行（e2e 除外，见其 what）。
 
-守卫 10 个 · 覆盖文件 26 个
+守卫 10 个 · 覆盖文件 27 个
 
 ## 守卫 → 文件
 
@@ -18,7 +18,7 @@
 | `verify-early-watch.mjs` | 早启 serve 宿主看门狗语义：宿主静默≠禁用（宿主舰队换血不拆壁纸，仅显式禁用确证才 restore 退出；ZCode 消失 60s 结束会话）——esbuild 现场打包真实 earlyWatch 源跑全场景 + 钉死 server 接线（盲退日志行不得回归） | `src/core/earlyWatch.ts` `src/core/server.ts` |
 | `verify-hotkey.mjs` | 快捷键翻转语义（D28）：组合键文法（归一化/录制/精确匹配/修饰键强制/可编辑目标豁免）跑真实 hotkey.js + agent/panel/payload 三方接线钉（录制框 data-zw-hotkey 豁免、翻转走 /api/config 同面板开关） | `live/src/agent/hotkey.js` `live/src/agent/main.js` `live/src/panel/main.js` `src/core/payload.ts` |
 | `verify-ports.mjs` | 端口池浮动与会话发现（D29）：真实 ports.ts 跑偶/奇分池、真实 socket 占用探测、CDP 活端点拾取、发现/握手往返；真实生成器产出 v8 wrapper 钉死握手删除→轮询→回退编排与 ASCII-only 规则；server/MCP/CLI 接线钉（pickPorts 护栏、宿主按发现端口心跳） | `src/core/ports.ts` `src/core/shortcuts.ts` `src/core/server.ts` `src/mcp/server.ts` `src/cli.ts` `src/core/session.ts` |
-| `verify-shortcuts.mjs` | 快捷方式覆盖与备用启动器（D30）：扫描清单覆盖公共桌面（Win10 报障缺口）、结果解析区分已包装/非 ZCode/失败、真实执行 fallback 创建脚本并 COM 读回断言（wscript+VBS+图标、幂等 skip）、仅当本趟零包装才创建的接线钉 | `src/core/shortcuts.ts` |
+| `verify-shortcuts.mjs` | 快捷方式覆盖/备用启动器（D30）+ 卸载还原（D33）：扫描覆盖公共桌面、五码结果解析、真实执行 fallback 创建与 restore 还原脚本并 COM 读回断言（还原=meta 的 ZCode exe、我方 flags 剥离用户参数保留、幂等、非我方不碰）；wrapperDir 存活卸载 + 发现/握手随 wrapper 目录 + 卸载监视先还原再退出的接线钉 | `src/core/shortcuts.ts` `src/core/paths.ts` `src/core/ports.ts` `src/core/server.ts` |
 
 ## 文件 → 守卫
 
@@ -43,9 +43,10 @@
 | `src/core/configApi.ts` | `verify-contracts.mjs` |
 | `src/core/earlyWatch.ts` | `verify-early-watch.mjs` |
 | `src/core/inject.ts` | `verify-contracts.mjs` `e2e.mjs` |
+| `src/core/paths.ts` | `verify-shortcuts.mjs` |
 | `src/core/payload.ts` | `verify-contracts.mjs` `verify-hotkey.mjs` |
-| `src/core/ports.ts` | `verify-ports.mjs` |
-| `src/core/server.ts` | `verify-contracts.mjs` `verify-early-watch.mjs` `verify-ports.mjs` |
+| `src/core/ports.ts` | `verify-ports.mjs` `verify-shortcuts.mjs` |
+| `src/core/server.ts` | `verify-contracts.mjs` `verify-early-watch.mjs` `verify-ports.mjs` `verify-shortcuts.mjs` |
 | `src/core/session.ts` | `verify-ports.mjs` |
 | `src/core/sessions.ts` | `e2e.mjs` |
 | `src/core/shortcuts.ts` | `verify-ports.mjs` `verify-shortcuts.mjs` |

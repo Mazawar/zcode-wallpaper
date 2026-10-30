@@ -87,6 +87,51 @@ ok(src.includes('kind === "updated" || kind === "has-flag"'), "already-wrapped e
 ok(src.includes("path.join(pub, \"Desktop\")"), "public desktop wired into the scan list");
 ok(src.includes("resolveZcodeExe()") && src.includes("Get-CimInstance Win32_Process"), "zcode resolution probes the running instance");
 
+// ── D33: wrapper dir survives uninstall + the restore path ───────────────────
+const pathsSrc = fs.readFileSync(path.join(root, "src", "core", "paths.ts"), "utf8");
+ok(pathsSrc.includes("LOCALAPPDATA") && pathsSrc.includes("zcode-wallpaper"), "wrapperDir keeps the wrapper outside the uninstalled data dir (win)");
+ok(fs.readFileSync(path.join(root, "src", "core", "server.ts"), "utf8").includes("restoreWrappedShortcuts()"), "the uninstall watch restores shortcuts before exiting");
+const portsSrc = fs.readFileSync(path.join(root, "src", "core", "ports.ts"), "utf8");
+ok(portsSrc.includes("wrapperDir()") && !portsSrc.includes('dataDir(), "zw-launch.json"'), "discovery + handshake follow the wrapper dir");
+
+// buildRestoreShortcutScript, EXECUTED for real: wrap → restore → read back.
+const anti = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"];
+const fakeVbsDir = path.join(tmp, "wrapdir");
+fs.mkdirSync(fakeVbsDir, { recursive: true });
+const fakeVbs = path.join(fakeVbsDir, "zw-launch.vbs");
+fs.writeFileSync(fakeVbs, "' smoke\r\n", "utf8");
+fs.writeFileSync(
+  path.join(fakeVbsDir, "zw-launch.json"),
+  JSON.stringify({ zcode: process.execPath, node: "n", cli: "c" }),
+  "utf8"
+);
+const wrapLnk = path.join(tmp, "ZCode.lnk");
+const zcodeExe = process.execPath;
+const wrapArgs = `"${fakeVbs}" --remote-debugging-port=28256 ${anti.join(" ")} --my-own-flag`;
+await runPs(`
+$ws = New-Object -ComObject WScript.Shell
+$s = $ws.CreateShortcut('${wrapLnk.replace(/'/g, "''")}')
+$s.TargetPath = 'wscript.exe'
+$s.Arguments = '${wrapArgs.replace(/'/g, "''")}'
+$s.Save()`);
+const restoredOut = await runPs(sc.buildRestoreShortcutScript(wrapLnk, "", anti));
+ok(restoredOut.startsWith("restored"), "restore script unwraps a wrapped entry");
+const rb = (await runPs(`
+$ws = New-Object -ComObject WScript.Shell
+$s = $ws.CreateShortcut('${wrapLnk.replace(/'/g, "''")}')
+Write-Output ([string]$s.TargetPath)
+Write-Output ([string]$s.Arguments)`)).split(/\r?\n/);
+ok(rb[0] === zcodeExe, `restored target is the meta's ZCode exe (got ${rb[0]})`);
+ok(rb[1] === "--my-own-flag", `our flags stripped, user args kept (got "${rb[1]}")`);
+ok((await runPs(sc.buildRestoreShortcutScript(wrapLnk, "", anti))).startsWith("not-ours"), "second restore skips the now-plain entry (idempotent)");
+const plain = path.join(tmp, "Other.lnk");
+await runPs(`
+$ws = New-Object -ComObject WScript.Shell
+$s = $ws.CreateShortcut('${plain.replace(/'/g, "''")}')
+$s.TargetPath = '${zcodeExe.replace(/'/g, "''")}'
+$s.Save()`);
+ok((await runPs(sc.buildRestoreShortcutScript(plain, "", []))).startsWith("not-ours"), "non-wrapped entries are never touched");
+
 fs.rmSync(tmp, { recursive: true, force: true });
 if (failures.length) {
   for (const f of failures) console.error("FAIL:", f);

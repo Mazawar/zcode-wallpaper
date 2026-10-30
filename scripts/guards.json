@@ -95,9 +95,12 @@
     },
     {
       "id": "verify-shortcuts.mjs",
-      "what": "快捷方式覆盖与备用启动器（D30）：扫描清单覆盖公共桌面（Win10 报障缺口）、结果解析区分已包装/非 ZCode/失败、真实执行 fallback 创建脚本并 COM 读回断言（wscript+VBS+图标、幂等 skip）、仅当本趟零包装才创建的接线钉",
+      "what": "快捷方式覆盖/备用启动器（D30）+ 卸载还原（D33）：扫描覆盖公共桌面、五码结果解析、真实执行 fallback 创建与 restore 还原脚本并 COM 读回断言（还原=meta 的 ZCode exe、我方 flags 剥离用户参数保留、幂等、非我方不碰）；wrapperDir 存活卸载 + 发现/握手随 wrapper 目录 + 卸载监视先还原再退出的接线钉",
       "files": [
-        "src/core/shortcuts.ts"
+        "src/core/shortcuts.ts",
+        "src/core/paths.ts",
+        "src/core/ports.ts",
+        "src/core/server.ts"
       ]
     }
   ]

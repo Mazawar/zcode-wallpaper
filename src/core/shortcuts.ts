@@ -27,7 +27,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileP as exec } from "./exec.js";
-import { dataDir } from "./launch.js";
+import { wrapperDir } from "./paths.js";
 
 export interface ShortcutSyncResult {
   /** Shortcuts that gained the flag this run. */
@@ -45,9 +45,11 @@ export const ANTI_OCCLUSION_FLAGS = [
 ];
 
 /**
- * Where the generated launcher artifacts live. The data dir (~/.zcode/.../
- * data/zcode-wallpaper/) is stable across plugin reinstalls and never dirties
- * the plugin/repo directory; the cli.js path is discovered by probing upward
+ * Where the generated launcher artifacts live. D33: NOT the plugin data dir
+ * (uninstall wipes it — the dangling-.lnk incident) but the plugin's own
+ * wrapperDir, which survives uninstall; the wrapper's built-in guards then
+ * keep every shortcut launchable (node/cli missing → skip serve → launch
+ * ZCode unconditionally). The cli.js path is discovered by probing upward
  * from this module (tsc layout, bundle layout, cache installs).
  */
 function launcherHome(): { dir: string; root: string } {
@@ -56,7 +58,7 @@ function launcherHome(): { dir: string; root: string } {
     if (fs.existsSync(path.join(dir, "dist", "cli.js"))) break;
     dir = path.dirname(dir);
   }
-  const home = dataDir();
+  const home = wrapperDir();
   fs.mkdirSync(home, { recursive: true });
   return { dir: home, root: dir };
 }
@@ -241,6 +243,82 @@ export function rewriteDesktopEntry(content: string, wrapperPath: string): { nex
     return null;
   }
   return { next: out.join("\n"), original };
+}
+
+/** D33: PowerShell that unwraps ONE shortcut back to a direct ZCode launch.
+ *  Skips anything that is not one of our wrapped entries; recovers the ZCode
+ *  exe from the wrapper meta json sitting next to the .vbs (else the probe
+ *  fallback passed in); strips OUR canonical flags (CDP port + anti-occlusion),
+ *  keeps the user's own arguments; idempotent — an already-plain entry is
+ *  skipped. `antiFlags` = the exact flag list to strip (ANTI_OCCLUSION_FLAGS). */
+export function buildRestoreShortcutScript(lnk: string, zcodeFallback: string, antiFlags: string[]): string {
+  const q = (s: string) => s.replace(/'/g, "''");
+  return `
+$ErrorActionPreference = 'Stop'
+try {
+  $ws = New-Object -ComObject WScript.Shell
+  $s = $ws.CreateShortcut('${q(lnk)}')
+  $t = [string]$s.TargetPath
+  $a = [string]$s.Arguments
+  if (-not ($t -match 'wscript\\.exe$' -and $a -match 'zw-launch\\.vbs')) { Write-Output 'not-ours'; exit }
+  $anti = @('${antiFlags.join("', '")}')
+  $vbsArg = ([regex]::Match($a, '"([^"]+zw-launch\\.vbs)"')).Groups[1].Value
+  if (-not $vbsArg) { $vbsArg = (($a -split ' ')[0] -replace '^"|"$','') }
+  $z = $null
+  $metaPath = Join-Path (Split-Path $vbsArg -Parent) 'zw-launch.json'
+  if ($vbsArg -and (Test-Path $metaPath)) { try { $z = (Get-Content -Raw $metaPath | ConvertFrom-Json).zcode } catch {} }
+  if (-not $z -or -not (Test-Path $z)) { $z = '${q(zcodeFallback)}' }
+  if (-not $z -or -not (Test-Path $z)) { Write-Output 'no-zcode'; exit }
+  $rest = ($a -replace '^"[^"]*zw-launch\\.vbs"\\s*','') -replace '^\\S*zw-launch\\.vbs\\s*',''
+  $parts = @($rest -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
+  $s.TargetPath = $z
+  $s.Arguments = ($parts -join ' ')
+  $s.Save()
+  Write-Output ('restored|' + $z)
+} catch { Write-Output ('err|' + $_.Exception.Message) }`;
+}
+
+/** D33: the uninstall-side of the shortcut contract. ZCode has no uninstall
+ *  hook — but our serve survives the uninstall for a while (the host dies
+ *  only at app quit), so the uninstall watch calls this BEFORE exiting:
+ *  every wrapped entry goes back to a direct ZCode launch with our flags
+ *  stripped. Best-effort; even when it never runs, the wrapper now lives in
+ *  wrapperDir and stays launchable (built-in guards → plain ZCode). */
+export async function restoreWrappedShortcuts(): Promise<string[]> {
+  const restored: string[] = [];
+  const zcode = await resolveZcodeExe();
+  const lnks: string[] = [];
+  const collect = (dir: string) => {
+    for (const f of fs.readdirSync(dir)) if (f.endsWith(".lnk")) lnks.push(path.join(dir, f));
+  };
+  for (const dir of shortcutDirs()) {
+    try {
+      collect(dir);
+      for (const sub of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!sub.isDirectory()) continue;
+        try {
+          collect(path.join(dir, sub.name));
+        } catch {
+          /* unreadable subdir */
+        }
+      }
+    } catch {
+      /* dir absent */
+    }
+  }
+  for (const lnk of lnks) {
+    try {
+      const { stdout } = await exec("powershell", ["-NoProfile", "-Command", buildRestoreShortcutScript(lnk, zcode, ANTI_OCCLUSION_FLAGS)], {
+        timeout: 15_000,
+        windowsHide: true,
+      });
+      if (stdout.trim().startsWith("restored")) restored.push(lnk);
+    } catch {
+      /* best effort */
+    }
+  }
+  if (restored.length) console.log(`serve: ${restored.length} shortcut(s) restored to plain ZCode launches`);
+  return restored;
 }
 
 // --- platform dispatch --------------------------------------------------------
