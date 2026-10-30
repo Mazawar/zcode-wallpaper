@@ -47,40 +47,54 @@ function bootstrapServe(): void {
     }) as typeof console.log;
 
     let hosting = false;
+    // D29: session discovery first — the early serve may have walked the
+    // port pool (a foreign app squatting a slot); heartbeat, health, retire,
+    // spawn and shortcut healing must all target the SESSION ports, not the
+    // fixed defaults, or a floating session silently splits in half.
     const ensure = () => {
-      // Heartbeat an early-launch serve (started hidden by the shortcut
-      // wrapper before ZCode): proves this host exists so it keeps owning
-      // the session; silence on its side means plugin disabled -> it resets.
-      void fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/host-alive`, { method: "POST" }).catch(() => undefined);
-      if (hosting) return;
-      fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/health`, { signal: AbortSignal.timeout(1500) })
-        .then((r) => r.json())
-        .then(async (body) => {
-          if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign service");
-          const serving = (body as { version?: string })?.version;
-          // Missing version = a pre-D18 serve — treat as stale too.
-          if (serving !== VERSION) {
-            // An older plugin generation's serve still owns the port (the
-            // shortcut wrapper's early serve can linger across an update):
-            // retire it, then take the port with THIS generation's code.
-            await fetch(`http://127.0.0.1:${DEFAULT_API_PORT}/api/retire`, { method: "POST" }).catch(() => undefined);
-            await new Promise((r) => setTimeout(r, 1500));
-            throw new Error("stale serve retired");
-          }
-        })
-        .catch(() => {
-          import("../core/server.js")
-            .then((m) => {
-              hosting = true;
-              return m.startServe({ cdpPort: 28256, apiPort: DEFAULT_API_PORT }).catch((err: Error) => {
-                // EADDRINUSE-style: another host process won the race — fine.
-                hosting = false;
-                if (!String(err?.message ?? err).includes("already running")) throw err;
-              });
+      void import("../core/ports.js")
+        .then((p) => {
+          const sp = p.readSessionPorts();
+          const apiPort = sp.apiPort ?? DEFAULT_API_PORT;
+          const cdpPort = sp.cdpPort ?? 28256;
+          // Heartbeat an early-launch serve (started hidden by the shortcut
+          // wrapper before ZCode): proves this host exists so it keeps owning
+          // the session; silence on its side means plugin disabled -> it resets.
+          void fetch(`http://127.0.0.1:${apiPort}/api/host-alive`, { method: "POST" }).catch(() => undefined);
+          if (hosting) return undefined;
+          return fetch(`http://127.0.0.1:${apiPort}/api/health`, { signal: AbortSignal.timeout(1500) })
+            .then((r) => r.json())
+            .then(async (body) => {
+              if ((body as { service?: string })?.service !== "zcode-wallpaper") throw new Error("foreign service");
+              const serving = (body as { version?: string })?.version;
+              // Missing version = a pre-D18 serve — treat as stale too.
+              if (serving !== VERSION) {
+                // An older plugin generation's serve still owns the port (the
+                // shortcut wrapper's early serve can linger across an update):
+                // retire it, then take the port with THIS generation's code.
+                await fetch(`http://127.0.0.1:${apiPort}/api/retire`, { method: "POST" }).catch(() => undefined);
+                await new Promise((r) => setTimeout(r, 1500));
+                throw new Error("stale serve retired");
+              }
+              return undefined;
             })
             .catch(() => {
-              /* best effort */
+              import("../core/server.js")
+                .then((m) => {
+                  hosting = true;
+                  return m.startServe({ cdpPort, apiPort, pickPorts: true }).catch((err: Error) => {
+                    // EADDRINUSE-style: another host process won the race — fine.
+                    hosting = false;
+                    if (!String(err?.message ?? err).includes("already running")) throw err;
+                  });
+                })
+                .catch(() => {
+                  /* best effort */
+                });
             });
+        })
+        .catch(() => {
+          /* best effort */
         });
     };
     ensure();
@@ -91,8 +105,8 @@ function bootstrapServe(): void {
 
     // Self-heal launch shortcuts: without the CDP flag a start-menu launch
     // gets no injection for the whole session. Fire-and-forget, silent.
-    import("../core/shortcuts.js")
-      .then((m) => m.ensureShortcutsHaveCdpFlag(28256))
+    import("../core/ports.js")
+      .then((p) => import("../core/shortcuts.js").then((m) => m.ensureShortcutsHaveCdpFlag(p.readSessionPorts().cdpPort ?? 28256)))
       .catch(() => undefined);
   } catch {
     /* best effort */

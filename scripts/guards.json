@@ -80,6 +80,18 @@
         "live/src/panel/main.js",
         "src/core/payload.ts"
       ]
+    },
+    {
+      "id": "verify-ports.mjs",
+      "what": "端口池浮动与会话发现（D29）：真实 ports.ts 跑偶/奇分池、真实 socket 占用探测、CDP 活端点拾取、发现/握手往返；真实生成器产出 v8 wrapper 钉死握手删除→轮询→回退编排与 ASCII-only 规则；server/MCP/CLI 接线钉（pickPorts 护栏、宿主按发现端口心跳）",
+      "files": [
+        "src/core/ports.ts",
+        "src/core/shortcuts.ts",
+        "src/core/server.ts",
+        "src/mcp/server.ts",
+        "src/cli.ts",
+        "src/core/session.ts"
+      ]
     }
   ]
 }

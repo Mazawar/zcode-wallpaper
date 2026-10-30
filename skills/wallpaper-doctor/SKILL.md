@@ -5,7 +5,7 @@ description: Diagnose and repair the zcode-wallpaper plugin (排查/修复壁纸
 
 # Wallpaper Doctor — 排查与修复手册
 
-Constants: CDP port **28256**, serve API **28257**. First rule: **never kill the ZCode process
+Ports (D29 pool): the two services PREFER CDP **28256** / API **28257** but FLOAT inside the even/odd pool 28256-28275 when a foreign app squats a slot (CDP walks even, API walks odd — they can never collide). The session's actual ports live in the data dir: `zw-launch.json` fields `cdpPort`/`apiPort` (discovery; read this before probing fixed ports) and `zw-ports.txt` (flat boot handshake for the launch wrapper). Health: `GET http://127.0.0.1:<apiPort>/api/health`. First rule: **never kill the ZCode process
 and never touch machine config (registry Run keys, autostart, LaunchAgents) — the plugin must
 not modify the computer, and neither should you.** Restarting ZCode is the universal safe fix.
 

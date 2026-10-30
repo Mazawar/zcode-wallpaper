@@ -6045,7 +6045,7 @@ var require_gifframe = __commonJS({
 var require_gifutil = __commonJS({
   "node_modules/gifwrap/src/gifutil.js"(exports) {
     "use strict";
-    var fs18 = __require("fs");
+    var fs19 = __require("fs");
     var ImageQ = require_image_q();
     var BitmapImage2 = require_bitmapimage();
     var { GifFrame: GifFrame2 } = require_gifframe();
@@ -6160,14 +6160,14 @@ var require_gifutil = __commonJS({
       jimpImage.bitmap.data = bitmapImageToShare.bitmap.data;
       return jimpImage;
     };
-    exports.write = function(path14, frames, spec, encoder) {
+    exports.write = function(path15, frames, spec, encoder) {
       encoder = encoder || defaultCodec;
-      const matches = path14.match(/\.[a-zA-Z]+$/);
+      const matches = path15.match(/\.[a-zA-Z]+$/);
       if (matches !== null && INVALID_SUFFIXES.includes(matches[0].toLowerCase())) {
-        throw new Error(`GIF '${path14}' has an unexpected suffix`);
+        throw new Error(`GIF '${path15}' has an unexpected suffix`);
       }
       return encoder.encodeGif(frames, spec).then((gif2) => {
-        return _writeBinary(path14, gif2.buffer).then(() => {
+        return _writeBinary(path15, gif2.buffer).then(() => {
           return gif2;
         });
       });
@@ -6239,9 +6239,9 @@ var require_gifutil = __commonJS({
         }
       }
     }
-    function _readBinary(path14) {
+    function _readBinary(path15) {
       return new Promise((resolve, reject) => {
-        fs18.readFile(path14, (err, buffer) => {
+        fs19.readFile(path15, (err, buffer) => {
           if (err) {
             return reject(err);
           }
@@ -6249,9 +6249,9 @@ var require_gifutil = __commonJS({
         });
       });
     }
-    function _writeBinary(path14, buffer) {
+    function _writeBinary(path15, buffer) {
       return new Promise((resolve, reject) => {
-        fs18.writeFile(path14, buffer, (err) => {
+        fs19.writeFile(path15, buffer, (err) => {
           if (err) {
             return reject(err);
           }
@@ -8262,9 +8262,9 @@ var require_decoder = __commonJS({
         return a2 < 0 ? 0 : a2 > 255 ? 255 : a2;
       }
       constructor.prototype = {
-        load: function load(path14) {
+        load: function load(path15) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path14, true);
+          xhr.open("GET", path15, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = (function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -19167,8 +19167,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path14, errorMaps, issueData } = params;
-      const fullPath = [...path14, ...issueData.path || []];
+      const { data, path: path15, errorMaps, issueData } = params;
+      const fullPath = [...path15, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -19476,11 +19476,11 @@ var init_types2 = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path14, key) {
+      constructor(parent, value, path15, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path14;
+        this._path = path15;
         this._key = key;
       }
       get path() {
@@ -24478,11 +24478,11 @@ var require_Mime = __commonJS({
         }
       }
     };
-    Mime.prototype.getType = function(path14) {
-      path14 = String(path14);
-      let last = path14.replace(/^.*[/\\]/, "").toLowerCase();
+    Mime.prototype.getType = function(path15) {
+      path15 = String(path15);
+      let last = path15.replace(/^.*[/\\]/, "").toLowerCase();
       let ext = last.replace(/^.*\./, "").toLowerCase();
-      let hasPath = last.length < path14.length;
+      let hasPath = last.length < path15.length;
       let hasDot = ext.length < last.length - 1;
       return (hasDot || !hasPath) && this._types[ext] || null;
     };
@@ -27030,9 +27030,9 @@ var NotRegularFileError;
 var init_NotRegularFileError = __esm({
   "node_modules/strtok3/lib/NotRegularFileError.js"() {
     NotRegularFileError = class extends Error {
-      constructor(path14) {
-        super(`Not a regular file: ${path14}`);
-        this.path = path14;
+      constructor(path15) {
+        super(`Not a regular file: ${path15}`);
+        this.path = path15;
         this.name = "NotRegularFileError";
       }
     };
@@ -31240,8 +31240,8 @@ function isTokenizerStreamBoundsError(error) {
   }
   return /strtok3[/\\]lib[/\\]stream[/\\]/.test(error.stack);
 }
-async function fileTypeFromFile(path14, options) {
-  return new FileTypeParser2(options).fromFile(path14, options);
+async function fileTypeFromFile(path15, options) {
+  return new FileTypeParser2(options).fromFile(path15, options);
 }
 async function fileTypeFromStream(stream, options) {
   return new FileTypeParser2(options).fromStream(stream);
@@ -31272,9 +31272,9 @@ var init_file_type = __esm({
           }
         }
       }
-      async fromFile(path14) {
+      async fromFile(path15) {
         this.options.signal?.throwIfAborted();
-        const fileHandle = await fs6.open(path14, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
+        const fileHandle = await fs6.open(path15, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
         const fileStat = await fileHandle.stat();
         if (!fileStat.isFile()) {
           await fileHandle.close();
@@ -31283,7 +31283,7 @@ var init_file_type = __esm({
         const tokenizer = new FileTokenizer(fileHandle, {
           ...this.getTokenizerOptions(),
           fileInfo: {
-            path: path14,
+            path: path15,
             size: fileStat.size
           }
         });
@@ -31618,9 +31618,9 @@ function createJimp({ plugins: pluginsArg, formats: formatsArg } = {}) {
      * await image.write("test/output.png");
      * ```
      */
-    async write(path14, options) {
-      const mimeType = import_lite.default.getType(path14);
-      await writeFile(path14, await this.getBuffer(mimeType, options));
+    async write(path15, options) {
+      const mimeType = import_lite.default.getType(path15);
+      await writeFile(path15, await this.getBuffer(mimeType, options));
     }
     /**
      * Clone the image into a new Jimp instance.
@@ -47767,17 +47767,118 @@ var init_inject = __esm({
   }
 });
 
-// src/core/wallpaperType.ts
+// src/core/ports.ts
 import fs8 from "node:fs";
+import net from "node:net";
 import path4 from "node:path";
+function portBase() {
+  const env = Number(process.env.ZW_PORT_BASE);
+  return Number.isFinite(env) && env >= 1024 && env % 2 === 0 ? env : 28256;
+}
+function cdpCandidates(preferred) {
+  const pool = Array.from({ length: PORT_POOL_SIZE }, (_, i2) => portBase() + 2 * i2);
+  return orderPreferred(pool, preferred);
+}
+function apiCandidates(preferred) {
+  const pool = Array.from({ length: PORT_POOL_SIZE }, (_, i2) => portBase() + 1 + 2 * i2);
+  return orderPreferred(pool, preferred);
+}
+function orderPreferred(pool, preferred) {
+  if (preferred === void 0 || !pool.includes(preferred)) return pool;
+  return [preferred, ...pool.filter((p2) => p2 !== preferred)];
+}
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    let free = false;
+    const finish = () => resolve(free);
+    srv.once("error", () => resolve(false));
+    srv.listen(port, "127.0.0.1", () => {
+      free = true;
+      srv.close(() => finish());
+    });
+    setTimeout(() => {
+      if (free) return;
+      try {
+        srv.close();
+      } catch {
+      }
+      finish();
+    }, 600).unref();
+  });
+}
+async function cdpResponds(port) {
+  try {
+    const r2 = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(900) });
+    return r2.ok;
+  } catch {
+    return false;
+  }
+}
+async function pickCdpPort(preferred) {
+  const cands = cdpCandidates(preferred);
+  for (const c3 of cands) {
+    if (await isPortFree(c3)) return c3;
+    if (await cdpResponds(c3)) return c3;
+  }
+  return preferred ?? cands[0];
+}
+function discoveryPath() {
+  return path4.join(dataDir(), "zw-launch.json");
+}
+function handshakePath() {
+  return path4.join(dataDir(), "zw-ports.txt");
+}
+function readSessionPorts() {
+  try {
+    const meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
+    const out = {};
+    if (typeof meta.cdpPort === "number" && meta.cdpPort > 0) out.cdpPort = meta.cdpPort;
+    if (typeof meta.apiPort === "number" && meta.apiPort > 0) out.apiPort = meta.apiPort;
+    if (typeof meta.at === "number") out.at = meta.at;
+    return out;
+  } catch {
+    return {};
+  }
+}
+function writeSessionPorts(cdpPort, apiPort) {
+  try {
+    fs8.mkdirSync(dataDir(), { recursive: true });
+    let meta = {};
+    try {
+      meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
+    } catch {
+    }
+    meta.cdpPort = cdpPort;
+    meta.apiPort = apiPort;
+    meta.at = Date.now();
+    fs8.writeFileSync(discoveryPath(), JSON.stringify(meta, null, 1));
+    fs8.writeFileSync(handshakePath(), `cdp=${cdpPort}\r
+api=${apiPort}\r
+`, "utf8");
+  } catch {
+  }
+}
+var PORT_POOL_SIZE;
+var init_ports = __esm({
+  "src/core/ports.ts"() {
+    "use strict";
+    init_launch();
+    PORT_POOL_SIZE = 10;
+  }
+});
+
+// src/core/wallpaperType.ts
+import fs9 from "node:fs";
+import path5 from "node:path";
 function detectWallpaperType(input) {
-  const ext = path4.extname(input).toLowerCase();
+  const ext = path5.extname(input).toLowerCase();
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
   if (VIDEO_EXTENSIONS.has(ext)) return "video";
   if (ext === ".pkg") return "scene";
   let stat;
   try {
-    stat = fs8.statSync(input);
+    stat = fs9.statSync(input);
   } catch {
     return "unknown";
   }
@@ -47785,12 +47886,12 @@ function detectWallpaperType(input) {
   return detectDirectoryType(input);
 }
 function detectDirectoryType(dir) {
-  const project = readProjectJson(path4.join(dir, "project.json"));
+  const project = readProjectJson(path5.join(dir, "project.json"));
   const declared = typeof project?.type === "string" ? project.type.toLowerCase() : "";
   if (declared === "scene" || declared === "video" || declared === "web") {
     return declared;
   }
-  const entryExt = path4.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
+  const entryExt = path5.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
   if (SCENE_ENTRY_EXTENSIONS.has(entryExt)) return "scene";
   if (VIDEO_EXTENSIONS.has(entryExt)) return "video";
   if (entryExt === ".html" || entryExt === ".htm") return "web";
@@ -47798,7 +47899,7 @@ function detectDirectoryType(dir) {
 }
 function readProjectJson(file2) {
   try {
-    return JSON.parse(fs8.readFileSync(file2, "utf8"));
+    return JSON.parse(fs9.readFileSync(file2, "utf8"));
   } catch {
     return void 0;
   }
@@ -47806,20 +47907,20 @@ function readProjectJson(file2) {
 function detectFromDirectoryContents(dir) {
   let entries;
   try {
-    entries = fs8.readdirSync(dir);
+    entries = fs9.readdirSync(dir);
   } catch {
     return "unknown";
   }
   let nested = [];
   if (entries.some((e2) => e2.toLowerCase() === "files")) {
     try {
-      nested = fs8.readdirSync(path4.join(dir, "files")).map((e2) => path4.join("files", e2));
+      nested = fs9.readdirSync(path5.join(dir, "files")).map((e2) => path5.join("files", e2));
     } catch {
     }
   }
   for (const name of [...entries, ...nested]) {
     const lower = name.toLowerCase();
-    const ext = path4.extname(lower);
+    const ext = path5.extname(lower);
     if (lower === "scene.pkg" || lower === "scene.json") return "scene";
     if (ext === ".html" || ext === ".htm") return "web";
     if (VIDEO_EXTENSIONS.has(ext)) return "video";
@@ -47839,9 +47940,9 @@ var init_wallpaperType = __esm({
 // src/core/steam.ts
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
-import fs9 from "node:fs";
+import fs10 from "node:fs";
 import os2 from "node:os";
-import path5 from "node:path";
+import path6 from "node:path";
 async function regQuery(key, value) {
   if (process.platform !== "win32") return void 0;
   try {
@@ -47854,15 +47955,15 @@ async function regQuery(key, value) {
 }
 function commonSteamDirs(platform, home) {
   if (platform === "win32") {
-    return [path5.join("C:", "Program Files (x86)", "Steam"), path5.join("C:", "Program Files", "Steam")];
+    return [path6.join("C:", "Program Files (x86)", "Steam"), path6.join("C:", "Program Files", "Steam")];
   }
   if (platform === "darwin") {
-    return [path5.join(home, "Library", "Application Support", "Steam")];
+    return [path6.join(home, "Library", "Application Support", "Steam")];
   }
   return [
-    path5.join(home, ".steam", "steam"),
-    path5.join(home, ".local", "share", "Steam"),
-    path5.join(home, ".steam", "root")
+    path6.join(home, ".steam", "steam"),
+    path6.join(home, ".local", "share", "Steam"),
+    path6.join(home, ".steam", "root")
   ];
 }
 function pathKey(p2) {
@@ -47874,7 +47975,7 @@ async function findSteamRoots() {
   const push = (p2) => {
     if (!p2) return;
     try {
-      if (!fs9.existsSync(path5.join(p2, "steamapps"))) return;
+      if (!fs10.existsSync(path6.join(p2, "steamapps"))) return;
     } catch {
       return;
     }
@@ -47891,7 +47992,7 @@ async function findSteamRoots() {
 function parseLibraryFolders(vdfPath) {
   let text;
   try {
-    text = fs9.readFileSync(vdfPath, "utf8");
+    text = fs10.readFileSync(vdfPath, "utf8");
   } catch {
     return [];
   }
@@ -47908,7 +48009,7 @@ async function steamLibraries(roots) {
   const push = (p2) => {
     if (!p2) return;
     try {
-      fs9.accessSync(path5.join(p2, "steamapps"));
+      fs10.accessSync(path6.join(p2, "steamapps"));
     } catch {
       return;
     }
@@ -47918,21 +48019,21 @@ async function steamLibraries(roots) {
   };
   for (const root of roots) {
     push(root);
-    for (const lib of parseLibraryFolders(path5.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
+    for (const lib of parseLibraryFolders(path6.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
   }
   return libs;
 }
 async function findWallpaperEngine(libraries) {
   for (const lib of libraries) {
     for (const name of WE_DIR_CANDIDATES) {
-      const dir = path5.join(lib, "steamapps", "common", name);
+      const dir = path6.join(lib, "steamapps", "common", name);
       try {
-        fs9.accessSync(dir);
+        fs10.accessSync(dir);
       } catch {
         continue;
       }
-      const classic = fs9.existsSync(path5.join(dir, "wallpaper32.exe")) || fs9.existsSync(path5.join(dir, "wallpaper64.exe"));
-      const modern = fs9.existsSync(path5.join(dir, "distribution", "version.json"));
+      const classic = fs10.existsSync(path6.join(dir, "wallpaper32.exe")) || fs10.existsSync(path6.join(dir, "wallpaper64.exe"));
+      const modern = fs10.existsSync(path6.join(dir, "distribution", "version.json"));
       if (classic || modern) return { root: dir };
     }
   }
@@ -47942,14 +48043,14 @@ function dirSize(dir) {
   let total = 0;
   let entries;
   try {
-    entries = fs9.readdirSync(dir, { withFileTypes: true });
+    entries = fs10.readdirSync(dir, { withFileTypes: true });
   } catch {
     return 0;
   }
   for (const e2 of entries) {
     try {
-      if (e2.isDirectory()) total += dirSize(path5.join(dir, e2.name));
-      else total += fs9.statSync(path5.join(dir, e2.name)).size;
+      if (e2.isDirectory()) total += dirSize(path6.join(dir, e2.name));
+      else total += fs10.statSync(path6.join(dir, e2.name)).size;
     } catch {
     }
   }
@@ -47957,7 +48058,7 @@ function dirSize(dir) {
 }
 function readProject(dir) {
   try {
-    return JSON.parse(fs9.readFileSync(path5.join(dir, "project.json"), "utf8"));
+    return JSON.parse(fs10.readFileSync(path6.join(dir, "project.json"), "utf8"));
   } catch {
     return void 0;
   }
@@ -47965,7 +48066,7 @@ function readProject(dir) {
 function entryFromDir(dir, id, origin, workshopId) {
   let stat;
   try {
-    stat = fs9.statSync(dir);
+    stat = fs10.statSync(dir);
   } catch {
     return void 0;
   }
@@ -47973,9 +48074,9 @@ function entryFromDir(dir, id, origin, workshopId) {
   const project = readProject(dir);
   const type = detectWallpaperType(dir);
   if (type === "unknown" && !project) return void 0;
-  const title = typeof project?.title === "string" && project.title.trim() || path5.basename(dir);
+  const title = typeof project?.title === "string" && project.title.trim() || path6.basename(dir);
   const previewDeclared = typeof project?.preview === "string" ? project.preview : void 0;
-  const preview = previewDeclared && fs9.existsSync(path5.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs9.existsSync(path5.join(dir, p2)));
+  const preview = previewDeclared && fs10.existsSync(path6.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs10.existsSync(path6.join(dir, p2)));
   return {
     id,
     dir,
@@ -47998,15 +48099,15 @@ async function enumerateWallpapers(force = false) {
   const wallpapers = [];
   const seen = /* @__PURE__ */ new Set();
   for (const lib of libraries) {
-    const workshopDir = path5.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
+    const workshopDir = path6.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
     let ids;
     try {
-      ids = fs9.readdirSync(workshopDir);
+      ids = fs10.readdirSync(workshopDir);
     } catch {
       continue;
     }
     for (const id of ids) {
-      const dir = path5.join(workshopDir, id);
+      const dir = path6.join(workshopDir, id);
       if (seen.has(pathKey(dir))) continue;
       seen.add(pathKey(dir));
       const entry = entryFromDir(dir, `ws-${id}`, "workshop", id);
@@ -48018,15 +48119,15 @@ async function enumerateWallpapers(force = false) {
       ["defaultprojects", "default"],
       ["myprojects", "myprojects"]
     ]) {
-      const base = path5.join(we.root, "projects", sub);
+      const base = path6.join(we.root, "projects", sub);
       let names3;
       try {
-        names3 = fs9.readdirSync(base);
+        names3 = fs10.readdirSync(base);
       } catch {
         continue;
       }
       for (const name of names3) {
-        const dir = path5.join(base, name);
+        const dir = path6.join(base, name);
         if (seen.has(pathKey(dir))) continue;
         seen.add(pathKey(dir));
         const entry = entryFromDir(dir, `we-${origin}-${name}`, origin);
@@ -48072,8 +48173,8 @@ __export(session_exports, {
   resetAppearance: () => resetAppearance,
   wallpaperStatus: () => wallpaperStatus
 });
-import fs10 from "node:fs";
-import path6 from "node:path";
+import fs11 from "node:fs";
+import path7 from "node:path";
 function mergedStored() {
   return { ...DEFAULT_CONFIG, ...loadConfig() };
 }
@@ -48126,17 +48227,17 @@ async function reapplyStored(opts = {}) {
 }
 async function directApply(config) {
   let assets;
-  if (config.monetSourcePath && fs10.existsSync(config.monetSourcePath)) {
+  if (config.monetSourcePath && fs11.existsSync(config.monetSourcePath)) {
     assets = await loadWallpaper(config.monetSourcePath).catch(() => void 0);
-  } else if (config.mediaType === "image" && config.wallpaperPath && fs10.existsSync(config.wallpaperPath)) {
+  } else if (config.mediaType === "image" && config.wallpaperPath && fs11.existsSync(config.wallpaperPath)) {
     assets = await loadWallpaper(config.wallpaperPath).catch(() => void 0);
   }
   if (config.mediaType === "live") {
-    const preview = config.monetSourcePath && fs10.existsSync(config.monetSourcePath) ? config.monetSourcePath : void 0;
+    const preview = config.monetSourcePath && fs11.existsSync(config.monetSourcePath) ? config.monetSourcePath : void 0;
     const payload2 = buildPayload({ ...config, mediaType: preview ? "image" : config.mediaType }, assets);
     if (preview) {
-      const buf = fs10.readFileSync(preview);
-      const ext = path6.extname(preview).toLowerCase() || ".jpg";
+      const buf = fs11.readFileSync(preview);
+      const ext = path7.extname(preview).toLowerCase() || ".jpg";
       const mime2 = ext === ".png" ? "image/png" : "image/jpeg";
       payload2.wallpaperDataUri = `data:${mime2};base64,${buf.toString("base64")}`;
     }
@@ -48147,17 +48248,17 @@ async function directApply(config) {
   return applyToZCode(config, payload);
 }
 async function applyWallpaper(imagePath, opts = {}) {
-  const abs = path6.resolve(imagePath);
+  const abs = path7.resolve(imagePath);
   const kind = detectWallpaperType(abs);
   if (kind === "scene" || kind === "video" || kind === "web") {
     const r2 = await applyLiveWallpaper(abs, opts);
     return { windows: r2.windows };
   }
   const config = baseConfig(opts, loadConfig());
-  if (!fs10.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
-  fs10.mkdirSync(dataDir(), { recursive: true });
-  const dest = path6.join(dataDir(), "wallpaper" + path6.extname(abs).toLowerCase());
-  if (dest !== abs) fs10.copyFileSync(abs, dest);
+  if (!fs11.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
+  fs11.mkdirSync(dataDir(), { recursive: true });
+  const dest = path7.join(dataDir(), "wallpaper" + path7.extname(abs).toLowerCase());
+  if (dest !== abs) fs11.copyFileSync(abs, dest);
   const next = {
     ...config,
     mediaType: "image",
@@ -48168,8 +48269,8 @@ async function applyWallpaper(imagePath, opts = {}) {
   };
   saveConfig({ ...next, port: loadConfig().port });
   if (await isServeAlive(next.apiPort)) {
-    const data = await fs10.promises.readFile(dest);
-    const mime2 = `image/${path6.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
+    const data = await fs11.promises.readFile(dest);
+    const mime2 = `image/${path7.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
     const r2 = await serveApi(next.apiPort, "/api/wallpaper", {
       dataUri: `data:${mime2};base64,${data.toString("base64")}`
     });
@@ -48185,7 +48286,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
   const input = sourceOrPath.trim();
   const lib = await enumerateWallpapers();
   const isKnownId = lib.wallpapers.some((w) => w.id === input);
-  const looksLikePath = /[\\/]/.test(input) || fs10.existsSync(input);
+  const looksLikePath = /[\\/]/.test(input) || fs11.existsSync(input);
   const sourceId = isKnownId ? input : looksLikePath ? void 0 : (() => {
     if (/^\d{6,}$/.test(input)) return `ws-${input}`;
     return void 0;
@@ -48194,7 +48295,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
     throw new Error(`unknown wallpaper source: ${input} (pass a source id, a workshop item id, or a filesystem path)`);
   }
   if (await isServeAlive(config.apiPort)) {
-    const r2 = sourceId ? await serveApi(config.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config.apiPort, "/api/import", { path: path6.resolve(input) });
+    const r2 = sourceId ? await serveApi(config.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config.apiPort, "/api/import", { path: path7.resolve(input) });
     return {
       windows: Number(r2.windows ?? 0),
       sourceId: String(r2.sourceId ?? sourceId ?? ""),
@@ -48253,13 +48354,15 @@ async function wallpaperStatus() {
   }, {});
   const imported = Array.isArray(config.customSources) ? config.customSources.length : 0;
   if (imported > 0) counts.imported = imported;
-  const health = await serveHealth(config.apiPort);
+  const sp = readSessionPorts();
+  const apiPort = sp.apiPort ?? config.apiPort;
+  const health = await serveHealth(apiPort);
   return {
     steamRoots: lib.steamRoots,
     // null = Wallpaper Engine not installed — optional, imports still work.
     wallpaperEngine: lib.we?.root ?? null,
     counts,
-    serve: health.ok && health.service === "zcode-wallpaper" ? `http://127.0.0.1:${config.apiPort}` : "not running",
+    serve: health.ok && health.service === "zcode-wallpaper" ? `http://127.0.0.1:${apiPort}` : "not running",
     // Present when ZCode is running WITHOUT the CDP debug port (this launch
     // bypassed the wrapped shortcut) — injection is impossible until ZCode
     // is restarted; the shortcuts are healed automatically in the meantime.
@@ -48272,6 +48375,7 @@ var init_session = __esm({
     "use strict";
     init_inject();
     init_launch();
+    init_ports();
     init_wallpaperType();
     init_steam();
   }
@@ -48299,34 +48403,48 @@ __export(shortcuts_exports, {
   desktopEntryIsWrapped: () => desktopEntryIsWrapped,
   desktopEntryIsZcode: () => desktopEntryIsZcode,
   ensureShortcutsHaveCdpFlag: () => ensureShortcutsHaveCdpFlag,
-  rewriteDesktopEntry: () => rewriteDesktopEntry
+  rewriteDesktopEntry: () => rewriteDesktopEntry,
+  writeEarlyLaunchVbs: () => writeEarlyLaunchVbs
 });
-import fs11 from "node:fs";
+import fs12 from "node:fs";
 import os3 from "node:os";
-import path7 from "node:path";
+import path8 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function launcherHome() {
-  let dir = path7.dirname(fileURLToPath2(import.meta.url));
+  let dir = path8.dirname(fileURLToPath2(import.meta.url));
   for (let i2 = 0; i2 < 6; i2++) {
-    if (fs11.existsSync(path7.join(dir, "dist", "cli.js"))) break;
-    dir = path7.dirname(dir);
+    if (fs12.existsSync(path8.join(dir, "dist", "cli.js"))) break;
+    dir = path8.dirname(dir);
   }
   const home = dataDir();
-  fs11.mkdirSync(home, { recursive: true });
+  fs12.mkdirSync(home, { recursive: true });
   return { dir: home, root: dir };
 }
 function buildEarlyLaunchSh(node, cli, port, originalCmd, logFile) {
   const parts = originalCmd.trim().split(/\s+/).filter((t2) => t2 && !t2.startsWith("--remote-debugging-port=") && !ANTI_OCCLUSION_FLAGS.includes(t2));
-  const launch = [...parts, `--remote-debugging-port=${port}`, ...ANTI_OCCLUSION_FLAGS].join(" ");
   const health = `http://127.0.0.1:${port + 1}/api/health`;
-  const spawnServe = `"${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} >> "${logFile}" 2>&1 &`;
+  const portsFile = path8.join(path8.dirname(logFile), "zw-ports.txt");
+  const spawnServe = `"${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1 &`;
   return [
     "#!/bin/sh",
-    "# zcode-wallpaper early launch zw-launch-v2 (generated by the plugin)",
+    "# zcode-wallpaper early launch zw-launch-v3 (generated by the plugin)",
     `# original ZCode command: ${originalCmd.trim()}`,
+    `PF="${portsFile}"`,
+    `rm -f "$PF" 2>/dev/null`,
+    `ZWCDP=${port}`,
     `if [ -f "${cli}" ] && [ -x "${node}" ]; then`,
     `  ${spawnServe}`,
+    `  i=0`,
+    `  while [ "$i" -lt 20 ]; do`,
+    `    [ -f "$PF" ] && break`,
+    `    i=$((i+1))`,
+    `    sleep 0.2`,
+    `  done`,
+    `  if [ -f "$PF" ]; then`,
+    `    ZWCDP=$(sed -n 's/^cdp=//p' "$PF" | head -n 1 | tr -dc '0-9')`,
+    `  fi`,
     "fi",
+    `case "$ZWCDP" in ''|*[!0-9]*) ZWCDP=${port};; esac`,
     // The respawn is the subshell's LAST foreground command on purpose: a
     // grandchild forked with & from an already-orphaned subshell can be
     // reaped before it ever runs (proved by execution, not theory).
@@ -48335,24 +48453,37 @@ function buildEarlyLaunchSh(node, cli, port, originalCmd, logFile) {
     `  elif command -v wget >/dev/null 2>&1; then wget -q -O /dev/null "${health}" 2>/dev/null || SPAWN=1`,
     "  fi",
     `  if [ "$SPAWN" = "1" ] && [ -f "${cli}" ] && [ -x "${node}" ]; then`,
-    `    "${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} >> "${logFile}" 2>&1`,
+    `    "${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1`,
     "  fi",
     ") &",
-    launch,
+    [...parts, "--remote-debugging-port=$ZWCDP", ...ANTI_OCCLUSION_FLAGS].join(" "),
     ""
   ].join("\n");
 }
 function buildEarlyLaunchCommand(node, cli, port, zcodeApp, logFile) {
-  const appName = path7.basename(zcodeApp).replace(/\.app$/, "");
-  const flags = [`--remote-debugging-port=${port}`, ...ANTI_OCCLUSION_FLAGS].join(" ");
+  const appName = path8.basename(zcodeApp).replace(/\.app$/, "");
   const health = `http://127.0.0.1:${port + 1}/api/health`;
-  const spawnServe = `"${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} >> "${logFile}" 2>&1 &`;
+  const portsFile = path8.join(path8.dirname(logFile), "zw-ports.txt");
+  const spawnServe = `"${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1 &`;
   return [
     "#!/bin/sh",
-    "# zcode-wallpaper early launch zw-launch-v2 (generated by the plugin)",
+    "# zcode-wallpaper early launch zw-launch-v3 (generated by the plugin)",
+    `PF="${portsFile}"`,
+    `rm -f "$PF" 2>/dev/null`,
+    `ZWCDP=${port}`,
     `if [ -f "${cli}" ] && [ -x "${node}" ]; then`,
     `  ${spawnServe}`,
+    `  i=0`,
+    `  while [ "$i" -lt 20 ]; do`,
+    `    [ -f "$PF" ] && break`,
+    `    i=$((i+1))`,
+    `    sleep 0.2`,
+    `  done`,
+    `  if [ -f "$PF" ]; then`,
+    `    ZWCDP=$(sed -n 's/^cdp=//p' "$PF" | head -n 1 | tr -dc '0-9')`,
+    `  fi`,
     "fi",
+    `case "$ZWCDP" in ''|*[!0-9]*) ZWCDP=${port};; esac`,
     // respawn as the subshell's last foreground command — see the linux
     // builder for why no & here
     "( sleep 25",
@@ -48360,10 +48491,10 @@ function buildEarlyLaunchCommand(node, cli, port, zcodeApp, logFile) {
     `  elif command -v wget >/dev/null 2>&1; then wget -q -O /dev/null "${health}" 2>/dev/null || SPAWN=1`,
     "  fi",
     `  if [ "$SPAWN" = "1" ] && [ -f "${cli}" ] && [ -x "${node}" ]; then`,
-    `    "${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} >> "${logFile}" 2>&1`,
+    `    "${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1`,
     "  fi",
     ") &",
-    `open -a "${appName}" --args ${flags} || osascript -e 'display dialog "zcode-wallpaper: cannot find the ${appName} app. Start it once from /Applications - the plugin will repair this launcher." buttons {"OK"} default button "OK" with icon caution'`,
+    `open -a "${appName}" --args --remote-debugging-port=$ZWCDP ${ANTI_OCCLUSION_FLAGS.join(" ")} || osascript -e 'display dialog "zcode-wallpaper: cannot find the ${appName} app. Start it once from /Applications - the plugin will repair this launcher." buttons {"OK"} default button "OK" with icon caution'`,
     ""
   ].join("\n");
 }
@@ -48388,13 +48519,13 @@ function desktopEntryIsWrapped(execLine, wrapperPath) {
   const t2 = execLine.trim();
   if (!t2) return false;
   const first = t2.split(/\s+/)[0].replace(/^(["'])(.*)\1$/, "$2");
-  return path7.resolve(first) === path7.resolve(wrapperPath);
+  return path8.resolve(first) === path8.resolve(wrapperPath);
 }
 function desktopEntryIsZcode(execLine) {
   const t2 = execLine.trim();
   if (!t2) return false;
   const first = t2.split(/\s+/)[0].replace(/^(["'])(.*)\1$/, "$2");
-  const base = path7.basename(first).toLowerCase();
+  const base = path8.basename(first).toLowerCase();
   return base.startsWith("zcode");
 }
 function rewriteDesktopEntry(content, wrapperPath) {
@@ -48431,11 +48562,11 @@ function shortcutDirs() {
   const appData = process.env.APPDATA ?? "";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
-    path7.join(home, "Desktop"),
-    ...process.env.OneDrive ? [path7.join(process.env.OneDrive, "Desktop")] : [],
-    path7.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
-    path7.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
-    path7.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
+    path8.join(home, "Desktop"),
+    ...process.env.OneDrive ? [path8.join(process.env.OneDrive, "Desktop")] : [],
+    path8.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
+    path8.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
+    path8.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
   ];
 }
 async function ensureWindowsShortcuts(port) {
@@ -48443,9 +48574,9 @@ async function ensureWindowsShortcuts(port) {
   const nameMatched = [];
   const others = [];
   const collect = (dir) => {
-    for (const f2 of fs11.readdirSync(dir)) {
+    for (const f2 of fs12.readdirSync(dir)) {
       if (!f2.endsWith(".lnk")) continue;
-      const p2 = path7.join(dir, f2);
+      const p2 = path8.join(dir, f2);
       if (/^zcode/i.test(f2)) nameMatched.push(p2);
       else others.push(p2);
     }
@@ -48453,10 +48584,10 @@ async function ensureWindowsShortcuts(port) {
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs11.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs12.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path7.join(dir, sub.name));
+          collect(path8.join(dir, sub.name));
         } catch {
         }
       }
@@ -48487,8 +48618,8 @@ if ($out.Count) { $out -join [char]10 }`;
   const links = [.../* @__PURE__ */ new Set([...nameMatched, ...targetMatched])];
   if (links.length === 0) return result;
   const launcher = launcherHome();
-  const vbsFile = path7.join(launcher.dir, "zw-launch.vbs");
-  const metaFile = path7.join(launcher.dir, "zw-launch.json");
+  const vbsFile = path8.join(launcher.dir, "zw-launch.vbs");
+  const metaFile = path8.join(launcher.dir, "zw-launch.json");
   let zcodeKnown = "";
   const antiOcclusion = ANTI_OCCLUSION_FLAGS;
   for (const lnk of links) {
@@ -48569,23 +48700,23 @@ try {
 }
 function writeEarlyLaunchVbs(port, zcode, launcher) {
   const anti = ANTI_OCCLUSION_FLAGS;
-  const cli = path7.join(launcher.root, "dist", "cli.js");
+  const cli = path8.join(launcher.root, "dist", "cli.js");
   const node = process.execPath;
-  if (!fs11.existsSync(cli) || !fs11.existsSync(node)) return;
+  if (!fs12.existsSync(cli) || !fs12.existsSync(node)) return;
   const DQ = String.fromCharCode(34);
-  const logFile = path7.join(launcher.dir, "zw-serve.log");
-  const cmdFile = path7.join(launcher.dir, "zw-serve.cmd");
+  const logFile = path8.join(launcher.dir, "zw-serve.log");
+  const cmdFile = path8.join(launcher.dir, "zw-serve.cmd");
+  const portsFile = path8.join(launcher.dir, "zw-ports.txt");
   const serveBat = [
     "@echo off",
-    `"${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} >> "${logFile}" 2>&1`,
+    `"${node}" "${cli}" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1`,
     ""
   ].join("\r\n");
-  const flags = [`--remote-debugging-port=${port}`, ...anti].join(" ");
   const lines = [
-    String.fromCharCode(39) + " zcode-wallpaper early launch zw-wrapper-v7 (generated by the plugin)",
+    String.fromCharCode(39) + " zcode-wallpaper early launch zw-wrapper-v8 (generated by the plugin)",
     String.fromCharCode(39) + " Starts the wallpaper serve hidden BEFORE ZCode so the renderer page",
     String.fromCharCode(39) + " is injected the moment it exists (plugin hosts spawn ~10s later).",
-    String.fromCharCode(39) + " D18 HARD RULE: this wrapper must never block ZCode from starting \u2014",
+    String.fromCharCode(39) + " D18 HARD RULE: this wrapper must never block ZCode from starting -",
     String.fromCharCode(39) + " the serve only runs when node AND the plugin both exist, and the",
     String.fromCharCode(39) + " ZCode launch below runs unconditionally. If the baked ZCode path",
     String.fromCharCode(39) + " went stale (app moved/reinstalled elsewhere), the standard install",
@@ -48594,6 +48725,10 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
     String.fromCharCode(39) + " the serve itself runs via zw-serve.cmd so its output is captured.",
     String.fromCharCode(39) + " v7: 25s after launch the serve is health-checked once more and",
     String.fromCharCode(39) + " re-armed if it died (transient crash, host never spawned).",
+    String.fromCharCode(39) + " v8: port-pool float (D29) - the serve picks the session ports from",
+    String.fromCharCode(39) + " the 28256-28275 pool and writes zw-ports.txt; this wrapper deletes",
+    String.fromCharCode(39) + " that file before spawning, polls ~4s for the fresh one and launches",
+    String.fromCharCode(39) + " ZCode with the handshake CDP port (fallback: the baked literal).",
     "On Error Resume Next",
     'Set sh = CreateObject("WScript.Shell")',
     'Set fso = CreateObject("Scripting.FileSystemObject")',
@@ -48610,12 +48745,42 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
     '  lf.WriteLine Year(Now) & "-" & Right("0" & Month(Now), 2) & "-" & Right("0" & Day(Now), 2) & " " & Right("0" & Hour(Now), 2) & ":" & Right("0" & Minute(Now), 2) & ":" & Right("0" & Second(Now), 2) & " vbs: " & m',
     "  lf.Close",
     "End Sub",
-    'ZLog "wrapper v7 boot"',
+    'ZLog "wrapper v8 boot"',
+    "pf = " + DQ + portsFile + DQ,
+    "fso.DeleteFile pf, True",
+    "spawned = 0",
     "If fso.FileExists(" + DQ + node + DQ + ") And fso.FileExists(" + DQ + cli + DQ + ") Then",
+    "  spawned = 1",
     '  ZLog "spawning serve via zw-serve.cmd"',
     "  sh.Run " + DQ + cmdFile + DQ + ", 0, False",
     "Else",
     '  ZLog "serve skipped: node or cli missing"',
+    "End If",
+    "cdpUse = " + DQ + String(port) + DQ,
+    "If spawned = 1 Then",
+    "  For t = 1 To 20",
+    "    If fso.FileExists(pf) Then Exit For",
+    "    WScript.Sleep 200",
+    "  Next",
+    "  If fso.FileExists(pf) Then",
+    "    Set ts = fso.OpenTextFile(pf, 1, False)",
+    "    hs = ts.ReadAll",
+    "    ts.Close",
+    '    ph = InStr(hs, "cdp=")',
+    "    If ph > 0 Then",
+    '      v = ""',
+    "      For i = ph + 4 To Len(hs)",
+    "        c2 = Mid(hs, i, 1)",
+    '        If c2 >= "0" And c2 <= "9" Then',
+    "          v = v & c2",
+    '        ElseIf v <> "" Then',
+    "          Exit For",
+    "        End If",
+    "      Next",
+    '      If v <> "" Then cdpUse = v',
+    "    End If",
+    "  End If",
+    '  ZLog "session cdp port: " & cdpUse',
     "End If",
     "orig = " + DQ + zcode + DQ,
     "zc = orig",
@@ -48663,7 +48828,7 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
     '    If zc = "" And fso.FileExists(p) Then zc = p',
     "  Next",
     "End If",
-    "fl = " + DQ + flags + DQ,
+    'fl = "--remote-debugging-port=" & cdpUse & " ' + anti.join(" ") + '"',
     'If zc <> "" Then',
     '  ZLog "launching zcode: " & zc',
     '  sh.Run Chr(34) & zc & Chr(34) & " " & fl, 1, False',
@@ -48693,20 +48858,20 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
   ];
   const crlf = String.fromCharCode(13, 10);
   const want = lines.join(crlf) + crlf;
-  const vbsFile = path7.join(launcher.dir, "zw-launch.vbs");
+  const vbsFile = path8.join(launcher.dir, "zw-launch.vbs");
   try {
-    const metaPath = path7.join(launcher.dir, "zw-launch.json");
-    const prev = fs11.existsSync(metaPath) ? JSON.parse(fs11.readFileSync(metaPath, "utf8")) : {};
-    const sameVbs = fs11.existsSync(vbsFile) && fs11.readFileSync(vbsFile, "utf8") === want;
+    const metaPath = path8.join(launcher.dir, "zw-launch.json");
+    const prev = fs12.existsSync(metaPath) ? JSON.parse(fs12.readFileSync(metaPath, "utf8")) : {};
+    const sameVbs = fs12.existsSync(vbsFile) && fs12.readFileSync(vbsFile, "utf8") === want;
     const meta = { ...prev, zcode, node, cli, port };
     if (!sameVbs) {
-      fs11.writeFileSync(vbsFile, want, { encoding: "utf8" });
-      fs11.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
+      fs12.writeFileSync(vbsFile, want, { encoding: "utf8" });
+      fs12.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
       console.log(`serve: early-launch wrapper refreshed (node=${node})`);
-    } else if (!fs11.existsSync(cmdFile)) {
-      fs11.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
+    } else if (!fs12.existsSync(cmdFile)) {
+      fs12.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
     }
-    if (JSON.stringify(prev) !== JSON.stringify(meta)) fs11.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
+    if (JSON.stringify(prev) !== JSON.stringify(meta)) fs12.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
   } catch {
   }
 }
@@ -48715,31 +48880,31 @@ function msgBoxText(staleZcode) {
 }
 async function ensureMacLauncher(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const zcodeApp = MAC_ZCODE_CANDIDATES.find((p2) => fs11.existsSync(p2));
+  const zcodeApp = MAC_ZCODE_CANDIDATES.find((p2) => fs12.existsSync(p2));
   if (!zcodeApp) {
     result.skipped.push("ZCode.app not found");
     return result;
   }
   const { dir, root } = launcherHome();
-  const cli = path7.join(root, "dist", "cli.js");
-  if (!fs11.existsSync(cli)) {
+  const cli = path8.join(root, "dist", "cli.js");
+  if (!fs12.existsSync(cli)) {
     result.skipped.push("plugin install not found");
     return result;
   }
   const appName = "ZCode Wallpaper.app";
-  const appDir = path7.join(os3.homedir(), "Applications", appName);
-  const scriptPath = path7.join(appDir, "Contents", "MacOS", "zw-launch");
-  const plistPath = path7.join(appDir, "Contents", "Info.plist");
-  const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path7.join(dir, "early.log"));
+  const appDir = path8.join(os3.homedir(), "Applications", appName);
+  const scriptPath = path8.join(appDir, "Contents", "MacOS", "zw-launch");
+  const plistPath = path8.join(appDir, "Contents", "Info.plist");
+  const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path8.join(dir, "early.log"));
   try {
-    const same = fs11.existsSync(scriptPath) && fs11.existsSync(plistPath) && fs11.readFileSync(scriptPath, "utf8") === want;
+    const same = fs12.existsSync(scriptPath) && fs12.existsSync(plistPath) && fs12.readFileSync(scriptPath, "utf8") === want;
     if (same) {
       result.skipped.push(appDir);
     } else {
-      fs11.mkdirSync(path7.dirname(scriptPath), { recursive: true });
-      fs11.writeFileSync(scriptPath, want);
-      fs11.chmodSync(scriptPath, 493);
-      fs11.writeFileSync(plistPath, buildAppBundlePlist("ZCode Wallpaper", "com.zcode-wallpaper.early"));
+      fs12.mkdirSync(path8.dirname(scriptPath), { recursive: true });
+      fs12.writeFileSync(scriptPath, want);
+      fs12.chmodSync(scriptPath, 493);
+      fs12.writeFileSync(plistPath, buildAppBundlePlist("ZCode Wallpaper", "com.zcode-wallpaper.early"));
       result.updated.push(appDir);
     }
   } catch (err) {
@@ -48749,28 +48914,28 @@ async function ensureMacLauncher(port) {
 }
 async function ensureLinuxDesktopEntries(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const base = path7.join(os3.homedir(), ".local", "share", "applications");
-  const dirs = [base, path7.join(base, "ZCode")];
+  const base = path8.join(os3.homedir(), ".local", "share", "applications");
+  const dirs = [base, path8.join(base, "ZCode")];
   const entries = [];
   for (const d of dirs) {
     try {
-      entries.push(...fs11.readdirSync(d).filter((f2) => f2.endsWith(".desktop")).map((f2) => path7.join(d, f2)));
+      entries.push(...fs12.readdirSync(d).filter((f2) => f2.endsWith(".desktop")).map((f2) => path8.join(d, f2)));
     } catch {
     }
   }
   if (entries.length === 0) return result;
   const { dir, root } = launcherHome();
-  const cli = path7.join(root, "dist", "cli.js");
-  if (!fs11.existsSync(cli)) {
+  const cli = path8.join(root, "dist", "cli.js");
+  if (!fs12.existsSync(cli)) {
     result.skipped.push("plugin install not found");
     return result;
   }
-  const wrapper = path7.join(dir, "zw-launch.sh");
-  const logFile = path7.join(dir, "early.log");
+  const wrapper = path8.join(dir, "zw-launch.sh");
+  const logFile = path8.join(dir, "early.log");
   let wrapperWritten = false;
   for (const entry of entries) {
     try {
-      const content = fs11.readFileSync(entry, "utf8");
+      const content = fs12.readFileSync(entry, "utf8");
       const currentExec = /^Exec=(.*)$/m.exec(content)?.[1] ?? "";
       if (!desktopEntryIsZcode(currentExec) && !desktopEntryIsWrapped(currentExec, wrapper)) {
         result.skipped.push(entry);
@@ -48781,11 +48946,11 @@ async function ensureLinuxDesktopEntries(port) {
         result.skipped.push(entry);
         continue;
       }
-      fs11.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
-      fs11.chmodSync(wrapper, 493);
+      fs12.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
+      fs12.chmodSync(wrapper, 493);
       wrapperWritten = true;
       if (r2.next !== content) {
-        fs11.writeFileSync(entry, r2.next);
+        fs12.writeFileSync(entry, r2.next);
         result.updated.push(entry);
       } else {
         result.skipped.push(entry);
@@ -48808,24 +48973,24 @@ var init_shortcuts = __esm({
       "--disable-renderer-backgrounding"
     ];
     DESKTOP_MARKER = "X-zcode-wallpaper-exec";
-    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path7.join(os3.homedir(), "Applications", "ZCode.app")];
+    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path8.join(os3.homedir(), "Applications", "ZCode.app")];
   }
 });
 
 // src/core/media.ts
-import fs12 from "node:fs";
+import fs13 from "node:fs";
 import crypto from "node:crypto";
-import path8 from "node:path";
+import path9 from "node:path";
 function sendStaticFile(req, res, filePath, opts = {}) {
   const isHead = req.method === "HEAD";
   let stat;
   try {
-    stat = fs12.statSync(filePath);
+    stat = fs13.statSync(filePath);
   } catch {
     return false;
   }
   if (!stat.isFile()) return false;
-  const type = MIME[path8.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+  const type = MIME[path9.extname(filePath).toLowerCase()] ?? "application/octet-stream";
   const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}-${crypto.createHash("sha1").update(filePath).digest("hex").slice(0, 12)}"`;
   const baseHeaders = {
     "Content-Type": type,
@@ -48849,7 +49014,7 @@ function sendStaticFile(req, res, filePath, opts = {}) {
   });
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
   const pipe = (opts2) => {
-    const stream = opts2 ? fs12.createReadStream(filePath, opts2) : fs12.createReadStream(filePath);
+    const stream = opts2 ? fs13.createReadStream(filePath, opts2) : fs13.createReadStream(filePath);
     stream.on("error", () => {
       try {
         res.destroy();
@@ -48903,9 +49068,9 @@ function sendStaticFile(req, res, filePath, opts = {}) {
 function safeJoin(root, rel) {
   const clean = rel.replace(/\\/g, "/").split("/").filter((s2) => s2 && s2 !== "." && s2 !== "..").join("/");
   if (!clean) return root;
-  const target = path8.resolve(root, clean);
-  const relFromRoot = path8.relative(path8.resolve(root), target);
-  if (relFromRoot.startsWith("..") || path8.isAbsolute(relFromRoot)) return void 0;
+  const target = path9.resolve(root, clean);
+  const relFromRoot = path9.relative(path9.resolve(root), target);
+  if (relFromRoot.startsWith("..") || path9.isAbsolute(relFromRoot)) return void 0;
   return target;
 }
 var MIME;
@@ -48985,14 +49150,14 @@ var init_ledger = __esm({
 });
 
 // src/core/livefail.ts
-import fs13 from "node:fs";
-import path9 from "node:path";
+import fs14 from "node:fs";
+import path10 from "node:path";
 function file() {
-  return path9.join(dataDir(), "live-failures.json");
+  return path10.join(dataDir(), "live-failures.json");
 }
 function readLiveFailures() {
   try {
-    return JSON.parse(fs13.readFileSync(file(), "utf8"));
+    return JSON.parse(fs14.readFileSync(file(), "utf8"));
   } catch {
     return {};
   }
@@ -49005,16 +49170,16 @@ function recordLiveFailure(sourceId, reason) {
   if (!sourceId) return;
   const all = readLiveFailures();
   all[sourceId] = { reason, at: Date.now() };
-  fs13.mkdirSync(dataDir(), { recursive: true });
-  fs13.writeFileSync(file(), JSON.stringify(all));
+  fs14.mkdirSync(dataDir(), { recursive: true });
+  fs14.writeFileSync(file(), JSON.stringify(all));
 }
 function clearLiveFailure(sourceId) {
   if (!sourceId) return;
   const all = readLiveFailures();
   if (!(sourceId in all)) return;
   delete all[sourceId];
-  fs13.mkdirSync(dataDir(), { recursive: true });
-  fs13.writeFileSync(file(), JSON.stringify(all));
+  fs14.mkdirSync(dataDir(), { recursive: true });
+  fs14.writeFileSync(file(), JSON.stringify(all));
 }
 var init_livefail = __esm({
   "src/core/livefail.ts"() {
@@ -49049,13 +49214,13 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.15";
+    VERSION = "1.0.16";
   }
 });
 
 // src/core/configApi.ts
-import fs14 from "node:fs";
-import path10 from "node:path";
+import fs15 from "node:fs";
+import path11 from "node:path";
 function storedCustomSources() {
   const stored = loadConfig();
   return Array.isArray(stored.customSources) ? stored.customSources : [];
@@ -49079,17 +49244,17 @@ function persisted(config) {
   return out;
 }
 function backupFile() {
-  return path10.join(dataDir(), "config.backup.json");
+  return path11.join(dataDir(), "config.backup.json");
 }
 function hasBackup() {
-  return fs14.existsSync(backupFile());
+  return fs15.existsSync(backupFile());
 }
 function readBackup() {
-  return JSON.parse(fs14.readFileSync(backupFile(), "utf8"));
+  return JSON.parse(fs15.readFileSync(backupFile(), "utf8"));
 }
 function writeBackup(config) {
-  fs14.mkdirSync(dataDir(), { recursive: true });
-  fs14.writeFileSync(backupFile(), JSON.stringify(config));
+  fs15.mkdirSync(dataDir(), { recursive: true });
+  fs15.writeFileSync(backupFile(), JSON.stringify(config));
 }
 function publicConfig(config) {
   return {
@@ -49099,7 +49264,7 @@ function publicConfig(config) {
     wallpaperVisible: config.wallpaperVisible,
     fit: config.fit,
     wallpaperSet: Boolean(
-      config.wallpaperPath && fs14.existsSync(config.wallpaperPath) || config.sceneVideoUrl || config.live
+      config.wallpaperPath && fs15.existsSync(config.wallpaperPath) || config.sceneVideoUrl || config.live
     ),
     mediaType: config.mediaType ?? "image",
     live: config.live ?? null,
@@ -49162,19 +49327,19 @@ var init_configApi = __esm({
 });
 
 // src/core/assets.ts
-import fs15 from "node:fs";
+import fs16 from "node:fs";
 function invalidateAssets() {
   cachedAssets = void 0;
   lastGoodAssets = void 0;
 }
 function primeAssets(file2, assets) {
-  cachedAssets = { file: file2, mtimeMs: fs15.statSync(file2).mtimeMs, assets };
+  cachedAssets = { file: file2, mtimeMs: fs16.statSync(file2).mtimeMs, assets };
   lastGoodAssets = assets;
 }
 async function getAssets(config, allowDecode = true) {
   const sourcePath = config.monetSourcePath;
-  if (!sourcePath || !fs15.existsSync(sourcePath)) return void 0;
-  const mtimeMs = fs15.statSync(sourcePath).mtimeMs;
+  if (!sourcePath || !fs16.existsSync(sourcePath)) return void 0;
+  const mtimeMs = fs16.statSync(sourcePath).mtimeMs;
   if (cachedAssets?.file === sourcePath && cachedAssets.mtimeMs === mtimeMs) {
     return cachedAssets.assets;
   }
@@ -49613,25 +49778,25 @@ var require_utils = __commonJS({
       }
       mkdirSync(folder);
     };
-    Utils.prototype.writeFileTo = function(path14, content, overwrite, attr) {
+    Utils.prototype.writeFileTo = function(path15, content, overwrite, attr) {
       const self2 = this;
-      if (self2.fs.existsSync(path14)) {
+      if (self2.fs.existsSync(path15)) {
         if (!overwrite) return false;
-        var stat = self2.fs.statSync(path14);
+        var stat = self2.fs.statSync(path15);
         if (stat.isDirectory()) {
           return false;
         }
       }
-      var folder = pth.dirname(path14);
+      var folder = pth.dirname(path15);
       if (!self2.fs.existsSync(folder)) {
         self2.makeDir(folder);
       }
       var fd;
       try {
-        fd = self2.fs.openSync(path14, "w", 438);
+        fd = self2.fs.openSync(path15, "w", 438);
       } catch (e2) {
-        self2.fs.chmodSync(path14, 438);
-        fd = self2.fs.openSync(path14, "w", 438);
+        self2.fs.chmodSync(path15, 438);
+        fd = self2.fs.openSync(path15, "w", 438);
       }
       if (fd) {
         try {
@@ -49640,22 +49805,22 @@ var require_utils = __commonJS({
           self2.fs.closeSync(fd);
         }
       }
-      self2.fs.chmodSync(path14, attr || 438);
+      self2.fs.chmodSync(path15, attr || 438);
       return true;
     };
-    Utils.prototype.writeFileToAsync = function(path14, content, overwrite, attr, callback) {
+    Utils.prototype.writeFileToAsync = function(path15, content, overwrite, attr, callback) {
       if (typeof attr === "function") {
         callback = attr;
         attr = void 0;
       }
       const self2 = this;
-      self2.fs.exists(path14, function(exist) {
+      self2.fs.exists(path15, function(exist) {
         if (exist && !overwrite) return callback(false);
-        self2.fs.stat(path14, function(err, stat) {
+        self2.fs.stat(path15, function(err, stat) {
           if (exist && stat && stat.isDirectory()) {
             return callback(false);
           }
-          var folder = pth.dirname(path14);
+          var folder = pth.dirname(path15);
           self2.fs.exists(folder, function(exists) {
             if (!exists) {
               try {
@@ -49668,16 +49833,16 @@ var require_utils = __commonJS({
               self2.fs.write(fd, content, 0, content.length, 0, function(writeErr) {
                 self2.fs.close(fd, function() {
                   if (writeErr) return callback(false);
-                  self2.fs.chmod(path14, attr || 438, function() {
+                  self2.fs.chmod(path15, attr || 438, function() {
                     callback(true);
                   });
                 });
               });
             };
-            self2.fs.open(path14, "w", 438, function(err2, fd) {
+            self2.fs.open(path15, "w", 438, function(err2, fd) {
               if (err2) {
-                self2.fs.chmod(path14, 438, function() {
-                  self2.fs.open(path14, "w", 438, function(retryErr, fd2) {
+                self2.fs.chmod(path15, 438, function() {
+                  self2.fs.open(path15, "w", 438, function(retryErr, fd2) {
                     if (retryErr || !fd2) return callback(false);
                     writeToFd(fd2);
                   });
@@ -49713,10 +49878,10 @@ var require_utils = __commonJS({
         if (stat.isSymbolicLink()) throw Errors.FILE_IN_THE_WAY(`"${cur}"`);
       }
     };
-    Utils.prototype.findFiles = function(path14) {
+    Utils.prototype.findFiles = function(path15) {
       const self2 = this;
       const canLstat = typeof self2.fs.lstatSync === "function";
-      const rootReal = self2.fs.realpathSync(path14);
+      const rootReal = self2.fs.realpathSync(path15);
       function escapesRoot(p2) {
         if (!canLstat) return false;
         if (!self2.fs.lstatSync(p2).isSymbolicLink()) return false;
@@ -49735,23 +49900,23 @@ var require_utils = __commonJS({
         }
         let files = [];
         self2.fs.readdirSync(dir).forEach(function(file2) {
-          const path15 = pth.join(dir, file2);
-          if (escapesRoot(path15)) return;
-          const stat = self2.fs.statSync(path15);
-          if (!pattern || pattern.test(path15)) {
-            files.push(pth.normalize(path15) + (stat.isDirectory() ? self2.sep : ""));
+          const path16 = pth.join(dir, file2);
+          if (escapesRoot(path16)) return;
+          const stat = self2.fs.statSync(path16);
+          if (!pattern || pattern.test(path16)) {
+            files.push(pth.normalize(path16) + (stat.isDirectory() ? self2.sep : ""));
           }
           if (stat.isDirectory() && recursive) {
-            const realDir = self2.fs.realpathSync(path15);
+            const realDir = self2.fs.realpathSync(path16);
             if (!visited.has(realDir)) {
               visited.add(realDir);
-              files = files.concat(findSync(path15, pattern, recursive, visited));
+              files = files.concat(findSync(path16, pattern, recursive, visited));
             }
           }
         });
         return files;
       }
-      return findSync(path14, void 0, true, /* @__PURE__ */ new Set([rootReal]));
+      return findSync(path15, void 0, true, /* @__PURE__ */ new Set([rootReal]));
     };
     Utils.prototype.findFilesAsync = function(dir, cb) {
       const self2 = this;
@@ -49848,14 +50013,14 @@ var require_utils = __commonJS({
           return "UNSUPPORTED (" + method + ")";
       }
     };
-    Utils.canonical = function(path14) {
-      if (!path14) return "";
-      const safeSuffix = pth.posix.normalize("/" + path14.split("\\").join("/"));
+    Utils.canonical = function(path15) {
+      if (!path15) return "";
+      const safeSuffix = pth.posix.normalize("/" + path15.split("\\").join("/"));
       return pth.join(".", safeSuffix);
     };
-    Utils.zipnamefix = function(path14) {
-      if (!path14) return "";
-      const safeSuffix = pth.posix.normalize("/" + path14.split("\\").join("/"));
+    Utils.zipnamefix = function(path15) {
+      if (!path15) return "";
+      const safeSuffix = pth.posix.normalize("/" + path15.split("\\").join("/"));
       return pth.posix.join(".", safeSuffix);
     };
     Utils.findLast = function(arr, callback) {
@@ -49872,9 +50037,9 @@ var require_utils = __commonJS({
       prefix = pth.resolve(pth.normalize(prefix));
       var parts = name.split("/");
       for (var i2 = 0, l2 = parts.length; i2 < l2; i2++) {
-        var path14 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
-        if (path14 === prefix || path14.startsWith(prefix + pth.sep)) {
-          return path14;
+        var path15 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
+        if (path15 === prefix || path15.startsWith(prefix + pth.sep)) {
+          return path15;
         }
       }
       return pth.normalize(pth.join(prefix, pth.basename(name)));
@@ -49924,8 +50089,8 @@ var require_utils = __commonJS({
 var require_fattr = __commonJS({
   "node_modules/adm-zip/util/fattr.js"(exports, module) {
     var pth = __require("path");
-    module.exports = function(path14, { fs: fs18 }) {
-      var _path = path14 || "", _obj = newAttr(), _stat = null;
+    module.exports = function(path15, { fs: fs19 }) {
+      var _path = path15 || "", _obj = newAttr(), _stat = null;
       function newAttr() {
         return {
           directory: false,
@@ -49936,8 +50101,8 @@ var require_fattr = __commonJS({
           atime: 0
         };
       }
-      if (_path && fs18.existsSync(_path)) {
-        _stat = fs18.statSync(_path);
+      if (_path && fs19.existsSync(_path)) {
+        _stat = fs19.statSync(_path);
         _obj.directory = _stat.isDirectory();
         _obj.mtime = _stat.mtime;
         _obj.atime = _stat.atime;
@@ -52110,29 +52275,29 @@ var require_adm_zip = __commonJS({
 });
 
 // src/core/sources.ts
-import fs16 from "node:fs";
-import path11 from "node:path";
+import fs17 from "node:fs";
+import path12 from "node:path";
 import crypto2 from "node:crypto";
 function findVideoInDir(dir) {
   for (const subdir of ["", "files"]) {
-    const base = path11.join(dir, subdir);
+    const base = path12.join(dir, subdir);
     let entries;
     try {
-      entries = fs16.readdirSync(base);
+      entries = fs17.readdirSync(base);
     } catch {
       continue;
     }
     const hit = entries.find((e2) => /\.(mp4|webm)$/i.test(e2));
-    if (hit) return path11.join(base, hit);
+    if (hit) return path12.join(base, hit);
   }
   return void 0;
 }
 function toRel(dir, file2) {
-  return path11.relative(dir, file2).replace(/\\/g, "/");
+  return path12.relative(dir, file2).replace(/\\/g, "/");
 }
 function liveFrameFile(sourceId) {
   const safe = sourceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path11.join(dataDir(), `live-frame-${safe}.jpg`);
+  return path12.join(dataDir(), `live-frame-${safe}.jpg`);
 }
 async function applySource(id, config, apply = true) {
   const entry = await resolveSourceDir(id, storedCustomSources());
@@ -52146,7 +52311,7 @@ async function applySource(id, config, apply = true) {
       live: { sourceId: id, kind: type, title: entry.title, poster: entry.preview },
       sceneVideoUrl: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path11.join(entry.dir, entry.preview) : config.monetSourcePath
+      monetSourcePath: entry.preview ? path12.join(entry.dir, entry.preview) : config.monetSourcePath
     };
   } else if (type === "video") {
     const video = findVideoInDir(entry.dir);
@@ -52158,7 +52323,7 @@ async function applySource(id, config, apply = true) {
       sceneVideoUrl: `http://127.0.0.1:${config.apiPort}/files/${id}/${file2}`,
       live: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path11.join(entry.dir, entry.preview) : config.monetSourcePath
+      monetSourcePath: entry.preview ? path12.join(entry.dir, entry.preview) : config.monetSourcePath
     };
   } else {
     throw new Error(`unsupported wallpaper type (${type}): ${entry.title}`);
@@ -52188,31 +52353,31 @@ async function migrateLegacyVideo() {
 function resolveSceneInput(input) {
   let stat;
   try {
-    stat = fs16.statSync(input);
+    stat = fs17.statSync(input);
   } catch {
     return input;
   }
   if (stat.isDirectory()) return input;
-  if (input.toLowerCase().endsWith(".pkg")) return path11.dirname(path11.resolve(input));
-  let dir = path11.dirname(path11.resolve(input));
+  if (input.toLowerCase().endsWith(".pkg")) return path12.dirname(path12.resolve(input));
+  let dir = path12.dirname(path12.resolve(input));
   for (let hop = 0; hop < 4; hop++) {
-    if (fs16.existsSync(path11.join(dir, "project.json"))) return dir;
-    const parent = path11.dirname(dir);
+    if (fs17.existsSync(path12.join(dir, "project.json"))) return dir;
+    const parent = path12.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return path11.dirname(path11.resolve(input));
+  return path12.dirname(path12.resolve(input));
 }
 function registerCustomSource(input) {
-  const dir = path11.resolve(resolveSceneInput(input));
-  if (!fs16.existsSync(dir) || !fs16.statSync(dir).isDirectory()) {
+  const dir = path12.resolve(resolveSceneInput(input));
+  if (!fs17.existsSync(dir) || !fs17.statSync(dir).isDirectory()) {
     throw new Error(`not a wallpaper directory: ${dir}`);
   }
   const id = `custom-${crypto2.createHash("sha1").update(dir.toLowerCase()).digest("hex").slice(0, 10)}`;
   const sources = storedCustomSources().filter((c3) => c3.id !== id);
   let name;
   try {
-    const p2 = JSON.parse(fs16.readFileSync(path11.join(dir, "project.json"), "utf8"));
+    const p2 = JSON.parse(fs17.readFileSync(path12.join(dir, "project.json"), "utf8"));
     if (typeof p2?.title === "string") name = p2.title;
   } catch {
   }
@@ -52223,16 +52388,16 @@ function registerCustomSource(input) {
 async function importPackageFromFile(zipPath, config, apply) {
   const { default: AdmZip } = await Promise.resolve().then(() => __toESM(require_adm_zip(), 1));
   const zip = new AdmZip(zipPath);
-  const dest = path11.join(dataDir(), "packages", `pkg-${Date.now()}`);
-  fs16.mkdirSync(dest, { recursive: true });
+  const dest = path12.join(dataDir(), "packages", `pkg-${Date.now()}`);
+  fs17.mkdirSync(dest, { recursive: true });
   zip.extractAllTo(dest, true);
   let root = dest;
   for (let i2 = 0; i2 < 2; i2++) {
-    const entries = fs16.readdirSync(root, { withFileTypes: true });
-    if (entries.length === 1 && entries[0].isDirectory()) root = path11.join(root, entries[0].name);
+    const entries = fs17.readdirSync(root, { withFileTypes: true });
+    if (entries.length === 1 && entries[0].isDirectory()) root = path12.join(root, entries[0].name);
     else break;
   }
-  if (!fs16.existsSync(path11.join(root, "project.json")) && !fs16.existsSync(path11.join(root, "scene.pkg"))) {
+  if (!fs17.existsSync(path12.join(root, "project.json")) && !fs17.existsSync(path12.join(root, "scene.pkg"))) {
     throw new Error("package contains no project.json / scene.pkg \u2014 not a wallpaper package");
   }
   const { id } = registerCustomSource(root);
@@ -52262,17 +52427,17 @@ async function deleteSource(id, config) {
       await publishConfig(config).catch(() => void 0);
     }
   }
-  const packagesRoot = path11.join(dataDir(), "packages");
-  const rel = path11.relative(packagesRoot, path11.resolve(hit.dir));
-  const managed = rel !== "" && !rel.startsWith("..") && !path11.isAbsolute(rel);
+  const packagesRoot = path12.join(dataDir(), "packages");
+  const rel = path12.relative(packagesRoot, path12.resolve(hit.dir));
+  const managed = rel !== "" && !rel.startsWith("..") && !path12.isAbsolute(rel);
   saveConfig({ ...loadConfig(), customSources: storedCustomSources().filter((c3) => c3.id !== id) });
   const frameFile = liveFrameFile(id);
   void (async () => {
     for (let i2 = 0; i2 < 8; i2++) {
       await new Promise((r2) => setTimeout(r2, 750 * (i2 + 1)));
       try {
-        if (managed) fs16.rmSync(hit.dir, { recursive: true, force: true });
-        fs16.rmSync(frameFile, { force: true });
+        if (managed) fs17.rmSync(hit.dir, { recursive: true, force: true });
+        fs17.rmSync(frameFile, { force: true });
         return;
       } catch {
       }
@@ -52466,9 +52631,9 @@ __export(server_exports, {
   startServe: () => startServe
 });
 import http from "node:http";
-import fs17 from "node:fs";
+import fs18 from "node:fs";
 import os4 from "node:os";
-import path12 from "node:path";
+import path13 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
@@ -52515,7 +52680,7 @@ function readBody(req) {
 function readBodyToFile(req, dest, maxBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
-    const out = fs17.createWriteStream(dest);
+    const out = fs18.createWriteStream(dest);
     req.on("data", (c3) => {
       size += c3.length;
       if (size > maxBytes) {
@@ -52579,7 +52744,7 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
 }
 function pluginDisabledKeyIn(cfgPath) {
   try {
-    const cfg = JSON.parse(fs17.readFileSync(cfgPath, "utf8"));
+    const cfg = JSON.parse(fs18.readFileSync(cfgPath, "utf8"));
     const ep = cfg?.plugins?.enabledPlugins;
     if (!ep || typeof ep !== "object") return null;
     const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
@@ -52591,14 +52756,14 @@ function pluginDisabledKeyIn(cfgPath) {
 function ownPluginId() {
   try {
     const rec = JSON.parse(
-      fs17.readFileSync(path12.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
+      fs18.readFileSync(path13.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
     );
-    let dir = path12.dirname(fileURLToPath3(import.meta.url));
+    let dir = path13.dirname(fileURLToPath3(import.meta.url));
     for (let i2 = 0; i2 < 6; i2++) {
-      if (fs17.existsSync(path12.join(dir, "dist", "cli.js"))) break;
-      dir = path12.dirname(dir);
+      if (fs18.existsSync(path13.join(dir, "dist", "cli.js"))) break;
+      dir = path13.dirname(dir);
     }
-    const hit = rec.plugins?.find((p2) => p2.installPath && path12.resolve(dir).startsWith(path12.resolve(p2.installPath)));
+    const hit = rec.plugins?.find((p2) => p2.installPath && path13.resolve(dir).startsWith(path13.resolve(p2.installPath)));
     return hit ? hit.id : void 0;
   } catch {
     return void 0;
@@ -52606,16 +52771,16 @@ function ownPluginId() {
 }
 function activeWorkspaceDirs() {
   try {
-    const logDir = path12.join(os4.homedir(), ".zcode", "cli", "log");
-    const files = fs17.readdirSync(logDir).filter((f2) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f2)).sort();
+    const logDir = path13.join(os4.homedir(), ".zcode", "cli", "log");
+    const files = fs18.readdirSync(logDir).filter((f2) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f2)).sort();
     if (!files.length) return [];
-    const file2 = path12.join(logDir, files[files.length - 1]);
-    const stat = fs17.statSync(file2);
+    const file2 = path13.join(logDir, files[files.length - 1]);
+    const stat = fs18.statSync(file2);
     const tail = Math.min(stat.size, 256 * 1024);
-    const fd = fs17.openSync(file2, "r");
+    const fd = fs18.openSync(file2, "r");
     const buf = Buffer.alloc(tail);
-    fs17.readSync(fd, buf, 0, tail, stat.size - tail);
-    fs17.closeSync(fd);
+    fs18.readSync(fd, buf, 0, tail, stat.size - tail);
+    fs18.closeSync(fd);
     const out = /* @__PURE__ */ new Set();
     for (const m of buf.toString("utf8").matchAll(/"workspaceKey":"((?:[^"\\]|\\.)*)"/g)) {
       out.add(JSON.parse(`"${m[1]}"`));
@@ -52627,14 +52792,14 @@ function activeWorkspaceDirs() {
 }
 function pluginDisabledBy(userCfgPath) {
   const ownId = ownPluginId();
-  const scopes = [userCfgPath, ...activeWorkspaceDirs().map((ws) => path12.join(ws, ".zcode", "config.json"))];
+  const scopes = [userCfgPath, ...activeWorkspaceDirs().map((ws) => path13.join(ws, ".zcode", "config.json"))];
   if (ownId) {
     const id = ownId;
     const readMine = (p2) => {
       try {
-        const ep = JSON.parse(fs17.readFileSync(p2, "utf8"))?.plugins?.enabledPlugins;
+        const ep = JSON.parse(fs18.readFileSync(p2, "utf8"))?.plugins?.enabledPlugins;
         if (!ep || ep[id] === void 0) return null;
-        return { scope: p2, disabled: ep[id] === false, mtime: fs17.statSync(p2).mtimeMs };
+        return { scope: p2, disabled: ep[id] === false, mtime: fs18.statSync(p2).mtimeMs };
       } catch {
         return null;
       }
@@ -52655,16 +52820,38 @@ async function shutdownServe() {
   await new Promise((r2) => activeServer ? activeServer.close(() => r2()) : r2());
 }
 async function startServe(opts) {
-  const { cdpPort, apiPort } = opts;
+  let { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
   let cdpAbsent = false;
   let lastRotateAt = Date.now();
   let rotationCursor = 0;
-  const already = await existingServePid(apiPort);
-  if (already !== void 0) {
-    throw new Error(
-      `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) \u2014 open its panel, or stop that process first`
-    );
+  if (opts.pickPorts) {
+    const discovery = readSessionPorts();
+    cdpPort = await pickCdpPort(discovery.cdpPort ?? cdpPort);
+    let chosen = -1;
+    for (const cand of apiCandidates(discovery.apiPort ?? apiPort)) {
+      if (cand === cdpPort) continue;
+      const owned = await existingServePid(cand);
+      if (owned !== void 0) {
+        throw new Error(
+          `a zcode-wallpaper service is already running on http://127.0.0.1:${cand} (pid ${owned}) \u2014 open its panel, or stop that process first`
+        );
+      }
+      if (await isPortFree(cand)) {
+        chosen = cand;
+        break;
+      }
+    }
+    apiPort = chosen >= 0 ? chosen : apiPort;
+    writeSessionPorts(cdpPort, apiPort);
+    console.log(`serve: session ports \u2014 cdp=${cdpPort} api=${apiPort} (pickPorts)`);
+  } else {
+    const already = await existingServePid(apiPort);
+    if (already !== void 0) {
+      throw new Error(
+        `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) \u2014 open its panel, or stop that process first`
+      );
+    }
   }
   const server = http.createServer((req, res) => {
     activeServer = server;
@@ -52684,12 +52871,12 @@ async function startServe(opts) {
         sendJson(res, 204, {});
         return;
       }
-      const staticRoute = (file2, noStore = false) => sendStaticFile(req, res, file2, { noStore }) || sendJson(res, 404, { error: `missing file: ${path12.basename(file2)} (run \`npm run build\`)` });
+      const staticRoute = (file2, noStore = false) => sendStaticFile(req, res, file2, { noStore }) || sendJson(res, 404, { error: `missing file: ${path13.basename(file2)} (run \`npm run build\`)` });
       if (req.method === "GET" || req.method === "HEAD") {
-        if (url.pathname === "/agent.js") return void staticRoute(path12.join(liveDir(), "agent.js"), true);
-        if (url.pathname === "/panel.js") return void staticRoute(path12.join(liveDir(), "panel.js"), true);
-        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path12.join(liveDir(), "index.html"), true);
-        if (url.pathname === "/renderer.js") return void staticRoute(path12.join(liveDir(), "renderer.js"));
+        if (url.pathname === "/agent.js") return void staticRoute(path13.join(liveDir(), "agent.js"), true);
+        if (url.pathname === "/panel.js") return void staticRoute(path13.join(liveDir(), "panel.js"), true);
+        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path13.join(liveDir(), "index.html"), true);
+        if (url.pathname === "/renderer.js") return void staticRoute(path13.join(liveDir(), "renderer.js"));
         if (url.pathname === "/engine/webwallgl.global.min.js") {
           const engine = engineFile();
           if (!engine) return void sendJson(res, 404, { error: "webwallgl engine not installed (npm install webwallgl)" });
@@ -52796,9 +52983,9 @@ async function startServe(opts) {
           throw new Error(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
         }
         const config = runtimeConfig();
-        fs17.mkdirSync(dataDir(), { recursive: true });
-        const dest = path12.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
-        fs17.writeFileSync(dest, bytes);
+        fs18.mkdirSync(dataDir(), { recursive: true });
+        const dest = path13.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
+        fs18.writeFileSync(dest, bytes);
         primeAssets(dest, await loadWallpaper(dest));
         const next = {
           ...config,
@@ -52922,11 +53109,11 @@ async function startServe(opts) {
         const body = JSON.parse(await readBody(req));
         const input = typeof body?.path === "string" ? body.path.trim() : "";
         if (!input) throw new Error("path is required");
-        const abs = path12.resolve(input);
+        const abs = path13.resolve(input);
         let result;
         let sourceId;
         if (/\.zip$/i.test(abs)) {
-          if (!fs17.existsSync(abs)) throw new Error(`package not found: ${abs}`);
+          if (!fs18.existsSync(abs)) throw new Error(`package not found: ${abs}`);
           const r2 = await importPackageFromFile(abs, runtimeConfig(), true);
           sourceId = r2.id;
           result = r2;
@@ -52962,9 +53149,9 @@ async function startServe(opts) {
         const zip = new AdmZip();
         zip.addLocalFolder(entry.dir);
         const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path12.join(os4.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        const zipPath = path13.join(os4.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
         await zip.writeZipPromise(zipPath);
-        const size = fs17.statSync(zipPath).size;
+        const size = fs18.statSync(zipPath).size;
         res.writeHead(200, {
           "Content-Type": "application/zip",
           "Content-Length": size,
@@ -52972,14 +53159,14 @@ async function startServe(opts) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Expose-Headers": "Content-Disposition"
         });
-        const stream = fs17.createReadStream(zipPath);
+        const stream = fs18.createReadStream(zipPath);
         stream.pipe(res);
-        stream.on("close", () => fs17.rm(zipPath, { force: true }, () => void 0));
+        stream.on("close", () => fs18.rm(zipPath, { force: true }, () => void 0));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/import-package") {
         const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path12.join(os4.tmpdir(), `zw-import-${Date.now()}.zip`);
+        const tempZip = path13.join(os4.tmpdir(), `zw-import-${Date.now()}.zip`);
         await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
         try {
           const r2 = await importPackageFromFile(tempZip, runtimeConfig(), apply);
@@ -52992,18 +53179,18 @@ async function startServe(opts) {
             windows: heldWindowCount()
           });
         } finally {
-          fs17.rmSync(tempZip, { force: true });
+          fs18.rmSync(tempZip, { force: true });
         }
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/upload-wallpaper") {
         const apply = url.searchParams.get("apply") === "1";
         const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
-        const ext = path12.extname(name).toLowerCase();
+        const ext = path13.extname(name).toLowerCase();
         if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
           throw new Error(`unsupported file type: ${ext || "(none)"} \u2014 use .zip / .pkg / .mp4 / .webm`);
         }
-        const tempFile = path12.join(os4.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        const tempFile = path13.join(os4.tmpdir(), `zw-upl-${Date.now()}${ext}`);
         await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
         try {
           const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "\u5BFC\u5165\u7684\u58C1\u7EB8";
@@ -53012,20 +53199,20 @@ async function startServe(opts) {
             sendJson(res, 200, { ok: true, sourceId: r2.id, title: r2.entry.title, type: r2.entry.type, mediaType: r2.mediaType, windows: heldWindowCount() });
             return;
           }
-          const dest = path12.join(dataDir(), "packages", `upl-${Date.now()}`);
-          fs17.mkdirSync(dest, { recursive: true });
+          const dest = path13.join(dataDir(), "packages", `upl-${Date.now()}`);
+          fs18.mkdirSync(dest, { recursive: true });
           if (ext === ".pkg") {
-            fs17.copyFileSync(tempFile, path12.join(dest, "scene.pkg"));
-            fs17.writeFileSync(path12.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
+            fs18.copyFileSync(tempFile, path13.join(dest, "scene.pkg"));
+            fs18.writeFileSync(path13.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
           } else {
-            fs17.copyFileSync(tempFile, path12.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
-            fs17.writeFileSync(path12.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
+            fs18.copyFileSync(tempFile, path13.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
+            fs18.writeFileSync(path13.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
           }
           const { id } = registerCustomSource(dest);
           const result = await applySource(id, runtimeConfig(), apply);
           sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
         } finally {
-          fs17.rmSync(tempFile, { force: true });
+          fs18.rmSync(tempFile, { force: true });
         }
         return;
       }
@@ -53046,8 +53233,8 @@ async function startServe(opts) {
           return;
         }
         const file2 = liveFrameFile(source);
-        fs17.mkdirSync(dataDir(), { recursive: true });
-        fs17.writeFileSync(file2, Buffer.from(m[1], "base64"));
+        fs18.mkdirSync(dataDir(), { recursive: true });
+        fs18.writeFileSync(file2, Buffer.from(m[1], "base64"));
         const config = runtimeConfig();
         if (config.live?.sourceId === source) {
           const next = { ...config, monetSourcePath: file2 };
@@ -53067,9 +53254,9 @@ async function startServe(opts) {
       if (req.method === "GET" && url.pathname === "/api/library") {
         const images = [];
         try {
-          for (const f2 of fs17.readdirSync(dataDir())) {
+          for (const f2 of fs18.readdirSync(dataDir())) {
             if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f2)) {
-              images.push({ name: f2, path: path12.join(dataDir(), f2) });
+              images.push({ name: f2, path: path13.join(dataDir(), f2) });
             }
           }
         } catch {
@@ -53079,7 +53266,7 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
-        if (typeof body?.path !== "string" || !fs17.existsSync(body.path)) {
+        if (typeof body?.path !== "string" || !fs18.existsSync(body.path)) {
           throw new Error("provide an existing image path");
         }
         const config = runtimeConfig();
@@ -53129,8 +53316,8 @@ async function startServe(opts) {
       })();
     }, 3e4);
   }
-  const cfgPath = path12.join(os4.homedir(), ".zcode", "cli", "config.json");
-  const installRecordPath = path12.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
+  const cfgPath = path13.join(os4.homedir(), ".zcode", "cli", "config.json");
+  const installRecordPath = path13.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
   const bootInstallId = ownPluginId();
   let uninstallTicks = 0;
   const checkDisabled = async () => {
@@ -53160,7 +53347,7 @@ async function startServe(opts) {
   };
   const armWatch = (dir) => {
     try {
-      const w = fs17.watch(dir, onCfgDirEvent);
+      const w = fs18.watch(dir, onCfgDirEvent);
       w.on("error", () => {
         try {
           w.close();
@@ -53170,10 +53357,10 @@ async function startServe(opts) {
     } catch {
     }
   };
-  const watchedDirs = /* @__PURE__ */ new Set([path12.dirname(cfgPath), path12.dirname(installRecordPath)]);
+  const watchedDirs = /* @__PURE__ */ new Set([path13.dirname(cfgPath), path13.dirname(installRecordPath)]);
   setInterval(() => {
     for (const ws of activeWorkspaceDirs()) {
-      const dir = path12.join(ws, ".zcode");
+      const dir = path13.join(ws, ".zcode");
       if (!watchedDirs.has(dir)) {
         watchedDirs.add(dir);
         armWatch(dir);
@@ -53227,7 +53414,7 @@ async function startServe(opts) {
       await applySource(next, runtimeConfig()).catch(() => void 0);
     })();
   }, 3e4);
-  if (cdpPort === DEFAULT_CONFIG.port && apiPort === DEFAULT_API_PORT) {
+  if (opts.pickPorts || cdpPort === DEFAULT_CONFIG.port && apiPort === DEFAULT_API_PORT) {
     Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort)).then((r2) => {
       if (r2.updated.length) console.log(`serve: ${r2.updated.length} shortcut(s) point at the early launcher`);
     }).catch(() => void 0);
@@ -53269,6 +53456,7 @@ var init_server = __esm({
     init_ledger();
     init_livefail();
     init_earlyWatch();
+    init_ports();
     init_version();
     init_steam();
     init_configApi();
@@ -53288,13 +53476,13 @@ var init_server = __esm({
         try {
           const dir = dataDir();
           if (!teeDirReady) {
-            fs17.mkdirSync(dir, { recursive: true });
+            fs18.mkdirSync(dir, { recursive: true });
             teeDirReady = true;
           }
-          const file2 = path12.join(dir, "zw-serve.log");
-          fs17.appendFileSync(file2, line + "\n", "utf8");
-          if (++teeCount % 400 === 0 && fs17.statSync(file2).size > 524288) {
-            fs17.renameSync(file2, file2 + ".old");
+          const file2 = path13.join(dir, "zw-serve.log");
+          fs18.appendFileSync(file2, line + "\n", "utf8");
+          if (++teeCount % 400 === 0 && fs18.statSync(file2).size > 524288) {
+            fs18.renameSync(file2, file2 + ".old");
           }
         } catch {
         }
@@ -53326,7 +53514,7 @@ init_session();
 init_steam();
 init_cdp();
 init_inject();
-import path13 from "node:path";
+import path14 from "node:path";
 var USAGE = `zcode-wallpaper <command> [options]
 
 Commands:
@@ -53344,10 +53532,13 @@ Commands:
   colors [--port N]              Re-apply stored theme without wallpaper change
   reset [--port N]               Remove wallpaper and color overrides
   status [--port N]              Show CDP reachability and library summary
-  serve [--port N] [--api-port M] [--detach]
+  serve [--port N] [--api-port M] [--detach] [--pick-ports]
                                  Watch mode + settings panel + live renderer
                                  (default API port 28257); --detach runs in the
-                                 background, outliving this shell
+                                 background, outliving this shell;
+                                 --pick-ports walks the 28256-28275 pool when a
+                                 slot is foreign-busy and records session ports
+                                 (wrapper/host launches use this)
 `;
 function die(msg) {
   console.error(msg);
@@ -53462,8 +53653,9 @@ Quit ZCode completely (including any tray icon), then run \`zcode-wallpaper laun
       case "serve": {
         if (has("--detach")) {
           const { spawn: spawn2 } = await import("node:child_process");
-          const self2 = path13.resolve(process.argv[1] ?? "");
-          const child = spawn2(process.execPath, [self2, "serve", "--port", String(port), "--api-port", String(apiPort)], {
+          const self2 = path14.resolve(process.argv[1] ?? "");
+          const extra = has("--pick-ports") ? ["--pick-ports"] : [];
+          const child = spawn2(process.execPath, [self2, "serve", "--port", String(port), "--api-port", String(apiPort), ...extra], {
             detached: true,
             stdio: "ignore",
             windowsHide: true
@@ -53474,7 +53666,7 @@ Quit ZCode completely (including any tray icon), then run \`zcode-wallpaper laun
         }
         const { startServe: startServe2 } = await Promise.resolve().then(() => (init_server(), server_exports));
         if (has("--early")) process.env.ZW_EARLY = "1";
-        await startServe2({ cdpPort: port, apiPort });
+        await startServe2({ cdpPort: port, apiPort, pickPorts: has("--pick-ports") });
         break;
       }
       default:

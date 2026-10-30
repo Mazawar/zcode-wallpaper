@@ -35,6 +35,7 @@ import { safeJoin, sendStaticFile } from "./media.js";
 import { transferBegin, transferChunk, transferSnapshot } from "./ledger.js";
 import { liveFailureOf, recordLiveFailure, clearLiveFailure } from "./livefail.js";
 import { earlyHostTick, type EarlyHostWatch } from "./earlyWatch.js";
+import { apiCandidates, isPortFree, pickCdpPort, readSessionPorts, writeSessionPorts } from "./ports.js";
 import { VERSION } from "./version.js";
 import { enumerateWallpapers, resolveSourceDir } from "./steam.js";
 import { currentConfig, publicConfig, persisted, sanitize, storedCustomSources, hasBackup, readBackup, writeBackup } from "./configApi.js";
@@ -109,6 +110,11 @@ const serveLog: string[] = [];
 export interface ServeOptions {
   cdpPort: number;
   apiPort: number;
+  /** D29: wrapper/host-launched serves walk the port pool when a foreign app
+   *  squats a slot and write session discovery. Explicit --port/--api-port
+   *  runs (dev verification, second instances) leave it off — exact ports,
+   *  no discovery writes, shortcuts untouched (the 1.0.6 guard). */
+  pickPorts?: boolean;
 }
 
 function sendJson(res: http.ServerResponse, code: number, body: unknown): void {
@@ -376,7 +382,7 @@ export async function shutdownServe(): Promise<void> {
 }
 
 export async function startServe(opts: ServeOptions): Promise<void> {
-  const { cdpPort, apiPort } = opts;
+  let { cdpPort, apiPort } = opts;
   const runtimeConfig = () => currentConfig(cdpPort, apiPort);
 
   // Set by the CDP-absent watchdog below; surfaced through /api/health so
@@ -390,12 +396,47 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   let lastRotateAt = Date.now();
   let rotationCursor = 0;
 
-  const already = await existingServePid(apiPort);
-  if (already !== undefined) {
-    throw new Error(
-      `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) — ` +
-        `open its panel, or stop that process first`
-    );
+  // ── D29 port resolution ────────────────────────────────────────────────────
+  // Explicit ports (dev verification) bind exactly as given. pickPorts runs
+  // (wrapper/host launches) resolve the SESSION ports first: discovery from
+  // the last boot is the preferred slot (the wrapper's 25s second chance must
+  // land where the boot serve did), then walk the pool — a candidate our own
+  // serve already owns means "already running" (join/handover semantics
+  // unchanged), a candidate foreign-busy means walk on, a free candidate
+  // binds. CDP picks free-or-live-debug-endpoint (at host time ZCode has the
+  // boot port bound — that IS the session truth). Resolved ports go into
+  // discovery + the boot handshake BEFORE the slow setup so the wrapper's
+  // ~4s poll catches them in time to launch ZCode with the right CDP port.
+  if (opts.pickPorts) {
+    const discovery = readSessionPorts();
+    cdpPort = await pickCdpPort(discovery.cdpPort ?? cdpPort);
+    let chosen = -1;
+    for (const cand of apiCandidates(discovery.apiPort ?? apiPort)) {
+      if (cand === cdpPort) continue; // even/odd pools can only meet here
+      const owned = await existingServePid(cand);
+      if (owned !== undefined) {
+        throw new Error(
+          `a zcode-wallpaper service is already running on http://127.0.0.1:${cand} (pid ${owned}) — ` +
+            `open its panel, or stop that process first`
+        );
+      }
+      if (await isPortFree(cand)) {
+        chosen = cand;
+        break;
+      }
+      // foreign app squats this slot — next candidate
+    }
+    apiPort = chosen >= 0 ? chosen : apiPort; // pool exhausted → original arg fails loudly at listen()
+    writeSessionPorts(cdpPort, apiPort);
+    console.log(`serve: session ports — cdp=${cdpPort} api=${apiPort} (pickPorts)`);
+  } else {
+    const already = await existingServePid(apiPort);
+    if (already !== undefined) {
+      throw new Error(
+        `a zcode-wallpaper service is already running on http://127.0.0.1:${apiPort} (pid ${already}) — ` +
+          `open its panel, or stop that process first`
+      );
+    }
   }
 
   // A request handler that rejects would otherwise take the whole process down
@@ -1112,7 +1153,9 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   // the next real boot came up with CDP on the throwaway port, the plugin
   // host's serve saw nothing on 28256, and the wallpaper died mid-session
   // when the early serve misread "no heartbeats" as "plugin disabled".
-  if (cdpPort === DEFAULT_CONFIG.port && apiPort === DEFAULT_API_PORT) {
+  // pickPorts serves qualify even on walked slots: they ARE wrapper/host
+  // launches, and the wrapper's own boot flow selected these ports.
+  if (opts.pickPorts || (cdpPort === DEFAULT_CONFIG.port && apiPort === DEFAULT_API_PORT)) {
     import("./shortcuts.js")
       .then((m) => m.ensureShortcutsHaveCdpFlag(cdpPort))
       .then((r) => { if (r.updated.length) console.log(`serve: ${r.updated.length} shortcut(s) point at the early launcher`); })

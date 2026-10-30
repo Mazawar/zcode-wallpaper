@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { applyToZCode, buildLiveUrl, buildPayload, DEFAULT_CONFIG, loadWallpaper, resetZCode, type BeautifyConfig } from "./inject.js";
 import { dataDir, loadConfig, saveConfig } from "./launch.js";
+import { readSessionPorts } from "./ports.js";
 import { detectWallpaperType } from "./wallpaperType.js";
 import { enumerateWallpapers } from "./steam.js";
 
@@ -261,14 +262,18 @@ export async function wallpaperStatus(): Promise<Record<string, unknown>> {
   }, {});
   const imported = Array.isArray(config.customSources) ? config.customSources.length : 0;
   if (imported > 0) counts.imported = imported;
-  const health = await serveHealth(config.apiPort);
+  // D29: session discovery wins — the running serve may have walked the pool;
+  // the stored config port is only the fallback.
+  const sp = readSessionPorts();
+  const apiPort = sp.apiPort ?? config.apiPort;
+  const health = await serveHealth(apiPort);
   return {
     steamRoots: lib.steamRoots,
     // null = Wallpaper Engine not installed — optional, imports still work.
     wallpaperEngine: lib.we?.root ?? null,
     counts,
     serve: health.ok && health.service === "zcode-wallpaper"
-      ? `http://127.0.0.1:${config.apiPort}`
+      ? `http://127.0.0.1:${apiPort}`
       : "not running",
     // Present when ZCode is running WITHOUT the CDP debug port (this launch
     // bypassed the wrapped shortcut) — injection is impossible until ZCode

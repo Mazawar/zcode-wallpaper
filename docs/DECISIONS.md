@@ -175,3 +175,22 @@
   新守卫 verify-hotkey.mjs：真实 hotkey.js 裸跑 27 断言（文法/录制/匹配/安全规则）+ 7 条接线钉；
   verify-contracts 的白名单链自动把面板推送 ⊆ sanitize ⊆ publicConfig、payload 读取 ⊆ 构建字段对上了账。
   守卫先红后绿抓到两个真 bug：布尔表当字符串比较（所有含修饰键组合全废）、KeyW/Digit5 未折叠成 W/5。
+
+- **D29 端口池浮动 + 会话发现（1.0.16）**：需求：两个固定端口（CDP 28256/API 28257）被外部应用抢占时整个插件瘫死
+  （API 被占=serve 绑定失败宿主 10s 重试永不成功；CDP 被占=Chromium 静默无调试端口、整会话无注入）。设计=**首选槽 +
+  偶/奇分池浮动 + 会话发现**：①CDP 走偶数池 28256..28274、API 走奇数池 28257..28275（物理不可能互撞；首选槽=历史
+  固定端口，`ZW_PORT_BASE` 可整体平移池——守卫用它做全封闭测试，也留给受限机器）；②pickPorts 形态的 serve（wrapper
+  cmd/宿主 spawn 传入）启动时先读会话发现（上次选的槽优先——wrapper 25s 二次拉起必须落在同一对端口），再走池：候选
+  被自己的 serve 占着=照旧抛 already-running（加入/交接语义不变）、被外部应用占着=下一候选、空闲=绑定；CDP 拾取规则
+  「空闲或活的 CDP 端点」（宿主期 ZCode 已绑走启动槽——那正是会话真相）；③选中端口写进两处：`zw-launch.json` 的
+  cdpPort/apiPort（发现，宿主/CLI/status 消费）+ `zw-ports.txt` 扁平握手（**VBS 专用**：wrapper 启动先删握手→拉起
+  serve→轮询 ~4s→用握手 CDP 端口启动 ZCode，读不到回退烘焙字面量——永不阻塞永不误导，D18 不变）；④显式
+  --port/--api-port 完全绕过（dev 验证/二实例），1.0.6 快捷方式护栏保留；ensure+cdp-absent 看门狗对 pickPorts 会话
+  也生效（浮动会话同样需要被守护）。**关键坑：isPortFree 的 bind-and-release 探测必须等 close 回调完成再
+  resolve——Windows 上先行 resolve 会让调用方紧跟的 listen 吃 EADDRINUSE**（守卫真 socket 测试抓出）。验证：守卫
+  verify-ports.mjs（真实 ports.ts 对真 socket 跑池形状/占用探测/活端点拾取/发现往返 + 真实生成器产出 v8 wrapper
+  的握手编排/ASCII 钉 + server/MCP/CLI 接线钉）+ smoke-vbs.mjs（cscript 实跑抑制版 v8：编译、轮询超时回退、无条件
+  启动行全过——0.3.1 教训的例行执行）+ 本机隔离池真跑两轮（28290/28291 直选、28321 被外部占用浮动到 28293）。macOS
+  /Linux sh wrapper 同步 v3（rm→轮询→sed 解析→case 回退），真机仍未验证（0.4.16 起悬置）。边界：CDP 端口每会话
+  至多选一次（wrapper 期），会话中途不浮动（Chromium 启动后不可改）；wrapper 健康探测仍打烘焙 apiPort+1，浮动会话
+  下二次拉起可能空转一次（无害，宿主 10s 环兜底）。

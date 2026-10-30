@@ -35,10 +35,13 @@ Commands:
   colors [--port N]              Re-apply stored theme without wallpaper change
   reset [--port N]               Remove wallpaper and color overrides
   status [--port N]              Show CDP reachability and library summary
-  serve [--port N] [--api-port M] [--detach]
+  serve [--port N] [--api-port M] [--detach] [--pick-ports]
                                  Watch mode + settings panel + live renderer
                                  (default API port 28257); --detach runs in the
-                                 background, outliving this shell
+                                 background, outliving this shell;
+                                 --pick-ports walks the 28256-28275 pool when a
+                                 slot is foreign-busy and records session ports
+                                 (wrapper/host launches use this)
 `;
 
 function die(msg: string): never {
@@ -163,7 +166,8 @@ async function main(): Promise<void> {
         if (has("--detach")) {
           const { spawn } = await import("node:child_process");
           const self = path.resolve(process.argv[1] ?? "");
-          const child = spawn(process.execPath, [self, "serve", "--port", String(port), "--api-port", String(apiPort)], {
+          const extra = has("--pick-ports") ? ["--pick-ports"] : [];
+          const child = spawn(process.execPath, [self, "serve", "--port", String(port), "--api-port", String(apiPort), ...extra], {
             detached: true,
             stdio: "ignore",
             windowsHide: true,
@@ -174,7 +178,10 @@ async function main(): Promise<void> {
         }
         const { startServe } = await import("./core/server.js");
         if (has("--early")) process.env.ZW_EARLY = "1";
-        await startServe({ cdpPort: port, apiPort });
+        // --pick-ports: wrapper/host launches walk the pool when a slot is
+        // foreign-busy and write session discovery (D29). Bare --port runs
+        // (dev verification) bind exactly as given and touch nothing.
+        await startServe({ cdpPort: port, apiPort, pickPorts: has("--pick-ports") });
         break;
       }
 
