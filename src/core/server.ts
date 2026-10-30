@@ -944,6 +944,25 @@ export async function startServe(opts: ServeOptions): Promise<void> {
         return;
       }
 
+      if (req.method === "POST" && url.pathname === "/api/switch") {
+        // D31: one-key switching for the hotkeys (and available to the panel).
+        // next walks the shared rotation cursor; random excludes the current.
+        // Either flavor resets the rotation clock so auto-rotation doesn't
+        // fire right behind a manual switch.
+        const body = JSON.parse(await readBody(req));
+        const mode = body?.mode === "random" ? "random" : "next";
+        const id = await pickWallpaperId(mode);
+        if (!id) {
+          sendJson(res, 200, { ok: false, error: "壁纸库里没有其他壁纸可切换" });
+          return;
+        }
+        lastRotateAt = Date.now();
+        await applySource(id, runtimeConfig());
+        console.log(`serve: manual switch (${mode}) -> ${id}`);
+        sendJson(res, 200, { ok: true, id });
+        return;
+      }
+
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
         if (typeof body?.path !== "string" || !fs.existsSync(body.path)) {
@@ -1120,6 +1139,23 @@ export async function startServe(opts: ServeOptions): Promise<void> {
     }, 5_000);
   }
 
+  // Library wallpaper pool shared by manual switching (D31: hotkeys/panel)
+  // and auto-rotation: custom imports first, then workshop/WE entries; the
+  // one in use never re-applies. mode="next" walks rotationCursor (shared
+  // with auto-rotation so manual and automatic switching stay coherent);
+  // "random" re-rolls excluding the current one.
+  const pickWallpaperId = async (mode: "next" | "random"): Promise<string | undefined> => {
+    const cfg = runtimeConfig();
+    const ids = storedCustomSources().map((c) => c.id);
+    const lib = await enumerateWallpapers().catch(() => undefined);
+    if (lib) for (const w of lib.wallpapers) ids.push(w.id);
+    const pool = ids.filter((id) => id !== (cfg.live?.sourceId ?? ""));
+    if (pool.length === 0) return undefined;
+    return mode === "random"
+      ? pool[Math.floor(Math.random() * pool.length)]
+      : pool[rotationCursor++ % pool.length];
+  };
+
   // Auto-rotation: a 30s tick checks whether the configured interval has
   // fully elapsed, then applies the next library wallpaper (custom imports +
   // workshop subscriptions; the one in use is never re-applied). Sequence
@@ -1129,16 +1165,9 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       const cfg = runtimeConfig();
       if (!cfg.rotationEnabled) return;
       if (Date.now() - lastRotateAt < (cfg.rotationMinutes ?? 30) * 60_000) return;
-      const ids = storedCustomSources().map((c) => c.id);
-      const lib = await enumerateWallpapers().catch(() => undefined);
-      if (lib) for (const w of lib.wallpapers) ids.push(w.id);
+      const next = await pickWallpaperId(cfg.rotationOrder === "random" ? "random" : "next");
       lastRotateAt = Date.now();
-      const pool = ids.filter((id) => id !== (cfg.live?.sourceId ?? ""));
-      if (pool.length === 0) return;
-      const next =
-        cfg.rotationOrder === "random"
-          ? pool[Math.floor(Math.random() * pool.length)]
-          : pool[rotationCursor++ % pool.length];
+      if (!next) return;
       console.log(`serve: auto-rotation -> ${next}`);
       await applySource(next, runtimeConfig()).catch(() => undefined);
     })();

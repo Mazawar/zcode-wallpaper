@@ -68,17 +68,23 @@ ok(!hk.isEditableTarget({ tagName: "DIV" }), "plain div is not");
 const agentSrc = fs.readFileSync(path.join(root, "live/src/agent/main.js"), "utf8");
 const panelSrc = fs.readFileSync(path.join(root, "live/src/panel/main.js"), "utf8");
 const payloadSrc = fs.readFileSync(path.join(root, "src/core/payload.ts"), "utf8");
+const serverSrc = fs.readFileSync(path.join(root, "src/core/server.ts"), "utf8");
 function pin(cond, msg) {
   if (!cond) failures.push(msg);
   else console.log(`ok: ${msg}`);
 }
 pin(agentSrc.includes("payload.toggleHotkey") && agentSrc.includes("payload.wallpaperVisible"), "agent tracks combo + visibility from the payload");
+pin(agentSrc.includes("payload.nextHotkey") && agentSrc.includes("payload.randomHotkey"), "agent tracks the switching combos (D31)");
 pin(agentSrc.includes('"keydown"') && agentSrc.includes(", true)"), "agent listens in capture phase");
 pin(agentSrc.includes('getAttribute("data-zw-hotkey")'), "agent opts the panel recorder out of the global handler");
 pin(agentSrc.includes("wallpaperVisible: !VISIBLE"), "agent toggles via the panel switch's config key");
 pin(agentSrc.includes('"/api/config"'), "toggle goes through POST /api/config (SSE rebroadcast, all windows)");
+pin(agentSrc.includes('"/api/switch"') && agentSrc.includes('"next"') && agentSrc.includes('"random"'), "next/random combos POST /api/switch with the right mode");
 pin(panelSrc.includes("data-zw-hotkey") && panelSrc.includes("comboFromEvent") && panelSrc.includes("hasModifier"), "panel recorder shares the hotkey module");
-pin(payloadSrc.includes("payload.toggleHotkey") && payloadSrc.includes("payload.wallpaperVisible"), "serve builds both fields into every payload");
+pin(panelSrc.includes('"hotkey-next"') && panelSrc.includes('"hotkey-random"') && panelSrc.includes("nextHotkey") && panelSrc.includes("randomHotkey"), "panel exposes recorder rows for all three combos");
+pin(payloadSrc.includes("payload.nextHotkey") && payloadSrc.includes("payload.randomHotkey"), "serve builds the switching combos into every payload");
+pin(serverSrc.includes('"/api/switch"') && serverSrc.includes("pickWallpaperId(mode)"), "serve exposes the switch endpoint on the shared pool picker");
+pin(fs.readFileSync(path.join(root, "src/core/configApi.ts"), "utf8").includes("body?.nextHotkey"), "sanitize accepts the switching combos");
 
 if (failures.length) {
   for (const f of failures) console.error("FAIL:", f);

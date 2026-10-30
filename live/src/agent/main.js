@@ -44,10 +44,11 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
   let VMUTED = true, VFIT = "cover", WPIMG = "", FIT = "cover", UNDERLAY = "";
   let BLURON = false; // payload.wallBlur — layer blur needs the backdrop underlay (D16)
   let failedInfo = null; // payload.liveFailed — degraded, poster-only mode
-  // D28 hotkey: the recorded combo and the current visibility, both from the
-  // payload — the toggle POSTs the flipped wallpaperVisible and every page's
-  // next cfg payload applies it (the panel switch drives the same path).
-  let HOTKEY = "", VISIBLE = true;
+  // D28/D31 hotkeys: the recorded combos and the current visibility, all from
+  // the payload — toggle flips wallpaperVisible via /api/config; next/random
+  // switch wallpapers via /api/switch. Every page's next cfg payload applies
+  // the change (the panel's own controls drive the same endpoints).
+  let HOTKEY = "", NEXT_HOTKEY = "", RANDOM_HOTKEY = "", VISIBLE = true;
 
   function wpRoot() { return document.getElementById(MARKER + "-wallpaper"); }
 
@@ -141,25 +142,37 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     // live/shown: the renderer self-healed and reloaded — phase stays.
   });
 
-  // ── D28 hotkey: one-key hide/show of the wallpaper ─────────────────────────
-  // Flips wallpaperVisible through the same POST the panel's 显示壁纸 switch
-  // uses; serve republishes and every page's next cfg payload applies it.
+  // ── D28/D31 hotkeys: toggle visibility, next wallpaper, random wallpaper ───
   // Capture-phase on window so nothing in the host app can swallow the combo;
-  // the panel's recorder input opts out via [data-zw-hotkey]. Modifier keys
+  // the panel's recorder inputs opt out via [data-zw-hotkey]. Modifier keys
   // are mandatory (a bare-key hotkey would fire on every keystroke — the
   // recorder enforces this too), editable targets still honor modifier combos.
+  // Each action POSTs the same endpoint its panel control uses; serve
+  // rebroadcasts and every window applies in lockstep.
   reg.on(window, "keydown", function (ev) {
-    if (!HOTKEY || ev.repeat) return;
+    if (ev.repeat) return;
     var t = ev.target;
     if (t && t.getAttribute && t.getAttribute("data-zw-hotkey")) return;
-    if (!matchesCombo(HOTKEY, ev)) return;
-    if (!hasModifier(HOTKEY) && isEditableTarget(ev.target)) return;
+    var matched = (HOTKEY && matchesCombo(HOTKEY, ev)) ? HOTKEY
+      : (NEXT_HOTKEY && matchesCombo(NEXT_HOTKEY, ev)) ? NEXT_HOTKEY
+      : (RANDOM_HOTKEY && matchesCombo(RANDOM_HOTKEY, ev)) ? RANDOM_HOTKEY
+      : "";
+    if (!matched) return;
+    if (!hasModifier(matched) && isEditableTarget(ev.target)) return;
     ev.preventDefault();
-    fetch(API + "/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallpaperVisible: !VISIBLE }),
-    }).catch(function () {});
+    if (matched === HOTKEY) {
+      fetch(API + "/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallpaperVisible: !VISIBLE }),
+      }).catch(function () {});
+    } else {
+      fetch(API + "/api/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: matched === NEXT_HOTKEY ? "next" : "random" }),
+      }).catch(function () {});
+    }
   }, true);
 
   // ── THE payload applier ────────────────────────────────────────────────────
@@ -177,6 +190,8 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     BLURON = payload.wallBlur === true;
     failedInfo = payload.liveFailed || null;
     HOTKEY = normalizeCombo(payload.toggleHotkey || "");
+    NEXT_HOTKEY = normalizeCombo(payload.nextHotkey || "");
+    RANDOM_HOTKEY = normalizeCombo(payload.randomHotkey || "");
     VISIBLE = payload.wallpaperVisible !== false;
 
     if (S.cssText === payload.css && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;

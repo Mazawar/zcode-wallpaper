@@ -22,9 +22,11 @@ export async function buildRuntimePayload(config: BeautifyConfig, allowDecode = 
     liveUrl: buildLiveUrl(config),
   });
   payload.apiPort = config.apiPort;
-  // D28: the hotkey toggler needs the combo AND the current visibility —
-  // both ride every payload so a fresh page and an SSE push stay in step.
+  // D28/D31: the hotkey handlers need the combos AND the current visibility —
+  // all ride every payload so a fresh page and an SSE push stay in step.
   payload.toggleHotkey = config.toggleHotkey ?? "";
+  payload.nextHotkey = config.nextHotkey ?? "";
+  payload.randomHotkey = config.randomHotkey ?? "";
   payload.wallpaperVisible = config.wallpaperVisible !== false;
   // D6 downgrade: a source with a hard live failure renders poster-only —
   // the agent stays in the poster phase and the panel shows the reason.

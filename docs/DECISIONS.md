@@ -208,3 +208,16 @@
   创建脚本 + COM 读回断言 + 幂等 skip + 扫描覆盖钉）+ 本机 ensure 实跑预演。**手工运维坑：手工跑 ensure 必须
   ZW_DATA_DIR 指向机制目录，否则 dataDir 落 dev 沙盒、.lnk 会被改指沙盒 VBS**（本机已当场修正；宿主/serve 进程
   自身解析正确，不受影响）。
+
+- **D31 快捷键配置区 + 一键切换族（1.0.18）**：用户问「快捷键配置在哪，怎么没有一键切换/随机切换/一键关闭的入口」。
+  两层答案：①配置入口 1.0.15 就有（面板「画面与播放」），但**面板由 serve 供应——不重启 ZCode 永远是老面板**（本机
+  当时还跑着 1.0.13 宿主 serve），这是「功能发了却找不到」的第一解释，报障先对版本；②切换类快捷键确实没有——本次
+  补齐成完整配置区。设计：**组合键=配置键一一对应**，新增 `nextHotkey`（下一张，默认 Ctrl+Alt+D）、`randomHotkey`
+  （随机，默认 Ctrl+Alt+R），与 toggleHotkey（隐藏/显示，Ctrl+Alt+W）同文法同管线（hotkey.js 纯函数、payload 三键
+  齐发、sanitize 白名单、面板录制行）。**「一键关闭」不设独立键**：toggle 本身就是关+开（按一次回默认外观、再按恢
+  复），语义上与「隐藏/显示」完全重合，多一个键只会增加互斥调试面。新端点 `POST /api/switch {mode:"next"|"random"}`：
+  选库逻辑从轮播 tick 抽成 pickWallpaperId（自定义导入+工坊全库、排除当前），**手动/快捷键切换与自动轮播共用
+  rotationCursor**（顺序游标连贯：手切三张后轮播从第四张起）；手动切换重置轮播计时（避免手切后紧跟自动跳）。agent
+  keydown 分发表扩展为三 combo 匹配（可编辑目标豁免按「命中的那个 combo」判修饰键）。面板：单行升级为「快捷键」分
+  组三行录制框（hotkeyRow 工厂，Esc 取消/退格清除/占位符显示默认值）。验证：contracts 白名单链自动对账（24
+  sanitize ⊆ 31 public）、verify-hotkey 接线钉扩展、隔离池真机 /api/switch 三连发（next 两张按序、random 换图）。

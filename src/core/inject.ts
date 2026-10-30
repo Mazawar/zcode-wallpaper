@@ -130,6 +130,10 @@ export interface BeautifyConfig {
    *  wallpaperVisible — captured by the agent runtime, applied via the same
    *  /api/config POST the panel switch uses. */
   toggleHotkey?: string;
+  /** D31: combos for one-key switching — next walks the library in order
+   *  (shared cursor with auto-rotation), random picks any other wallpaper. */
+  nextHotkey?: string;
+  randomHotkey?: string;
   /** Absolute path of the Monet source image (captured live frame or preview). */
   monetSourcePath?: string;
   /** User-registered wallpaper directories outside Steam/workshop. */
@@ -159,6 +163,8 @@ export const DEFAULT_CONFIG: BeautifyConfig = {
   rotationMinutes: 30,
   rotationOrder: "sequence",
   toggleHotkey: "Ctrl+Alt+W",
+  nextHotkey: "Ctrl+Alt+D",
+  randomHotkey: "Ctrl+Alt+R",
 };
 
 export const DEFAULT_API_PORT = 28257;
@@ -173,6 +179,9 @@ export interface BuiltPayload extends InjectionPayload {
    *  from the keyboard (payload.ts sets them; not part of the CSS/media shape). */
   toggleHotkey?: string;
   wallpaperVisible?: boolean;
+  /** D31 switching combos, same contract as toggleHotkey. */
+  nextHotkey?: string;
+  randomHotkey?: string;
 }
 
 /** URL of the live renderer page for the config's live source. */

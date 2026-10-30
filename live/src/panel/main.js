@@ -95,8 +95,10 @@ import { MARKER, createMountLoop } from "./mount.js";
       syncRange(f, "scale", c.layerScale == null ? 100 : c.layerScale, "%");
       const flip = q("flip"); if (flip) setSwitch(flip, !!c.flip);
       const rot = q("rot"); if (rot) setSwitch(rot, !!c.rotationEnabled);
-      const hk = q("hotkey");
-      if (hk && document.activeElement !== hk) hk.value = c.toggleHotkey || "";
+      for (const k of ["hotkey", "hotkey-next", "hotkey-random"]) {
+        const input = q(k);
+        if (input && document.activeElement !== input) input.value = c[k === "hotkey" ? "toggleHotkey" : k === "hotkey-next" ? "nextHotkey" : "randomHotkey"] || "";
+      }
       setSeg(f, "fit", c.fit || "cover");
       setSeg(f, "fps", String(c.liveFps || 30));
       setSeg(f, "qual", c.liveQuality || "balanced");
@@ -306,40 +308,58 @@ import { MARKER, createMountLoop } from "./mount.js";
     rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, "显示壁纸", "vis"));
     tabPlay.appendChild(rTheme.r);
 
-    // D28 hotkey: click the box, press a combo, done — the agent flips
-    // wallpaperVisible from anywhere in the ZCode window (same POST the
-    // 显示壁纸 switch sends). Recording input opts out of the agent's global
-    // handler via [data-zw-hotkey].
-    const rHot = prow("隐藏/显示快捷键", "在 ZCode 窗口内按键即可一键隐藏壁纸（回到默认外观）或恢复显示；仅窗口聚焦时生效。须包含 Ctrl/Alt/Win 修饰键，Esc 取消录制，退格=清除。");
-    const hkInput = el("input", CLS.input);
-    hkInput.type = "text";
-    hkInput.readOnly = true;
-    hkInput.setAttribute("data-k", "hotkey");
-    hkInput.setAttribute("data-zw-hotkey", "1");
-    hkInput.placeholder = "未设置";
-    hkInput.style.cssText = "width:150px;text-align:center;cursor:pointer;";
-    hkInput.addEventListener("keydown", function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (ev.key === "Escape") { hkInput.blur(); return; }
-      if (ev.key === "Backspace" || ev.key === "Delete") {
-        hkInput.value = "";
-        pushConfig({ toggleHotkey: "" });
-        hkInput.blur();
-        return;
-      }
-      const combo = comboFromEvent(ev);
-      if (!combo) return;
-      if (!hasModifier(combo)) { toast("快捷键须包含 Ctrl/Alt/Win 修饰键"); return; }
-      hkInput.value = combo;
-      pushConfig({ toggleHotkey: combo });
-      hkInput.blur();
-    });
-    hkInput.addEventListener("focus", function () { hkInput.placeholder = "按下快捷键…"; });
-    hkInput.addEventListener("blur", function () { hkInput.placeholder = "未设置"; });
-    rHot.right.appendChild(hkInput);
-    rHot.right.appendChild(button("清除", function () { pushConfig({ toggleHotkey: "" }); }, "停用快捷键"));
-    tabPlay.appendChild(rHot.r);
+    // D28/D31 hotkey group: click the box, press a combo, done. Each action
+    // POSTs the same endpoint its panel control uses (显示壁纸 switch /
+    // library switch). Recording inputs opt out of the agent's global
+    // handler via [data-zw-hotkey]; Esc cancels, Backspace clears.
+    const hotkeyRow = function (label, desc, configKey, dataK, defaultValue) {
+      const row = prow(label, desc);
+      const input = el("input", CLS.input);
+      input.type = "text";
+      input.readOnly = true;
+      input.setAttribute("data-k", dataK);
+      input.setAttribute("data-zw-hotkey", "1");
+      input.placeholder = defaultValue || "未设置";
+      input.style.cssText = "width:150px;text-align:center;cursor:pointer;";
+      input.addEventListener("keydown", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (ev.key === "Escape") { input.blur(); return; }
+        if (ev.key === "Backspace" || ev.key === "Delete") {
+          input.value = "";
+          pushConfig({ [configKey]: "" });
+          input.blur();
+          return;
+        }
+        const combo = comboFromEvent(ev);
+        if (!combo) return;
+        if (!hasModifier(combo)) { toast("快捷键须包含 Ctrl/Alt/Win 修饰键"); return; }
+        input.value = combo;
+        pushConfig({ [configKey]: combo });
+        input.blur();
+      });
+      input.addEventListener("focus", function () { input.placeholder = "按下快捷键…"; });
+      input.addEventListener("blur", function () { input.placeholder = input.dataset.def || "未设置"; });
+      input.dataset.def = defaultValue || "未设置";
+      row.right.appendChild(input);
+      return row.r;
+    };
+    tabPlay.appendChild(groupLabel("快捷键"));
+    tabPlay.appendChild(hotkeyRow(
+      "隐藏 / 显示壁纸",
+      "一键隐藏壁纸（回到默认外观）再按恢复；默认 Ctrl+Alt+W。ZCode 窗口内生效，须含 Ctrl/Alt/Win，Esc 取消录制，退格清除。",
+      "toggleHotkey", "hotkey", "Ctrl+Alt+W"
+    ));
+    tabPlay.appendChild(hotkeyRow(
+      "下一张壁纸",
+      "按库顺序切到下一张（与自动轮播共用顺序游标）；默认 Ctrl+Alt+D。",
+      "nextHotkey", "hotkey-next", "Ctrl+Alt+D"
+    ));
+    tabPlay.appendChild(hotkeyRow(
+      "随机壁纸",
+      "从壁纸库随机换一张（不重复当前）；默认 Ctrl+Alt+R。",
+      "randomHotkey", "hotkey-random", "Ctrl+Alt+R"
+    ));
 
     // library pane — dsh order: actions under the current card, then 切换过场 /
     // 自动轮播 sections, then the picker (filter row + poster grid + pager).

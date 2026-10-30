@@ -623,7 +623,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.17";
+    const PANEL_VERSION = false ? "dev" : "1.0.18";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -707,8 +707,10 @@
         if (flip) setSwitch(flip, !!c.flip);
         const rot = q("rot");
         if (rot) setSwitch(rot, !!c.rotationEnabled);
-        const hk = q("hotkey");
-        if (hk && document.activeElement !== hk) hk.value = c.toggleHotkey || "";
+        for (const k of ["hotkey", "hotkey-next", "hotkey-random"]) {
+          const input = q(k);
+          if (input && document.activeElement !== input) input.value = c[k === "hotkey" ? "toggleHotkey" : k === "hotkey-next" ? "nextHotkey" : "randomHotkey"] || "";
+        }
         setSeg(f, "fit", c.fit || "cover");
         setSeg(f, "fps", String(c.liveFps || 30));
         setSeg(f, "qual", c.liveQuality || "balanced");
@@ -924,48 +926,70 @@
         pushConfig({ wallpaperVisible: v });
       }, "\u663E\u793A\u58C1\u7EB8", "vis"));
       tabPlay.appendChild(rTheme.r);
-      const rHot = prow("\u9690\u85CF/\u663E\u793A\u5FEB\u6377\u952E", "\u5728 ZCode \u7A97\u53E3\u5185\u6309\u952E\u5373\u53EF\u4E00\u952E\u9690\u85CF\u58C1\u7EB8\uFF08\u56DE\u5230\u9ED8\u8BA4\u5916\u89C2\uFF09\u6216\u6062\u590D\u663E\u793A\uFF1B\u4EC5\u7A97\u53E3\u805A\u7126\u65F6\u751F\u6548\u3002\u987B\u5305\u542B Ctrl/Alt/Win \u4FEE\u9970\u952E\uFF0CEsc \u53D6\u6D88\u5F55\u5236\uFF0C\u9000\u683C=\u6E05\u9664\u3002");
-      const hkInput = el("input", CLS.input);
-      hkInput.type = "text";
-      hkInput.readOnly = true;
-      hkInput.setAttribute("data-k", "hotkey");
-      hkInput.setAttribute("data-zw-hotkey", "1");
-      hkInput.placeholder = "\u672A\u8BBE\u7F6E";
-      hkInput.style.cssText = "width:150px;text-align:center;cursor:pointer;";
-      hkInput.addEventListener("keydown", function(ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (ev.key === "Escape") {
-          hkInput.blur();
-          return;
-        }
-        if (ev.key === "Backspace" || ev.key === "Delete") {
-          hkInput.value = "";
-          pushConfig({ toggleHotkey: "" });
-          hkInput.blur();
-          return;
-        }
-        const combo = comboFromEvent(ev);
-        if (!combo) return;
-        if (!hasModifier(combo)) {
-          toast("\u5FEB\u6377\u952E\u987B\u5305\u542B Ctrl/Alt/Win \u4FEE\u9970\u952E");
-          return;
-        }
-        hkInput.value = combo;
-        pushConfig({ toggleHotkey: combo });
-        hkInput.blur();
-      });
-      hkInput.addEventListener("focus", function() {
-        hkInput.placeholder = "\u6309\u4E0B\u5FEB\u6377\u952E\u2026";
-      });
-      hkInput.addEventListener("blur", function() {
-        hkInput.placeholder = "\u672A\u8BBE\u7F6E";
-      });
-      rHot.right.appendChild(hkInput);
-      rHot.right.appendChild(button("\u6E05\u9664", function() {
-        pushConfig({ toggleHotkey: "" });
-      }, "\u505C\u7528\u5FEB\u6377\u952E"));
-      tabPlay.appendChild(rHot.r);
+      const hotkeyRow = function(label, desc, configKey, dataK, defaultValue) {
+        const row = prow(label, desc);
+        const input = el("input", CLS.input);
+        input.type = "text";
+        input.readOnly = true;
+        input.setAttribute("data-k", dataK);
+        input.setAttribute("data-zw-hotkey", "1");
+        input.placeholder = defaultValue || "\u672A\u8BBE\u7F6E";
+        input.style.cssText = "width:150px;text-align:center;cursor:pointer;";
+        input.addEventListener("keydown", function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (ev.key === "Escape") {
+            input.blur();
+            return;
+          }
+          if (ev.key === "Backspace" || ev.key === "Delete") {
+            input.value = "";
+            pushConfig({ [configKey]: "" });
+            input.blur();
+            return;
+          }
+          const combo = comboFromEvent(ev);
+          if (!combo) return;
+          if (!hasModifier(combo)) {
+            toast("\u5FEB\u6377\u952E\u987B\u5305\u542B Ctrl/Alt/Win \u4FEE\u9970\u952E");
+            return;
+          }
+          input.value = combo;
+          pushConfig({ [configKey]: combo });
+          input.blur();
+        });
+        input.addEventListener("focus", function() {
+          input.placeholder = "\u6309\u4E0B\u5FEB\u6377\u952E\u2026";
+        });
+        input.addEventListener("blur", function() {
+          input.placeholder = input.dataset.def || "\u672A\u8BBE\u7F6E";
+        });
+        input.dataset.def = defaultValue || "\u672A\u8BBE\u7F6E";
+        row.right.appendChild(input);
+        return row.r;
+      };
+      tabPlay.appendChild(groupLabel("\u5FEB\u6377\u952E"));
+      tabPlay.appendChild(hotkeyRow(
+        "\u9690\u85CF / \u663E\u793A\u58C1\u7EB8",
+        "\u4E00\u952E\u9690\u85CF\u58C1\u7EB8\uFF08\u56DE\u5230\u9ED8\u8BA4\u5916\u89C2\uFF09\u518D\u6309\u6062\u590D\uFF1B\u9ED8\u8BA4 Ctrl+Alt+W\u3002ZCode \u7A97\u53E3\u5185\u751F\u6548\uFF0C\u987B\u542B Ctrl/Alt/Win\uFF0CEsc \u53D6\u6D88\u5F55\u5236\uFF0C\u9000\u683C\u6E05\u9664\u3002",
+        "toggleHotkey",
+        "hotkey",
+        "Ctrl+Alt+W"
+      ));
+      tabPlay.appendChild(hotkeyRow(
+        "\u4E0B\u4E00\u5F20\u58C1\u7EB8",
+        "\u6309\u5E93\u987A\u5E8F\u5207\u5230\u4E0B\u4E00\u5F20\uFF08\u4E0E\u81EA\u52A8\u8F6E\u64AD\u5171\u7528\u987A\u5E8F\u6E38\u6807\uFF09\uFF1B\u9ED8\u8BA4 Ctrl+Alt+D\u3002",
+        "nextHotkey",
+        "hotkey-next",
+        "Ctrl+Alt+D"
+      ));
+      tabPlay.appendChild(hotkeyRow(
+        "\u968F\u673A\u58C1\u7EB8",
+        "\u4ECE\u58C1\u7EB8\u5E93\u968F\u673A\u6362\u4E00\u5F20\uFF08\u4E0D\u91CD\u590D\u5F53\u524D\uFF09\uFF1B\u9ED8\u8BA4 Ctrl+Alt+R\u3002",
+        "randomHotkey",
+        "hotkey-random",
+        "Ctrl+Alt+R"
+      ));
       const libRow = tabLib;
       const actRow = el("div");
       actRow.style.cssText = "padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;";

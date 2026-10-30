@@ -54861,7 +54861,9 @@ var init_inject = __esm({
       switchTransitionSpeed: "normal",
       rotationMinutes: 30,
       rotationOrder: "sequence",
-      toggleHotkey: "Ctrl+Alt+W"
+      toggleHotkey: "Ctrl+Alt+W",
+      nextHotkey: "Ctrl+Alt+D",
+      randomHotkey: "Ctrl+Alt+R"
     };
     DEFAULT_API_PORT = 28257;
   }
@@ -55515,6 +55517,8 @@ function publicConfig(config2) {
     rotationMinutes: config2.rotationMinutes ?? 30,
     rotationOrder: config2.rotationOrder === "random" ? "random" : "sequence",
     toggleHotkey: config2.toggleHotkey ?? "",
+    nextHotkey: config2.nextHotkey ?? "",
+    randomHotkey: config2.randomHotkey ?? "",
     hasBackup: hasBackup(),
     liveFailed: liveFailureOf(config2.live?.sourceId),
     cdpPort: config2.port,
@@ -55545,6 +55549,8 @@ function sanitize(body) {
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
   if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
   if (typeof body?.toggleHotkey === "string") out.toggleHotkey = body.toggleHotkey.trim().slice(0, 64);
+  if (typeof body?.nextHotkey === "string") out.nextHotkey = body.nextHotkey.trim().slice(0, 64);
+  if (typeof body?.randomHotkey === "string") out.randomHotkey = body.randomHotkey.trim().slice(0, 64);
   return out;
 }
 var init_configApi = __esm({
@@ -55561,7 +55567,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.17";
+    VERSION = "1.0.18";
   }
 });
 
@@ -55804,6 +55810,8 @@ async function buildRuntimePayload(config2, allowDecode = true) {
   });
   payload.apiPort = config2.apiPort;
   payload.toggleHotkey = config2.toggleHotkey ?? "";
+  payload.nextHotkey = config2.nextHotkey ?? "";
+  payload.randomHotkey = config2.randomHotkey ?? "";
   payload.wallpaperVisible = config2.wallpaperVisible !== false;
   const failure = liveFailureOf(config2.live?.sourceId);
   if (failure && payload.liveSrc) {
@@ -60383,6 +60391,20 @@ async function startServe(opts) {
         sendJson(res, 200, { images });
         return;
       }
+      if (req.method === "POST" && url.pathname === "/api/switch") {
+        const body = JSON.parse(await readBody(req));
+        const mode = body?.mode === "random" ? "random" : "next";
+        const id = await pickWallpaperId(mode);
+        if (!id) {
+          sendJson(res, 200, { ok: false, error: "\u58C1\u7EB8\u5E93\u91CC\u6CA1\u6709\u5176\u4ED6\u58C1\u7EB8\u53EF\u5207\u6362" });
+          return;
+        }
+        lastRotateAt = Date.now();
+        await applySource(id, runtimeConfig());
+        console.log(`serve: manual switch (${mode}) -> ${id}`);
+        sendJson(res, 200, { ok: true, id });
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
         if (typeof body?.path !== "string" || !fs18.existsSync(body.path)) {
@@ -60517,18 +60539,23 @@ async function startServe(opts) {
       })();
     }, 5e3);
   }
+  const pickWallpaperId = async (mode) => {
+    const cfg = runtimeConfig();
+    const ids = storedCustomSources().map((c3) => c3.id);
+    const lib = await enumerateWallpapers().catch(() => void 0);
+    if (lib) for (const w of lib.wallpapers) ids.push(w.id);
+    const pool = ids.filter((id) => id !== (cfg.live?.sourceId ?? ""));
+    if (pool.length === 0) return void 0;
+    return mode === "random" ? pool[Math.floor(Math.random() * pool.length)] : pool[rotationCursor++ % pool.length];
+  };
   setInterval(() => {
     void (async () => {
       const cfg = runtimeConfig();
       if (!cfg.rotationEnabled) return;
       if (Date.now() - lastRotateAt < (cfg.rotationMinutes ?? 30) * 6e4) return;
-      const ids = storedCustomSources().map((c3) => c3.id);
-      const lib = await enumerateWallpapers().catch(() => void 0);
-      if (lib) for (const w of lib.wallpapers) ids.push(w.id);
+      const next = await pickWallpaperId(cfg.rotationOrder === "random" ? "random" : "next");
       lastRotateAt = Date.now();
-      const pool = ids.filter((id) => id !== (cfg.live?.sourceId ?? ""));
-      if (pool.length === 0) return;
-      const next = cfg.rotationOrder === "random" ? pool[Math.floor(Math.random() * pool.length)] : pool[rotationCursor++ % pool.length];
+      if (!next) return;
       console.log(`serve: auto-rotation -> ${next}`);
       await applySource(next, runtimeConfig()).catch(() => void 0);
     })();

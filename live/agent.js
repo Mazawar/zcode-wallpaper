@@ -875,7 +875,7 @@
     let VMUTED = true, VFIT = "cover", WPIMG = "", FIT = "cover", UNDERLAY = "";
     let BLURON = false;
     let failedInfo = null;
-    let HOTKEY = "", VISIBLE = true;
+    let HOTKEY = "", NEXT_HOTKEY = "", RANDOM_HOTKEY = "", VISIBLE = true;
     function wpRoot() {
       return document.getElementById(MARKER + "-wallpaper");
     }
@@ -955,18 +955,28 @@
       else if (machine.phase === "live/switching") machine.fire("SWITCH_READY");
     });
     reg.on(window, "keydown", function(ev) {
-      if (!HOTKEY || ev.repeat) return;
+      if (ev.repeat) return;
       var t = ev.target;
       if (t && t.getAttribute && t.getAttribute("data-zw-hotkey")) return;
-      if (!matchesCombo(HOTKEY, ev)) return;
-      if (!hasModifier(HOTKEY) && isEditableTarget(ev.target)) return;
+      var matched = HOTKEY && matchesCombo(HOTKEY, ev) ? HOTKEY : NEXT_HOTKEY && matchesCombo(NEXT_HOTKEY, ev) ? NEXT_HOTKEY : RANDOM_HOTKEY && matchesCombo(RANDOM_HOTKEY, ev) ? RANDOM_HOTKEY : "";
+      if (!matched) return;
+      if (!hasModifier(matched) && isEditableTarget(ev.target)) return;
       ev.preventDefault();
-      fetch(API + "/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallpaperVisible: !VISIBLE })
-      }).catch(function() {
-      });
+      if (matched === HOTKEY) {
+        fetch(API + "/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wallpaperVisible: !VISIBLE })
+        }).catch(function() {
+        });
+      } else {
+        fetch(API + "/api/switch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: matched === NEXT_HOTKEY ? "next" : "random" })
+        }).catch(function() {
+        });
+      }
     }, true);
     function apply(payload) {
       if (!payload) return;
@@ -982,6 +992,8 @@
       BLURON = payload.wallBlur === true;
       failedInfo = payload.liveFailed || null;
       HOTKEY = normalizeCombo(payload.toggleHotkey || "");
+      NEXT_HOTKEY = normalizeCombo(payload.nextHotkey || "");
+      RANDOM_HOTKEY = normalizeCombo(payload.randomHotkey || "");
       VISIBLE = payload.wallpaperVisible !== false;
       if (S.cssText === payload.css && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
       S.cssText = payload.css;
