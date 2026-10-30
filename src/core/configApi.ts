@@ -89,6 +89,7 @@ export function publicConfig(config: BeautifyConfig) {
     rotationEnabled: config.rotationEnabled === true,
     rotationMinutes: config.rotationMinutes ?? 30,
     rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
+    toggleHotkey: config.toggleHotkey ?? "",
     hasBackup: hasBackup(),
     liveFailed: liveFailureOf(config.live?.sourceId),
     cdpPort: config.port,
@@ -121,5 +122,8 @@ export function sanitize(body: any): Partial<BeautifyConfig> {
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
   if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
+  // D28 hotkey combo — stored normalized-shaped (trim + length cap); semantic
+  // validation lives in the hotkey module the agent/panel/guard share.
+  if (typeof body?.toggleHotkey === "string") out.toggleHotkey = body.toggleHotkey.trim().slice(0, 64);
   return out;
 }

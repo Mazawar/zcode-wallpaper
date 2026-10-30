@@ -126,6 +126,10 @@ export interface BeautifyConfig {
   rotationEnabled?: boolean;
   rotationMinutes?: number;
   rotationOrder?: "sequence" | "random";
+  /** D28: in-app combo ("Ctrl+Alt+W" canonical, "" = off) that toggles
+   *  wallpaperVisible — captured by the agent runtime, applied via the same
+   *  /api/config POST the panel switch uses. */
+  toggleHotkey?: string;
   /** Absolute path of the Monet source image (captured live frame or preview). */
   monetSourcePath?: string;
   /** User-registered wallpaper directories outside Steam/workshop. */
@@ -154,6 +158,7 @@ export const DEFAULT_CONFIG: BeautifyConfig = {
   switchTransitionSpeed: "normal",
   rotationMinutes: 30,
   rotationOrder: "sequence",
+  toggleHotkey: "Ctrl+Alt+W",
 };
 
 export const DEFAULT_API_PORT = 28257;
@@ -164,6 +169,10 @@ export interface BuiltPayload extends InjectionPayload {
   /** Present when the live source hard-failed and serve downgraded it to
    *  poster-only (D6); the agent holds the poster phase, the panel shows it. */
   liveFailed?: { reason: string; at: number };
+  /** D28 hotkey + visibility: the agent tracks both to toggle wallpaperVisible
+   *  from the keyboard (payload.ts sets them; not part of the CSS/media shape). */
+  toggleHotkey?: string;
+  wallpaperVisible?: boolean;
 }
 
 /** URL of the live renderer page for the config's live source. */

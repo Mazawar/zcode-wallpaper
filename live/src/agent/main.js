@@ -15,6 +15,7 @@ import { createLiveFrame } from "./liveframe.js";
 import { createVideoActor } from "./video.js";
 import { createWatchdogs } from "./watchdogs.js";
 import { createLedger } from "./ledger.js";
+import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeCombo } from "./hotkey.js";
 
 (function () {
   if (window.__zwAgent) return;
@@ -43,6 +44,10 @@ import { createLedger } from "./ledger.js";
   let VMUTED = true, VFIT = "cover", WPIMG = "", FIT = "cover", UNDERLAY = "";
   let BLURON = false; // payload.wallBlur — layer blur needs the backdrop underlay (D16)
   let failedInfo = null; // payload.liveFailed — degraded, poster-only mode
+  // D28 hotkey: the recorded combo and the current visibility, both from the
+  // payload — the toggle POSTs the flipped wallpaperVisible and every page's
+  // next cfg payload applies it (the panel switch drives the same path).
+  let HOTKEY = "", VISIBLE = true;
 
   function wpRoot() { return document.getElementById(MARKER + "-wallpaper"); }
 
@@ -136,6 +141,27 @@ import { createLedger } from "./ledger.js";
     // live/shown: the renderer self-healed and reloaded — phase stays.
   });
 
+  // ── D28 hotkey: one-key hide/show of the wallpaper ─────────────────────────
+  // Flips wallpaperVisible through the same POST the panel's 显示壁纸 switch
+  // uses; serve republishes and every page's next cfg payload applies it.
+  // Capture-phase on window so nothing in the host app can swallow the combo;
+  // the panel's recorder input opts out via [data-zw-hotkey]. Modifier keys
+  // are mandatory (a bare-key hotkey would fire on every keystroke — the
+  // recorder enforces this too), editable targets still honor modifier combos.
+  reg.on(window, "keydown", function (ev) {
+    if (!HOTKEY || ev.repeat) return;
+    var t = ev.target;
+    if (t && t.getAttribute && t.getAttribute("data-zw-hotkey")) return;
+    if (!matchesCombo(HOTKEY, ev)) return;
+    if (!hasModifier(HOTKEY) && isEditableTarget(ev.target)) return;
+    ev.preventDefault();
+    fetch(API + "/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallpaperVisible: !VISIBLE }),
+    }).catch(function () {});
+  }, true);
+
   // ── THE payload applier ────────────────────────────────────────────────────
   function apply(payload) {
     if (!payload) return;
@@ -150,6 +176,8 @@ import { createLedger } from "./ledger.js";
     UNDERLAY = payload.livePoster || "";
     BLURON = payload.wallBlur === true;
     failedInfo = payload.liveFailed || null;
+    HOTKEY = normalizeCombo(payload.toggleHotkey || "");
+    VISIBLE = payload.wallpaperVisible !== false;
 
     if (S.cssText === payload.css && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
     S.cssText = payload.css;

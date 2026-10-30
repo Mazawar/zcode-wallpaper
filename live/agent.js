@@ -752,6 +752,96 @@
     };
   }
 
+  // live/src/agent/hotkey.js
+  var MODIFIERS = { ctrl: "Ctrl", alt: "Alt", shift: "Shift", win: "Win", meta: "Win", cmd: "Win", super: "Win" };
+  var MOD_TOKENS = { ctrl: true, control: true, alt: true, shift: true, win: true, meta: true, cmd: true, super: true };
+  var CODE_NAMES = {
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    Space: "Space",
+    Escape: "Esc",
+    Enter: "Enter",
+    Tab: "Tab",
+    Backspace: "Backspace",
+    Delete: "Delete",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    Insert: "Insert",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    Backslash: "\\"
+  };
+  function titleKey(tok) {
+    var km = /^Key([A-Z])$/.exec(tok);
+    if (km) return km[1];
+    var dm = /^Digit([0-9])$/.exec(tok);
+    if (dm) return dm[1];
+    if (/^[a-z]$/i.test(tok)) return tok.toUpperCase();
+    if (/^f\d{1,2}$/i.test(tok)) return tok.toUpperCase();
+    var lower = tok.toLowerCase();
+    if (CODE_NAMES[tok] !== void 0) return CODE_NAMES[tok];
+    return MOD_TOKENS[lower] ? MODIFIERS[lower] : tok;
+  }
+  function normalizeCombo(raw) {
+    if (typeof raw !== "string") return "";
+    var parts = String(raw).trim().split(/\s*\+\s*/).filter(Boolean);
+    if (!parts.length) return "";
+    var ctrl = false, alt = false, shift = false, win = false;
+    var key = "";
+    for (var i = 0; i < parts.length; i++) {
+      var m = MODIFIERS[parts[i].toLowerCase()];
+      if (m === "Ctrl") ctrl = true;
+      else if (m === "Alt") alt = true;
+      else if (m === "Shift") shift = true;
+      else if (m === "Win") win = true;
+      else if (!key) key = titleKey(parts[i]);
+      else return "";
+    }
+    if (!key) return "";
+    var out = [];
+    if (ctrl) out.push("Ctrl");
+    if (alt) out.push("Alt");
+    if (shift) out.push("Shift");
+    if (win) out.push("Win");
+    out.push(key);
+    return out.join("+");
+  }
+  function hasModifier(combo) {
+    return /(^|\+)(Ctrl|Alt|Shift|Win)\+/.test("+" + String(combo) + "+");
+  }
+  function matchesCombo(combo, ev) {
+    var c = normalizeCombo(combo);
+    if (!c) return false;
+    var parts = c.split("+");
+    var key = parts[parts.length - 1];
+    var want = { Ctrl: false, Alt: false, Shift: false, Win: false };
+    for (var i = 0; i < parts.length - 1; i++) want[parts[i]] = true;
+    if (!!ev.ctrlKey !== want.Ctrl) return false;
+    if (!!ev.altKey !== want.Alt) return false;
+    if (!!ev.shiftKey !== want.Shift) return false;
+    if (!!ev.metaKey !== want.Win) return false;
+    var evKey = (ev.code ? titleKey(ev.code) : titleKey(ev.key)) || titleKey(ev.key);
+    return String(evKey).toLowerCase() === key.toLowerCase();
+  }
+  function isEditableTarget(t) {
+    if (!t) return false;
+    var tag = (t.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    if (tag === "summary" || tag === "details") return false;
+    return t.isContentEditable === true;
+  }
+
   // live/src/agent/main.js
   (function() {
     if (window.__zwAgent) return;
@@ -785,6 +875,7 @@
     let VMUTED = true, VFIT = "cover", WPIMG = "", FIT = "cover", UNDERLAY = "";
     let BLURON = false;
     let failedInfo = null;
+    let HOTKEY = "", VISIBLE = true;
     function wpRoot() {
       return document.getElementById(MARKER + "-wallpaper");
     }
@@ -863,6 +954,20 @@
       if (machine.phase === "live/loading") machine.fire("READY");
       else if (machine.phase === "live/switching") machine.fire("SWITCH_READY");
     });
+    reg.on(window, "keydown", function(ev) {
+      if (!HOTKEY || ev.repeat) return;
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute("data-zw-hotkey")) return;
+      if (!matchesCombo(HOTKEY, ev)) return;
+      if (!hasModifier(HOTKEY) && isEditableTarget(ev.target)) return;
+      ev.preventDefault();
+      fetch(API + "/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallpaperVisible: !VISIBLE })
+      }).catch(function() {
+      });
+    }, true);
     function apply(payload) {
       if (!payload) return;
       VIDEO_SRC = payload.videoSrc || "";
@@ -876,6 +981,8 @@
       UNDERLAY = payload.livePoster || "";
       BLURON = payload.wallBlur === true;
       failedInfo = payload.liveFailed || null;
+      HOTKEY = normalizeCombo(payload.toggleHotkey || "");
+      VISIBLE = payload.wallpaperVisible !== false;
       if (S.cssText === payload.css && S.videoSrc === VIDEO_SRC && S.liveSrc === LIVE_SRC && S.trans === TRANS) return;
       S.cssText = payload.css;
       S.videoSrc = VIDEO_SRC;

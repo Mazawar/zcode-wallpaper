@@ -47760,7 +47760,8 @@ var init_inject = __esm({
       switchTransition: "fade",
       switchTransitionSpeed: "normal",
       rotationMinutes: 30,
-      rotationOrder: "sequence"
+      rotationOrder: "sequence",
+      toggleHotkey: "Ctrl+Alt+W"
     };
     DEFAULT_API_PORT = 28257;
   }
@@ -49048,7 +49049,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.14";
+    VERSION = "1.0.15";
   }
 });
 
@@ -49118,6 +49119,7 @@ function publicConfig(config) {
     rotationEnabled: config.rotationEnabled === true,
     rotationMinutes: config.rotationMinutes ?? 30,
     rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
+    toggleHotkey: config.toggleHotkey ?? "",
     hasBackup: hasBackup(),
     liveFailed: liveFailureOf(config.live?.sourceId),
     cdpPort: config.port,
@@ -49147,6 +49149,7 @@ function sanitize(body) {
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
   if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
+  if (typeof body?.toggleHotkey === "string") out.toggleHotkey = body.toggleHotkey.trim().slice(0, 64);
   return out;
 }
 var init_configApi = __esm({
@@ -49203,6 +49206,8 @@ async function buildRuntimePayload(config, allowDecode = true) {
     liveUrl: buildLiveUrl(config)
   });
   payload.apiPort = config.apiPort;
+  payload.toggleHotkey = config.toggleHotkey ?? "";
+  payload.wallpaperVisible = config.wallpaperVisible !== false;
   const failure = liveFailureOf(config.live?.sourceId);
   if (failure && payload.liveSrc) {
     payload.liveSrc = void 0;

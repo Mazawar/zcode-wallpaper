@@ -416,6 +416,90 @@
     return { render, renderCurrent };
   }
 
+  // live/src/agent/hotkey.js
+  var MODIFIERS = { ctrl: "Ctrl", alt: "Alt", shift: "Shift", win: "Win", meta: "Win", cmd: "Win", super: "Win" };
+  var MOD_TOKENS = { ctrl: true, control: true, alt: true, shift: true, win: true, meta: true, cmd: true, super: true };
+  var CODE_NAMES = {
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    Space: "Space",
+    Escape: "Esc",
+    Enter: "Enter",
+    Tab: "Tab",
+    Backspace: "Backspace",
+    Delete: "Delete",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    Insert: "Insert",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    Backslash: "\\"
+  };
+  function titleKey(tok) {
+    var km = /^Key([A-Z])$/.exec(tok);
+    if (km) return km[1];
+    var dm = /^Digit([0-9])$/.exec(tok);
+    if (dm) return dm[1];
+    if (/^[a-z]$/i.test(tok)) return tok.toUpperCase();
+    if (/^f\d{1,2}$/i.test(tok)) return tok.toUpperCase();
+    var lower = tok.toLowerCase();
+    if (CODE_NAMES[tok] !== void 0) return CODE_NAMES[tok];
+    return MOD_TOKENS[lower] ? MODIFIERS[lower] : tok;
+  }
+  function normalizeCombo(raw) {
+    if (typeof raw !== "string") return "";
+    var parts = String(raw).trim().split(/\s*\+\s*/).filter(Boolean);
+    if (!parts.length) return "";
+    var ctrl = false, alt = false, shift = false, win = false;
+    var key = "";
+    for (var i = 0; i < parts.length; i++) {
+      var m = MODIFIERS[parts[i].toLowerCase()];
+      if (m === "Ctrl") ctrl = true;
+      else if (m === "Alt") alt = true;
+      else if (m === "Shift") shift = true;
+      else if (m === "Win") win = true;
+      else if (!key) key = titleKey(parts[i]);
+      else return "";
+    }
+    if (!key) return "";
+    var out = [];
+    if (ctrl) out.push("Ctrl");
+    if (alt) out.push("Alt");
+    if (shift) out.push("Shift");
+    if (win) out.push("Win");
+    out.push(key);
+    return out.join("+");
+  }
+  function hasModifier(combo) {
+    return /(^|\+)(Ctrl|Alt|Shift|Win)\+/.test("+" + String(combo) + "+");
+  }
+  function comboFromEvent(ev) {
+    if (!ev || typeof ev.key !== "string") return "";
+    if (MOD_TOKENS[String(ev.key).toLowerCase()]) return "";
+    var keyTok = ev.code || ev.key;
+    var m = /^(.+)(Left|Right)$/.exec(String(keyTok));
+    if (m && MOD_TOKENS[m[1].toLowerCase()]) keyTok = m[1];
+    var mods = [];
+    if (ev.ctrlKey) mods.push("Ctrl");
+    if (ev.altKey) mods.push("Alt");
+    if (ev.shiftKey) mods.push("Shift");
+    if (ev.metaKey) mods.push("Win");
+    var key = titleKey(String(keyTok));
+    if (!key || key.length > 12) return "";
+    return normalizeCombo(mods.concat([key]).join("+"));
+  }
+
   // live/src/panel/mount.js
   var MARKER = "zcode-wallpaper-settings-v6";
   var LEGACY_IDS = ["zcode-wallpaper-settings", "zcode-wallpaper-settings-2"];
@@ -539,7 +623,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.14";
+    const PANEL_VERSION = false ? "dev" : "1.0.15";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -623,6 +707,8 @@
         if (flip) setSwitch(flip, !!c.flip);
         const rot = q("rot");
         if (rot) setSwitch(rot, !!c.rotationEnabled);
+        const hk = q("hotkey");
+        if (hk && document.activeElement !== hk) hk.value = c.toggleHotkey || "";
         setSeg(f, "fit", c.fit || "cover");
         setSeg(f, "fps", String(c.liveFps || 30));
         setSeg(f, "qual", c.liveQuality || "balanced");
@@ -838,6 +924,48 @@
         pushConfig({ wallpaperVisible: v });
       }, "\u663E\u793A\u58C1\u7EB8", "vis"));
       tabPlay.appendChild(rTheme.r);
+      const rHot = prow("\u9690\u85CF/\u663E\u793A\u5FEB\u6377\u952E", "\u5728 ZCode \u7A97\u53E3\u5185\u6309\u952E\u5373\u53EF\u4E00\u952E\u9690\u85CF\u58C1\u7EB8\uFF08\u56DE\u5230\u9ED8\u8BA4\u5916\u89C2\uFF09\u6216\u6062\u590D\u663E\u793A\uFF1B\u4EC5\u7A97\u53E3\u805A\u7126\u65F6\u751F\u6548\u3002\u987B\u5305\u542B Ctrl/Alt/Win \u4FEE\u9970\u952E\uFF0CEsc \u53D6\u6D88\u5F55\u5236\uFF0C\u9000\u683C=\u6E05\u9664\u3002");
+      const hkInput = el("input", CLS.input);
+      hkInput.type = "text";
+      hkInput.readOnly = true;
+      hkInput.setAttribute("data-k", "hotkey");
+      hkInput.setAttribute("data-zw-hotkey", "1");
+      hkInput.placeholder = "\u672A\u8BBE\u7F6E";
+      hkInput.style.cssText = "width:150px;text-align:center;cursor:pointer;";
+      hkInput.addEventListener("keydown", function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (ev.key === "Escape") {
+          hkInput.blur();
+          return;
+        }
+        if (ev.key === "Backspace" || ev.key === "Delete") {
+          hkInput.value = "";
+          pushConfig({ toggleHotkey: "" });
+          hkInput.blur();
+          return;
+        }
+        const combo = comboFromEvent(ev);
+        if (!combo) return;
+        if (!hasModifier(combo)) {
+          toast("\u5FEB\u6377\u952E\u987B\u5305\u542B Ctrl/Alt/Win \u4FEE\u9970\u952E");
+          return;
+        }
+        hkInput.value = combo;
+        pushConfig({ toggleHotkey: combo });
+        hkInput.blur();
+      });
+      hkInput.addEventListener("focus", function() {
+        hkInput.placeholder = "\u6309\u4E0B\u5FEB\u6377\u952E\u2026";
+      });
+      hkInput.addEventListener("blur", function() {
+        hkInput.placeholder = "\u672A\u8BBE\u7F6E";
+      });
+      rHot.right.appendChild(hkInput);
+      rHot.right.appendChild(button("\u6E05\u9664", function() {
+        pushConfig({ toggleHotkey: "" });
+      }, "\u505C\u7528\u5FEB\u6377\u952E"));
+      tabPlay.appendChild(rHot.r);
       const libRow = tabLib;
       const actRow = el("div");
       actRow.style.cssText = "padding:10px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;";

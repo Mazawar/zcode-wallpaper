@@ -162,3 +162,16 @@
   earlyWatch 源跑 12 场景（含事故场景回归钉）+ 三条接线钉（含「盲退日志行 `plugin host gone (disabled?)`
   不得回归」）。教训：**退出路径的每个分支都要能回答「我的证据是什么」——没有证据的破坏性动作（restore
   拆壁纸）宁可不做；心跳这类弱信号只能触发调查（复查权威状态），不能直接执行处决。**
+
+- **D28 快捷键一键隐藏/显示壁纸（1.0.15）**：需求：一键隐藏壁纸（回到 ZCode 默认外观）随时恢复。实现=复用既有
+  wallpaperVisible 全链路（面板「显示壁纸」开关同款 POST /api/config → sanitize 持久化 → SSE 广播 → 各窗口
+  agent apply），新增配置键 toggleHotkey（默认 "Ctrl+Alt+W"，空=停用）。**范围裁定：页面级快捷键（ZCode 窗口
+  聚焦时生效），不做 OS 全局钩子**——全局热键需要键盘钩子/原生模块，越出「插件不动计算机」边界且需管理员权限，
+  而壁纸只在窗口里可见，窗口外按了也没有意义。要点：①组合键文法收进纯函数 hotkey.js（归一化 canonical
+  Ctrl+Alt+Shift+Win+Key、ev.code 优先（布局稳定，ArrowLeft 不得被修饰键后缀剥离误伤）、精确匹配=多按修饰键也
+  不触发）；②agent 在 window 捕获级挂 keydown（宿主应用无法吞掉），翻转经 payload 跟踪的 wallpaperVisible，
+  多窗口同帧一起变；③修饰键强制（裸键热键会在每次敲键时触发）；④面板录制框 data-zw-hotkey 属性从 agent 全局
+  处理器豁免（否则录制时按下的组合会被 agent 先行执行）；⑤可编辑目标只放行带修饰键的组合（聊天框里也能一键藏）。
+  新守卫 verify-hotkey.mjs：真实 hotkey.js 裸跑 27 断言（文法/录制/匹配/安全规则）+ 7 条接线钉；
+  verify-contracts 的白名单链自动把面板推送 ⊆ sanitize ⊆ publicConfig、payload 读取 ⊆ 构建字段对上了账。
+  守卫先红后绿抓到两个真 bug：布尔表当字符串比较（所有含修饰键组合全废）、KeyW/Digit5 未折叠成 W/5。

@@ -54860,7 +54860,8 @@ var init_inject = __esm({
       switchTransition: "fade",
       switchTransitionSpeed: "normal",
       rotationMinutes: 30,
-      rotationOrder: "sequence"
+      rotationOrder: "sequence",
+      toggleHotkey: "Ctrl+Alt+W"
     };
     DEFAULT_API_PORT = 28257;
   }
@@ -55386,6 +55387,7 @@ function publicConfig(config2) {
     rotationEnabled: config2.rotationEnabled === true,
     rotationMinutes: config2.rotationMinutes ?? 30,
     rotationOrder: config2.rotationOrder === "random" ? "random" : "sequence",
+    toggleHotkey: config2.toggleHotkey ?? "",
     hasBackup: hasBackup(),
     liveFailed: liveFailureOf(config2.live?.sourceId),
     cdpPort: config2.port,
@@ -55415,6 +55417,7 @@ function sanitize(body) {
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
   if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
+  if (typeof body?.toggleHotkey === "string") out.toggleHotkey = body.toggleHotkey.trim().slice(0, 64);
   return out;
 }
 var init_configApi = __esm({
@@ -55431,7 +55434,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.14";
+    VERSION = "1.0.15";
   }
 });
 
@@ -55673,6 +55676,8 @@ async function buildRuntimePayload(config2, allowDecode = true) {
     liveUrl: buildLiveUrl(config2)
   });
   payload.apiPort = config2.apiPort;
+  payload.toggleHotkey = config2.toggleHotkey ?? "";
+  payload.wallpaperVisible = config2.wallpaperVisible !== false;
   const failure = liveFailureOf(config2.live?.sourceId);
   if (failure && payload.liveSrc) {
     payload.liveSrc = void 0;

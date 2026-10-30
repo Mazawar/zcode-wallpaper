@@ -70,6 +70,16 @@
         "src/core/earlyWatch.ts",
         "src/core/server.ts"
       ]
+    },
+    {
+      "id": "verify-hotkey.mjs",
+      "what": "快捷键翻转语义（D28）：组合键文法（归一化/录制/精确匹配/修饰键强制/可编辑目标豁免）跑真实 hotkey.js + agent/panel/payload 三方接线钉（录制框 data-zw-hotkey 豁免、翻转走 /api/config 同面板开关）",
+      "files": [
+        "live/src/agent/hotkey.js",
+        "live/src/agent/main.js",
+        "live/src/panel/main.js",
+        "src/core/payload.ts"
+      ]
     }
   ]
 }

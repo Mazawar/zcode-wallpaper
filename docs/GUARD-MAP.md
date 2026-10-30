@@ -3,7 +3,7 @@
 > 由 `node scripts/verify-guard-map.mjs --write` 从 [scripts/guards.json](../scripts/guards.json) 重算；`verify-guard-map.mjs` 会重算并逐字比对。
 > **怎么用**：改了某个文件，在「文件 → 守卫」表里查该跑哪几条。守卫一律 `node scripts/<id>` 运行（e2e 除外，见其 what）。
 
-守卫 7 个 · 覆盖文件 20 个
+守卫 8 个 · 覆盖文件 21 个
 
 ## 守卫 → 文件
 
@@ -16,6 +16,7 @@
 | `panel-check.mjs` | 构建产物完整性：live/agent.js + live/panel.js 可解析、生命周期/SSE/挂载/回退契约标记在位 | `live/src/panel/controls.js` `live/src/panel/main.js` `live/src/agent/main.js` `live/agent.js` `live/panel.js` |
 | `verify-pause-semantics.mjs` | 视频用户暂停语义：用户暂停压过 kick/wake 看门狗与热更新，仅用户恢复或换新视频解除（DOM 桩上跑真实 actor） | `live/src/agent/video.js` `live/src/agent/watchdogs.js` |
 | `verify-early-watch.mjs` | 早启 serve 宿主看门狗语义：宿主静默≠禁用（宿主舰队换血不拆壁纸，仅显式禁用确证才 restore 退出；ZCode 消失 60s 结束会话）——esbuild 现场打包真实 earlyWatch 源跑全场景 + 钉死 server 接线（盲退日志行不得回归） | `src/core/earlyWatch.ts` `src/core/server.ts` |
+| `verify-hotkey.mjs` | 快捷键翻转语义（D28）：组合键文法（归一化/录制/精确匹配/修饰键强制/可编辑目标豁免）跑真实 hotkey.js + agent/panel/payload 三方接线钉（录制框 data-zw-hotkey 豁免、翻转走 /api/config 同面板开关） | `live/src/agent/hotkey.js` `live/src/agent/main.js` `live/src/panel/main.js` `src/core/payload.ts` |
 
 ## 文件 → 守卫
 
@@ -25,12 +26,13 @@
 | `docs/STATE.md` | `verify-live-machine.mjs` |
 | `live/agent.js` | `panel-check.mjs` |
 | `live/panel.js` | `panel-check.mjs` |
+| `live/src/agent/hotkey.js` | `verify-hotkey.mjs` |
 | `live/src/agent/ledger.js` | `verify-live-machine.mjs` |
-| `live/src/agent/main.js` | `verify-live-machine.mjs` `verify-contracts.mjs` `e2e.mjs` `panel-check.mjs` |
+| `live/src/agent/main.js` | `verify-live-machine.mjs` `verify-contracts.mjs` `e2e.mjs` `panel-check.mjs` `verify-hotkey.mjs` |
 | `live/src/agent/video.js` | `verify-pause-semantics.mjs` |
 | `live/src/agent/watchdogs.js` | `verify-live-machine.mjs` `verify-pause-semantics.mjs` |
 | `live/src/panel/controls.js` | `panel-check.mjs` |
-| `live/src/panel/main.js` | `verify-contracts.mjs` `e2e.mjs` `panel-check.mjs` |
+| `live/src/panel/main.js` | `verify-contracts.mjs` `e2e.mjs` `panel-check.mjs` `verify-hotkey.mjs` |
 | `live/src/state.js` | `verify-live-machine.mjs` |
 | `scripts/guards.json` | `verify-guard-map.mjs` |
 | `src/core/broadcast.ts` | `verify-contracts.mjs` |
@@ -38,6 +40,6 @@
 | `src/core/configApi.ts` | `verify-contracts.mjs` |
 | `src/core/earlyWatch.ts` | `verify-early-watch.mjs` |
 | `src/core/inject.ts` | `verify-contracts.mjs` `e2e.mjs` |
-| `src/core/payload.ts` | `verify-contracts.mjs` |
+| `src/core/payload.ts` | `verify-contracts.mjs` `verify-hotkey.mjs` |
 | `src/core/server.ts` | `verify-contracts.mjs` `verify-early-watch.mjs` |
 | `src/core/sessions.ts` | `e2e.mjs` |
