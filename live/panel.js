@@ -926,15 +926,24 @@
         pushConfig({ wallpaperVisible: v });
       }, "\u663E\u793A\u58C1\u7EB8", "vis"));
       tabPlay.appendChild(rTheme.r);
+      tabPlay.appendChild(groupLabel("\u5FEB\u6377\u952E"));
+      const hkHint = el("div", "text-xs text-foreground-subtle");
+      hkHint.style.cssText = "padding:0 16px 4px;";
+      hkHint.textContent = "\u70B9\u51FB\u53F3\u4FA7\u5F55\u5236\u6846\u540E\u6309\u4E0B\u7EC4\u5408\u952E\u5373\u53EF\u4FEE\u6539\uFF08\u53EF\u968F\u65F6\u91CD\u5F55\uFF09\uFF1B\u987B\u542B Ctrl/Alt/Win\uFF0CEsc \u53D6\u6D88\uFF0C\u9000\u683C\u6E05\u9664\uFF1B\u4EC5 ZCode \u7A97\u53E3\u805A\u7126\u65F6\u751F\u6548\u3002";
+      tabPlay.appendChild(hkHint);
       const hotkeyRow = function(label, desc, configKey, dataK, defaultValue) {
         const row = prow(label, desc);
+        const left = row.r.firstElementChild;
+        left.style.flex = "1 1 0";
+        left.style.minWidth = "0";
         const input = el("input", CLS.input);
         input.type = "text";
         input.readOnly = true;
+        input.title = "\u70B9\u51FB\u540E\u6309\u4E0B\u7EC4\u5408\u952E";
         input.setAttribute("data-k", dataK);
         input.setAttribute("data-zw-hotkey", "1");
         input.placeholder = defaultValue || "\u672A\u8BBE\u7F6E";
-        input.style.cssText = "width:150px;text-align:center;cursor:pointer;";
+        input.style.cssText = "flex:0 0 auto;width:150px;text-align:center;cursor:pointer;";
         input.addEventListener("keydown", function(ev) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -968,10 +977,9 @@
         row.right.appendChild(input);
         return row.r;
       };
-      tabPlay.appendChild(groupLabel("\u5FEB\u6377\u952E"));
       tabPlay.appendChild(hotkeyRow(
         "\u9690\u85CF / \u663E\u793A\u58C1\u7EB8",
-        "\u4E00\u952E\u9690\u85CF\u58C1\u7EB8\uFF08\u56DE\u5230\u9ED8\u8BA4\u5916\u89C2\uFF09\u518D\u6309\u6062\u590D\uFF1B\u9ED8\u8BA4 Ctrl+Alt+W\u3002ZCode \u7A97\u53E3\u5185\u751F\u6548\uFF0C\u987B\u542B Ctrl/Alt/Win\uFF0CEsc \u53D6\u6D88\u5F55\u5236\uFF0C\u9000\u683C\u6E05\u9664\u3002",
+        "\u4E00\u952E\u9690\u85CF\u58C1\u7EB8\uFF08\u56DE\u5230\u9ED8\u8BA4\u5916\u89C2\uFF09\u518D\u6309\u6062\u590D\uFF1B\u9ED8\u8BA4 Ctrl+Alt+W\u3002",
         "toggleHotkey",
         "hotkey",
         "Ctrl+Alt+W"

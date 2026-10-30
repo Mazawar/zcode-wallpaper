@@ -308,19 +308,32 @@ import { MARKER, createMountLoop } from "./mount.js";
     rTheme.right.appendChild(makeSwitch(true, function (v) { pushConfig({ wallpaperVisible: v }); }, "显示壁纸", "vis"));
     tabPlay.appendChild(rTheme.r);
 
-    // D28/D31 hotkey group: click the box, press a combo, done. Each action
-    // POSTs the same endpoint its panel control uses (显示壁纸 switch /
-    // library switch). Recording inputs opt out of the agent's global
-    // handler via [data-zw-hotkey]; Esc cancels, Backspace clears.
+    // D28/D31 hotkey group: click the box, press a combo, done — that IS the
+    // edit flow (re-record anytime). Each action POSTs the same endpoint its
+    // panel control uses (显示壁纸 switch / library switch). Recording inputs
+    // opt out of the agent's global handler via [data-zw-hotkey]; Esc cancels,
+    // Backspace clears.
+    tabPlay.appendChild(groupLabel("快捷键"));
+    const hkHint = el("div", "text-xs text-foreground-subtle");
+    hkHint.style.cssText = "padding:0 16px 4px;";
+    hkHint.textContent = "点击右侧录制框后按下组合键即可修改（可随时重录）；须含 Ctrl/Alt/Win，Esc 取消，退格清除；仅 ZCode 窗口聚焦时生效。";
+    tabPlay.appendChild(hkHint);
     const hotkeyRow = function (label, desc, configKey, dataK, defaultValue) {
       const row = prow(label, desc);
+      // Strict left-text / right-combo layout: the text column flexes (its
+      // prose wraps inside), the recorder box never wraps below it — prow's
+      // flex-wrap would otherwise push the box under long descriptions.
+      const left = row.r.firstElementChild;
+      left.style.flex = "1 1 0";
+      left.style.minWidth = "0";
       const input = el("input", CLS.input);
       input.type = "text";
       input.readOnly = true;
+      input.title = "点击后按下组合键";
       input.setAttribute("data-k", dataK);
       input.setAttribute("data-zw-hotkey", "1");
       input.placeholder = defaultValue || "未设置";
-      input.style.cssText = "width:150px;text-align:center;cursor:pointer;";
+      input.style.cssText = "flex:0 0 auto;width:150px;text-align:center;cursor:pointer;";
       input.addEventListener("keydown", function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -344,10 +357,9 @@ import { MARKER, createMountLoop } from "./mount.js";
       row.right.appendChild(input);
       return row.r;
     };
-    tabPlay.appendChild(groupLabel("快捷键"));
     tabPlay.appendChild(hotkeyRow(
       "隐藏 / 显示壁纸",
-      "一键隐藏壁纸（回到默认外观）再按恢复；默认 Ctrl+Alt+W。ZCode 窗口内生效，须含 Ctrl/Alt/Win，Esc 取消录制，退格清除。",
+      "一键隐藏壁纸（回到默认外观）再按恢复；默认 Ctrl+Alt+W。",
       "toggleHotkey", "hotkey", "Ctrl+Alt+W"
     ));
     tabPlay.appendChild(hotkeyRow(
