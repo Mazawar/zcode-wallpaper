@@ -114,7 +114,7 @@ $s = $ws.CreateShortcut('${wrapLnk.replace(/'/g, "''")}')
 $s.TargetPath = 'wscript.exe'
 $s.Arguments = '${wrapArgs.replace(/'/g, "''")}'
 $s.Save()`);
-const restoredOut = await runPs(sc.buildRestoreShortcutScript(wrapLnk, "", anti));
+const restoredOut = await runPs(sc.buildRestoreShortcutScript(wrapLnk, ""));
 ok(restoredOut.startsWith("restored"), "restore script unwraps a wrapped entry");
 const rb = (await runPs(`
 $ws = New-Object -ComObject WScript.Shell
@@ -122,8 +122,8 @@ $s = $ws.CreateShortcut('${wrapLnk.replace(/'/g, "''")}')
 Write-Output ([string]$s.TargetPath)
 Write-Output ([string]$s.Arguments)`)).split(/\r?\n/);
 ok(rb[0] === zcodeExe, `restored target is the meta's ZCode exe (got ${rb[0]})`);
-ok(rb[1] === "--my-own-flag", `our flags stripped, user args kept (got "${rb[1]}")`);
-ok((await runPs(sc.buildRestoreShortcutScript(wrapLnk, "", anti))).startsWith("not-ours"), "second restore skips the now-plain entry (idempotent)");
+ok(rb[1] === `--remote-debugging-port=28256 ${anti.join(" ")} --my-own-flag`, `wrapper dependency stripped, launch flags KEPT for instant re-inject (D35, got "${rb[1]}")`);
+ok((await runPs(sc.buildRestoreShortcutScript(wrapLnk, ""))).startsWith("not-ours"), "second restore skips the now-plain entry (idempotent)");
 const plain = path.join(tmp, "Other.lnk");
 await runPs(`
 $ws = New-Object -ComObject WScript.Shell

@@ -59249,7 +59249,7 @@ function rewriteDesktopEntry(content, wrapperPath) {
   }
   return { next: out.join("\n"), original };
 }
-function buildRestoreShortcutScript(lnk, zcodeFallback, antiFlags) {
+function buildRestoreShortcutScript(lnk, zcodeFallback) {
   const q = (s2) => s2.replace(/'/g, "''");
   return `
 $ErrorActionPreference = 'Stop'
@@ -59259,7 +59259,6 @@ try {
   $t = [string]$s.TargetPath
   $a = [string]$s.Arguments
   if (-not ($t -match 'wscript\\.exe$' -and $a -match 'zw-launch\\.vbs')) { Write-Output 'not-ours'; exit }
-  $anti = @('${antiFlags.join("', '")}')
   $vbsArg = ([regex]::Match($a, '"([^"]+zw-launch\\.vbs)"')).Groups[1].Value
   if (-not $vbsArg) { $vbsArg = (($a -split ' ')[0] -replace '^"|"$','') }
   $z = $null
@@ -59268,7 +59267,7 @@ try {
   if (-not $z -or -not (Test-Path $z)) { $z = '${q(zcodeFallback)}' }
   if (-not $z -or -not (Test-Path $z)) { Write-Output 'no-zcode'; exit }
   $rest = ($a -replace '^"[^"]*zw-launch\\.vbs"\\s*','') -replace '^\\S*zw-launch\\.vbs\\s*',''
-  $parts = @($rest -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
+  $parts = @($rest -split ' ' | Where-Object { $_ -ne '' })
   $s.TargetPath = $z
   $s.Arguments = ($parts -join ' ')
   $s.Save()
@@ -59297,7 +59296,7 @@ async function restoreWrappedShortcuts() {
   }
   for (const lnk of lnks) {
     try {
-      const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildRestoreShortcutScript(lnk, zcode, ANTI_OCCLUSION_FLAGS)], {
+      const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildRestoreShortcutScript(lnk, zcode)], {
         timeout: 15e3,
         windowsHide: true
       });

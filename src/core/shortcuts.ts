@@ -245,13 +245,15 @@ export function rewriteDesktopEntry(content: string, wrapperPath: string): { nex
   return { next: out.join("\n"), original };
 }
 
-/** D33: PowerShell that unwraps ONE shortcut back to a direct ZCode launch.
- *  Skips anything that is not one of our wrapped entries; recovers the ZCode
- *  exe from the wrapper meta json sitting next to the .vbs (else the probe
- *  fallback passed in); strips OUR canonical flags (CDP port + anti-occlusion),
- *  keeps the user's own arguments; idempotent — an already-plain entry is
- *  skipped. `antiFlags` = the exact flag list to strip (ANTI_OCCLUSION_FLAGS). */
-export function buildRestoreShortcutScript(lnk: string, zcodeFallback: string, antiFlags: string[]): string {
+/** D33/D35: PowerShell that unwraps ONE shortcut back to a DIRECT ZCode.exe
+ *  launch — the wrapper dependency goes, OUR LAUNCH FLAGS STAY (CDP port +
+ *  anti-occlusion): a reinstall's first host can then inject into the running
+ *  session without another restart (the flag-stripping variant made the
+ *  wallpaper wait for a full extra launch cycle — the "why is re-wrap so
+ *  slow" report). Skips anything that is not one of our wrapped entries;
+ *  recovers the ZCode exe from the wrapper meta json next to the .vbs (else
+ *  the probe fallback); idempotent — an already-plain entry is skipped. */
+export function buildRestoreShortcutScript(lnk: string, zcodeFallback: string): string {
   const q = (s: string) => s.replace(/'/g, "''");
   return `
 $ErrorActionPreference = 'Stop'
@@ -261,7 +263,6 @@ try {
   $t = [string]$s.TargetPath
   $a = [string]$s.Arguments
   if (-not ($t -match 'wscript\\.exe$' -and $a -match 'zw-launch\\.vbs')) { Write-Output 'not-ours'; exit }
-  $anti = @('${antiFlags.join("', '")}')
   $vbsArg = ([regex]::Match($a, '"([^"]+zw-launch\\.vbs)"')).Groups[1].Value
   if (-not $vbsArg) { $vbsArg = (($a -split ' ')[0] -replace '^"|"$','') }
   $z = $null
@@ -270,7 +271,7 @@ try {
   if (-not $z -or -not (Test-Path $z)) { $z = '${q(zcodeFallback)}' }
   if (-not $z -or -not (Test-Path $z)) { Write-Output 'no-zcode'; exit }
   $rest = ($a -replace '^"[^"]*zw-launch\\.vbs"\\s*','') -replace '^\\S*zw-launch\\.vbs\\s*',''
-  $parts = @($rest -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
+  $parts = @($rest -split ' ' | Where-Object { $_ -ne '' })
   $s.TargetPath = $z
   $s.Arguments = ($parts -join ' ')
   $s.Save()
@@ -278,10 +279,10 @@ try {
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
 }
 
-/** D33: the uninstall-side of the shortcut contract. ZCode has no uninstall
+/** D33/D35: the uninstall-side of the shortcut contract. ZCode has no uninstall
  *  hook — but our serve survives the uninstall for a while (the host dies
  *  only at app quit), so the uninstall watch calls this BEFORE exiting:
- *  every wrapped entry goes back to a direct ZCode launch with our flags
+ *  every wrapped entry goes back to a DIRECT ZCode.exe launch with our flags
  *  stripped. Best-effort; even when it never runs, the wrapper now lives in
  *  wrapperDir and stays launchable (built-in guards → plain ZCode). */
 export async function restoreWrappedShortcuts(): Promise<string[]> {
@@ -308,7 +309,7 @@ export async function restoreWrappedShortcuts(): Promise<string[]> {
   }
   for (const lnk of lnks) {
     try {
-      const { stdout } = await exec("powershell", ["-NoProfile", "-Command", buildRestoreShortcutScript(lnk, zcode, ANTI_OCCLUSION_FLAGS)], {
+      const { stdout } = await exec("powershell", ["-NoProfile", "-Command", buildRestoreShortcutScript(lnk, zcode)], {
         timeout: 15_000,
         windowsHide: true,
       });
