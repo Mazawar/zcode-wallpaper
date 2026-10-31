@@ -342,6 +342,64 @@ export async function restoreWrappedShortcuts(): Promise<string[]> {
   return restored;
 }
 
+/** D38: PowerShell that COUNTS our wrapped entries across the shortcut dirs
+ *  (one spawn instead of per-file). Pure builder — exported for the guard. */
+export function buildCountWrappedScript(dirs: string[]): string {
+  const list = dirs.map((d) => "'" + d.replace(/'/g, "''") + "'").join(", ");
+  return `
+$ErrorActionPreference = 'SilentlyContinue'
+$ws = New-Object -ComObject WScript.Shell
+$count = 0
+$dirs = @(${list})
+foreach ($d in $dirs) {
+  if (-not (Test-Path $d)) { continue }
+  $files = @(Get-ChildItem -Path $d -Filter '*.lnk' -File)
+  foreach ($sub in @(Get-ChildItem -Path $d -Directory)) {
+    $files += @(Get-ChildItem -Path $sub.FullName -Filter '*.lnk' -File)
+  }
+  foreach ($f in $files) {
+    try {
+      $s = $ws.CreateShortcut($f.FullName)
+      if ([string]$s.TargetPath -match 'wscript\\.exe$' -and ([string]$s.Arguments) -match 'zw-launch\\.vbs') { $count++ }
+    } catch {}
+  }
+}
+Write-Output $count`;
+}
+
+/** How many scanned shortcuts still reference our wrapper. Any probe failure
+ *  reports 1 (UNKNOWN) — the caller must keep the wrapper dir as the
+ *  launch-safety net rather than delete on a blind guess. */
+export async function wrappedShortcutsRemaining(): Promise<number> {
+  try {
+    const { stdout } = await exec("powershell", ["-NoProfile", "-Command", buildCountWrappedScript(shortcutDirs())], {
+      timeout: 30_000,
+      windowsHide: true,
+    });
+    const n = Number(stdout.trim());
+    return Number.isFinite(n) && n >= 0 ? n : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** D38: uninstall residue cleanup. Runs after the restore pass: when NOTHING
+ *  references the wrapper anymore, the wrapperDir files are pure residue and
+ *  go away; any remaining reference (or any uncertainty) keeps them — they
+ *  are the launch-safety net. NEVER runs on darwin, where wrapperDir is the
+ *  plugin-managed data dir (deleting it would take the user's data). */
+export async function cleanupWrapperDirIfUnused(): Promise<boolean> {
+  if (process.platform === "darwin") return false;
+  if ((await wrappedShortcutsRemaining()) > 0) return false;
+  try {
+    fs.rmSync(wrapperDir(), { recursive: true, force: true });
+    console.log("serve: wrapper dir removed (no shortcut references it anymore)");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // --- platform dispatch --------------------------------------------------------
 
 export async function ensureShortcutsHaveCdpFlag(port: number): Promise<ShortcutSyncResult> {

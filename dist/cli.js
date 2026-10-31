@@ -48415,10 +48415,12 @@ __export(shortcuts_exports, {
   ANTI_OCCLUSION_FLAGS: () => ANTI_OCCLUSION_FLAGS,
   FALLBACK_LNK_NAME: () => FALLBACK_LNK_NAME,
   buildAppBundlePlist: () => buildAppBundlePlist,
+  buildCountWrappedScript: () => buildCountWrappedScript,
   buildCreateFallbackScript: () => buildCreateFallbackScript,
   buildEarlyLaunchCommand: () => buildEarlyLaunchCommand,
   buildEarlyLaunchSh: () => buildEarlyLaunchSh,
   buildRestoreShortcutScript: () => buildRestoreShortcutScript,
+  cleanupWrapperDirIfUnused: () => cleanupWrapperDirIfUnused,
   desktopEntryIsWrapped: () => desktopEntryIsWrapped,
   desktopEntryIsZcode: () => desktopEntryIsZcode,
   ensureShortcutsHaveCdpFlag: () => ensureShortcutsHaveCdpFlag,
@@ -48426,6 +48428,7 @@ __export(shortcuts_exports, {
   restoreWrappedShortcuts: () => restoreWrappedShortcuts,
   rewriteDesktopEntry: () => rewriteDesktopEntry,
   shortcutDirs: () => shortcutDirs,
+  wrappedShortcutsRemaining: () => wrappedShortcutsRemaining,
   writeEarlyLaunchVbs: () => writeEarlyLaunchVbs
 });
 import fs12 from "node:fs";
@@ -48647,6 +48650,51 @@ async function restoreWrappedShortcuts() {
   }
   if (restored.length) console.log(`serve: ${restored.length} shortcut(s) restored to plain ZCode launches`);
   return restored;
+}
+function buildCountWrappedScript(dirs) {
+  const list = dirs.map((d) => "'" + d.replace(/'/g, "''") + "'").join(", ");
+  return `
+$ErrorActionPreference = 'SilentlyContinue'
+$ws = New-Object -ComObject WScript.Shell
+$count = 0
+$dirs = @(${list})
+foreach ($d in $dirs) {
+  if (-not (Test-Path $d)) { continue }
+  $files = @(Get-ChildItem -Path $d -Filter '*.lnk' -File)
+  foreach ($sub in @(Get-ChildItem -Path $d -Directory)) {
+    $files += @(Get-ChildItem -Path $sub.FullName -Filter '*.lnk' -File)
+  }
+  foreach ($f in $files) {
+    try {
+      $s = $ws.CreateShortcut($f.FullName)
+      if ([string]$s.TargetPath -match 'wscript\\.exe$' -and ([string]$s.Arguments) -match 'zw-launch\\.vbs') { $count++ }
+    } catch {}
+  }
+}
+Write-Output $count`;
+}
+async function wrappedShortcutsRemaining() {
+  try {
+    const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildCountWrappedScript(shortcutDirs())], {
+      timeout: 3e4,
+      windowsHide: true
+    });
+    const n2 = Number(stdout.trim());
+    return Number.isFinite(n2) && n2 >= 0 ? n2 : 1;
+  } catch {
+    return 1;
+  }
+}
+async function cleanupWrapperDirIfUnused() {
+  if (process.platform === "darwin") return false;
+  if (await wrappedShortcutsRemaining() > 0) return false;
+  try {
+    fs12.rmSync(wrapperDir(), { recursive: true, force: true });
+    console.log("serve: wrapper dir removed (no shortcut references it anymore)");
+    return true;
+  } catch {
+    return false;
+  }
 }
 async function ensureShortcutsHaveCdpFlag(port) {
   if (process.platform === "darwin") return ensureMacLauncher(port);
@@ -49425,7 +49473,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.20";
+    VERSION = "1.0.21";
   }
 });
 
@@ -53565,7 +53613,10 @@ async function startServe(opts) {
     if (bootInstallId && !ownPluginId()) {
       if (++uninstallTicks >= 3) {
         console.log(`serve: install record for ${bootInstallId} gone (uninstalled) \u2014 restoring default appearance and exiting`);
-        await Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then((m) => m.restoreWrappedShortcuts()).catch(() => void 0);
+        await Promise.resolve().then(() => (init_shortcuts(), shortcuts_exports)).then(async (m) => {
+          await m.restoreWrappedShortcuts().catch(() => void 0);
+          await m.cleanupWrapperDirIfUnused().catch(() => void 0);
+        }).catch(() => void 0);
         await shutdownServe().catch(() => void 0);
         process.exit(0);
       }

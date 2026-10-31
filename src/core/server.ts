@@ -1064,8 +1064,14 @@ export async function startServe(opts: ServeOptions): Promise<void> {
         // hook, so this still-alive serve is the ONLY chance to unwrap the
         // .lnk entries — skipping it left wscript targets pointing at the
         // deleted wrapper and broke every shortcut launch.
+        // D38: residue cleanup rides the same window — the wrapper dir is
+        // removed ONLY when nothing references it anymore; any uncertainty
+        // keeps it (launch-safety net).
         await import("./shortcuts.js")
-          .then((m) => m.restoreWrappedShortcuts())
+          .then(async (m) => {
+            await m.restoreWrappedShortcuts().catch(() => undefined);
+            await m.cleanupWrapperDirIfUnused().catch(() => undefined);
+          })
           .catch(() => undefined);
         await shutdownServe().catch(() => undefined);
         process.exit(0);

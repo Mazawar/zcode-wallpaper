@@ -132,6 +132,33 @@ $s.TargetPath = '${zcodeExe.replace(/'/g, "''")}'
 $s.Save()`);
 ok((await runPs(sc.buildRestoreShortcutScript(plain, "", []))).startsWith("not-ours"), "non-wrapped entries are never touched");
 
+// ── D38: residue cleanup runs only when nothing references the wrapper ──────
+process.env.LOCALAPPDATA = path.join(tmp, "lad");
+const wrapperHome = path.join(process.env.LOCALAPPDATA, "zcode-wallpaper");
+fs.mkdirSync(wrapperHome, { recursive: true });
+fs.writeFileSync(path.join(wrapperHome, "zw-launch.vbs"), "' fixture\r\n");
+fs.writeFileSync(path.join(wrapperHome, "zw-serve.cmd"), "rem fixture\r\n");
+const desktop = sc.shortcutDirs()[0];
+fs.mkdirSync(desktop, { recursive: true });
+const wrapDir = path.join(tmp, "wrapdir2");
+fs.mkdirSync(wrapDir, { recursive: true });
+const vbs2 = path.join(wrapDir, "zw-launch.vbs");
+fs.writeFileSync(vbs2, "' fixture\r\n");
+fs.writeFileSync(path.join(wrapDir, "zw-launch.json"), JSON.stringify({ zcode: zcodeExe, node: "n", cli: "c" }));
+const wrapped = path.join(desktop, "ZCode Wrapped.lnk");
+await runPs(`
+$ws = New-Object -ComObject WScript.Shell
+$s = $ws.CreateShortcut('${wrapped.replace(/'/g, "''")}')
+$s.TargetPath = 'wscript.exe'
+$s.Arguments = '"${vbs2.replace(/'/g, "''")}" --remote-debugging-port=28256'
+$s.Save()`);
+ok((await sc.wrappedShortcutsRemaining()) === 1, "count finds the wrapped entry");
+ok((await sc.cleanupWrapperDirIfUnused()) === false && fs.existsSync(wrapperHome), "cleanup KEEPS the dir while a wrapper reference exists");
+await runPs(sc.buildRestoreShortcutScript(wrapped, ""));
+ok((await sc.wrappedShortcutsRemaining()) === 0, "count drops to zero after restore");
+ok((await sc.cleanupWrapperDirIfUnused()) === true, "cleanup removes the dir when unreferenced");
+ok(!fs.existsSync(wrapperHome), "wrapper dir gone after cleanup");
+
 fs.rmSync(tmp, { recursive: true, force: true });
 if (failures.length) {
   for (const f of failures) console.error("FAIL:", f);

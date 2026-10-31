@@ -291,3 +291,10 @@
   「插件@市场」放：**ZCode 卸载时会清空 plugins/data/<plugin>@<market>（用户的卸载测试实证）**，幸存 wrapper 的
   存在意义就是活过卸载——放回机制数据目录等于恢复悬空 bug；该目录是插件自有小目录（vbs/cmd/meta/握手四个小文件，
   插件命名，可随手删）。
+
+- **D38 卸载残留自动清理（1.0.21）**：用户问「LOCALAPPDATA\zcode-wallpaper 卸载时会删吗」——不会（D33 设计如此：
+  必须活过卸载），卸载后会残留几个小文件。补齐最后一块：卸载监视在 restoreWrappedShortcuts 之后调
+  cleanupWrapperDirIfUnused——**单次 PS 批量计数**（buildCountWrappedScript，一次 spawn 扫全部快捷方式目录含一级
+  子目录）确认引用清零才 rm wrapperDir；**任何不确定都保留**（探测失败返回 1=UNKNOWN，绝不盲删——它是快捷方式可
+  启动的保底网）；**darwin 平台硬禁**（mac 的 wrapperDir===数据目录，rm 等于删用户数据）。守卫真实执行：造 wrapped
+  .lnk → 计数 1 → 清理保留目录 → 还原 → 计数 0 → 清理删除目录。
