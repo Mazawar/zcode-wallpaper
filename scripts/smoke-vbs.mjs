@@ -1,5 +1,5 @@
 /**
- * cscript smoke test for the generated zw-wrapper-v9 (0.3.1 lesson: generated
+ * cscript smoke test for the generated zw-wrapper-v10 (0.3.1 lesson: generated
  * launch scripts must be EXECUTED, not just inspected). Generates the real
  * VBS via the real writeEarlyLaunchVbs into a scratch dir, comments out the
  * three sh.Run lines (serve spawn / ZCode launch / second chance), runs it
@@ -32,11 +32,16 @@ sc.writeEarlyLaunchVbs(28256, "D:\\ZCode\\ZCode.exe", { dir, root });
 
 const vbsPath = path.join(dir, "zw-launch.vbs");
 const testPath = path.join(dir, "zw-launch-test.vbs");
-const suppressed = fs
-  .readFileSync(vbsPath, "utf8")
-  .split("\r\n")
-  .map((l) => (l.trim().startsWith("sh.Run") ? "' SMOKE-SUPPRESSED: " + l : l))
-  .join("\r\n");
+// Token-rename sh.Run to a stub Sub instead of COMMENTING the lines out —
+// commenting excluded exactly the lines we keep changing from cscript
+// compilation, which is how the v9 syntax error (juxtaposed string literal)
+// sailed through. With NoopRun the WHOLE file still compiles, nothing runs.
+const suppressed = [
+  "Sub NoopRun(c, s, w)",
+  '  ZLog "smoke: sh.Run suppressed: " & c',
+  "End Sub",
+  ...fs.readFileSync(vbsPath, "utf8").split("\r\n").map((l) => l.replace(/\bsh\.Run\b/g, "NoopRun")),
+].join("\r\n");
 fs.writeFileSync(testPath, suppressed, "utf8");
 
 const failures = [];
@@ -53,11 +58,13 @@ try {
   failures.push(`cscript failed: ${String(e.stderr ?? e.message).slice(0, 300)}`);
 }
 const log = fs.existsSync(path.join(dir, "zw-serve.log")) ? fs.readFileSync(path.join(dir, "zw-serve.log"), "utf8") : "";
-ok(log.includes("vbs: wrapper v9 boot"), "boot log line present (v9)");
+ok(log.includes("vbs: wrapper v10 boot"), "boot log line present (v10)");
 ok(log.includes("vbs: spawning serve via zw-serve.cmd"), "serve spawn path reached");
 ok(/vbs: session cdp port: 28256/.test(log), "handshake poll expired without a serve → fallback literal 28256");
 ok(log.includes("vbs: launching zcode: D:\\ZCode\\ZCode.exe"), "unconditional ZCode launch line reached");
 ok(!out.includes("Microsoft") && !/\r?\nerror/i.test(out), "no runtime errors on stdout");
+const spawns = (log.match(/smoke: sh\.Run suppressed/g) || []).length;
+ok(spawns >= 2, `both serve spawn lines compiled and were suppressed (${spawns} logged)`);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 if (failures.length) {
