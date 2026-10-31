@@ -246,3 +246,13 @@
   LOCALAPPDATA wrapper meta——D33 后守卫重定向 LOCALAPPDATA 到临时目录，并当场清理了污染**。本机已用新代码跑
   ensure：两个 .lnk 已迁指 wrapperDir（卸载安全的启动链）。边界：卸载瞬间强杀宿主则还原窗口错过（靠②兜底）；
   wrapper 目录卸载后残留两个小文件（vbs+cmd，无害且自说明，重装后原地复用）。
+
+- **D34 启动载荷惰性构建 → 挂载延迟 66 秒（1.0.19 内）**：用户报「壁纸挂不上，只面板」。页面 CDP 探针（video
+  readyState/currentTime/__zwLog 飞行记录）还原真相：**挂上了，但慢了 66 秒**——06:44:13 注入只有引导薄 CSS（858 字
+  节），06:45:17 全量载荷（3687 字节）才到、SET_SOURCE video 才发生。根因：serve 启动后**没有任何"启动即构建载荷"的
+  调用**——SSE 订阅者拿到的 initial 是 currentRuntimePayload()=undefined，agent 一直用注入时嵌入的薄 head-start
+  载荷，全量要等下一次不相关的 publishConfig（某次 heal/配置触碰）。「no boot-wave needed」的注释假设 holdSession
+  首推会覆盖，宿主形态 serve + 裸重启 + 视频壁纸的实证推翻了它。双层修复：①startServe 在会话环启动前
+  publishConfig(runtimeConfig(), allowDecode=true)（正确性优先于延迟，同 holdSession 首推契约）；②SSE 订阅时若仍无
+  现成载荷 → 立即构建并广播（页面先于启动波连上的窗口也不落空）。方法论：**「挂不上」先 CDP 探页面真态（元素/
+  readyState/飞行记录）再下结论——用户看到的失败可能是慢，不是没挂**。

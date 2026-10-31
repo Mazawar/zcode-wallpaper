@@ -60138,7 +60138,9 @@ async function startServe(opts) {
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/events") {
-        hub.subscribe(req, res, currentRuntimePayload());
+        const current = currentRuntimePayload();
+        hub.subscribe(req, res, current);
+        if (!current) void publishConfig(runtimeConfig()).catch(() => void 0);
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/health") {
@@ -60664,6 +60666,9 @@ async function startServe(opts) {
     }, 15e3);
   }
   await migrateLegacyVideo();
+  await publishConfig(runtimeConfig()).catch((err) => {
+    console.error(`serve: boot payload build failed \u2014 ${err.message}`);
+  });
   await startSessionLoop(runtimeConfig, apiPort);
 }
 var MAX_WALLPAPER_BYTES, MAX_BODY_BYTES, serveLog, IMAGE_EXT, activeServer;

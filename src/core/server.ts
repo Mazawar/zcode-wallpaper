@@ -556,9 +556,16 @@ export async function startServe(opts: ServeOptions): Promise<void> {
       }
 
       // SSE: the config channel. New subscribers get the current payload as
-      // their first event, so a runtime that connects late never misses a push.
+      // their first event, so a runtime that connects late never misses a
+      // push — and if the boot publish hasn't happened yet (fresh serve, no
+      // config mutation so far), build it NOW: the agent's head-start payload
+      // is only the thin bootstrap css, and waiting for the next unrelated
+      // publish left the wallpaper unmounted for a minute-plus (2026-10-30:
+      // 66s observed on a plain restart).
       if (req.method === "GET" && url.pathname === "/api/events") {
-        hub.subscribe(req, res, currentRuntimePayload());
+        const current = currentRuntimePayload();
+        hub.subscribe(req, res, current);
+        if (!current) void publishConfig(runtimeConfig()).catch(() => undefined);
         return;
       }
 
@@ -1235,6 +1242,15 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   }
 
   await migrateLegacyVideo();
+  // Boot payload (D34): build and publish once so currentPayload is in place
+  // before any page asks — the agent's head-start payload is only the thin
+  // bootstrap css, and a serve that never mutated config used to leave the
+  // wallpaper thin/unmounted until some unrelated publish happened (66s
+  // observed 2026-10-30). allowDecode=true: correctness over latency, same
+  // contract the holdSession first push uses.
+  await publishConfig(runtimeConfig()).catch((err) => {
+    console.error(`serve: boot payload build failed — ${(err as Error).message}`);
+  });
   // The session loop never resolves: poll, hold, self-heal. Pages that come
   // up after boot receive the current payload as their first SSE event, so
   // no boot-wave double push is needed anymore.
