@@ -21,6 +21,12 @@ import { liveFailureOf } from "./livefail.js";
 import { buildRuntimePayload } from "./payload.js";
 
 const POLL_MS = 1500;
+/** D36: while NO renderer is held (boot, fleet rebirth) poll fast so the
+ *  wallpaper lands within ~0.5s of the page existing instead of up to 1.5s —
+ *  the difference between "wallpaper at first paint" and a visible flash of
+ *  default background. Steady state pays nothing: the interval settles back
+ *  to POLL_MS as soon as a session is held. */
+const BOOT_POLL_MS = 400;
 
 export interface SessionOptions {
   cdpPort: number;
@@ -197,13 +203,14 @@ export async function startSessionLoop(
   await withTimeout(poll(getConfig(), apiPort), 20_000).catch((err) =>
     console.error(`serve: initial poll failed — ${(err as Error).message}`),
   );
-  let healTick = 0;
+  let healAt = Date.now() + 30_000;
   for (;;) {
-    await new Promise((r) => setTimeout(r, POLL_MS));
+    await new Promise((r) => setTimeout(r, held.size === 0 ? BOOT_POLL_MS : POLL_MS));
     await withTimeout(poll(getConfig(), apiPort), 20_000).catch((err) =>
       console.error(`serve: poll tick failed — ${(err as Error).message}`),
     );
-    if (++healTick % 20 !== 0) continue;
+    if (Date.now() < healAt) continue;
+    healAt = Date.now() + 30_000;
     const config = getConfig();
     const wantLayer = config.wallpaperVisible && Boolean(config.live || config.sceneVideoUrl || config.wallpaperPath);
     // A hard-failed source is DELIBERATELY downgraded to poster-only with no

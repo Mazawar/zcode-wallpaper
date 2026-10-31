@@ -1,5 +1,5 @@
 /**
- * cscript smoke test for the generated zw-wrapper-v8 (0.3.1 lesson: generated
+ * cscript smoke test for the generated zw-wrapper-v9 (0.3.1 lesson: generated
  * launch scripts must be EXECUTED, not just inspected). Generates the real
  * VBS via the real writeEarlyLaunchVbs into a scratch dir, comments out the
  * three sh.Run lines (serve spawn / ZCode launch / second chance), runs it
@@ -53,7 +53,7 @@ try {
   failures.push(`cscript failed: ${String(e.stderr ?? e.message).slice(0, 300)}`);
 }
 const log = fs.existsSync(path.join(dir, "zw-serve.log")) ? fs.readFileSync(path.join(dir, "zw-serve.log"), "utf8") : "";
-ok(log.includes("vbs: wrapper v8 boot"), "boot log line present (v8)");
+ok(log.includes("vbs: wrapper v9 boot"), "boot log line present (v9)");
 ok(log.includes("vbs: spawning serve via zw-serve.cmd"), "serve spawn path reached");
 ok(/vbs: session cdp port: 28256/.test(log), "handshake poll expired without a serve → fallback literal 28256");
 ok(log.includes("vbs: launching zcode: D:\\ZCode\\ZCode.exe"), "unconditional ZCode launch line reached");

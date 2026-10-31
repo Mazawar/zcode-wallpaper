@@ -9,6 +9,7 @@
  * non-BOM files as ANSI).
  */
 import esbuild from "esbuild";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -137,7 +138,9 @@ fs.mkdirSync(scratch.dir, { recursive: true });
 sc.writeEarlyLaunchVbs(28256, "D:\\ZCode\\ZCode.exe", scratch);
 const vbs = fs.readFileSync(path.join(scratch.dir, "zw-launch.vbs"), "utf8");
 const cmd = fs.readFileSync(path.join(scratch.dir, "zw-serve.cmd"), "utf8");
-ok(vbs.includes("zw-wrapper-v8"), "generated wrapper carries the v8 marker");
+ok(vbs.includes("zw-wrapper-v9"), "generated wrapper carries the v9 marker");
+ok(vbs.includes("DateLastModified") && vbs.includes("\dist\cli.js"), "v9 probes the plugin cache for the newest cli.js (reinstall self-recovery)");
+ok(vbs.includes('" \"\" & cliUse & \"\"'), "cmd spawn passes the resolved cli as %1");
 ok(/^[\x00-\x7F]*$/.test(vbs), "generated VBS is pure ASCII (wscript ANSI rule)");
 ok(vbs.includes('fso.DeleteFile pf, True'), "wrapper deletes any stale handshake before spawning the serve");
 ok(vbs.includes("For t = 1 To 20") && vbs.includes("WScript.Sleep 200"), "wrapper polls ~4s for the fresh handshake");
@@ -147,6 +150,7 @@ ok(vbs.includes('"--remote-debugging-port=" & cdpUse'), "ZCode launch line uses 
 ok(vbs.includes("WScript.Sleep 25000"), "second-chance re-arm survives (D24)");
 ok(vbs.includes("sh.Run Chr(34) & zc & Chr(34)"), "unconditional ZCode launch line survives (D18)");
 ok(cmd.includes("--pick-ports"), "zw-serve.cmd launches the serve with port picking");
+ok(cmd.includes("%1"), "zw-serve.cmd takes the cli path as %1 (probe-aware)");
 ok(vbs.includes("zw-ports.txt"), "wrapper knows the handshake path");
 
 const shTxt = sc.buildEarlyLaunchSh("/usr/bin/node", "/opt/zw/dist/cli.js", 28256, "/opt/zcode/zcode %U", path.join(tmp, "early.log"));
@@ -156,9 +160,20 @@ ok(shTxt.includes("sed -n 's/^cdp=//p'"), "sh wrapper parses cdp=");
 ok(shTxt.includes("case \"$ZWCDP\" in ''|*[!0-9]*) ZWCDP=28256;; esac"), "sh wrapper falls back to the baked literal");
 ok(shTxt.includes("--remote-debugging-port=$ZWCDP"), "sh launch line uses the handshake port");
 ok(shTxt.includes("--pick-ports"), "sh serve line enables port picking");
+ok(shTxt.includes("CLI_NEW") && shTxt.includes("*/dist/cli.js"), "sh wrapper probes for the newest cli.js (reinstall self-recovery)");
 ok(/^[\x00-\x7F]*$/.test(shTxt), "sh wrapper is pure ASCII");
 const macTxt = sc.buildEarlyLaunchCommand("/usr/bin/node", "/opt/zw/dist/cli.js", 28256, "/Applications/ZCode.app", path.join(tmp, "early.log"));
 ok(macTxt.includes("--remote-debugging-port=$ZWCDP") && macTxt.includes("--pick-ports"), "mac wrapper matches the sh contract");
+// Syntax-gate the linux wrapper with the real shell — the probe/glob block
+// is exactly the kind of code a typo silently kills.
+const shFile = path.join(tmp, "zw-launch-check.sh");
+fs.writeFileSync(shFile, shTxt);
+try {
+  execFileSync("sh", ["-n", shFile], { stdio: "ignore" });
+  ok(true, "linux wrapper passes sh -n syntax check");
+} catch {
+  failures.push("linux wrapper fails sh -n syntax check");
+}
 
 // ── wiring pins on the live sources ──────────────────────────────────────────
 const serverSrc = fs.readFileSync(path.join(root, "src", "core", "server.ts"), "utf8");
