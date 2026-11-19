@@ -17,7 +17,7 @@
 | `verify-pause-semantics.mjs` | 视频用户暂停语义：用户暂停压过 kick/wake 看门狗与热更新，仅用户恢复或换新视频解除（DOM 桩上跑真实 actor） | `live/src/agent/video.js` `live/src/agent/watchdogs.js` |
 | `verify-early-watch.mjs` | 早启 serve 宿主看门狗语义：宿主静默≠禁用（宿主舰队换血不拆壁纸，仅显式禁用确证才 restore 退出；ZCode 消失 60s 结束会话）——esbuild 现场打包真实 earlyWatch 源跑全场景 + 钉死 server 接线（盲退日志行不得回归） | `src/core/earlyWatch.ts` `src/core/server.ts` |
 | `verify-hotkey.mjs` | 快捷键翻转语义（D28）：组合键文法（归一化/录制/精确匹配/修饰键强制/可编辑目标豁免）跑真实 hotkey.js + agent/panel/payload 三方接线钉（录制框 data-zw-hotkey 豁免、翻转走 /api/config 同面板开关） | `live/src/agent/hotkey.js` `live/src/agent/main.js` `live/src/panel/main.js` `src/core/payload.ts` |
-| `verify-ports.mjs` | 端口池浮动与会话发现（D29）：真实 ports.ts 跑偶/奇分池、真实 socket 占用探测、CDP 活端点拾取、发现/握手往返；真实生成器产出 v8 wrapper 钉死握手删除→轮询→回退编排与 ASCII-only 规则；server/MCP/CLI 接线钉（pickPorts 护栏、宿主按发现端口心跳） | `src/core/ports.ts` `src/core/shortcuts.ts` `src/core/server.ts` `src/mcp/server.ts` `src/cli.ts` `src/core/session.ts` |
+| `verify-ports.mjs` | 端口池浮动与会话发现（D29）：真实 ports.ts 跑偶/奇分池、真实 socket 占用探测、CDP 活端点拾取、发现/握手往返；真实生成器产出 wrapper（zw-wrapper-v10）钉死握手删除→轮询→回退编排与 ASCII-only 规则；server/MCP/CLI 接线钉（pickPorts 护栏、宿主按发现端口心跳） | `src/core/ports.ts` `src/core/shortcuts.ts` `src/core/server.ts` `src/mcp/server.ts` `src/cli.ts` `src/core/session.ts` |
 | `verify-shortcuts.mjs` | 快捷方式覆盖/备用启动器（D30）+ 卸载还原（D33）：扫描覆盖公共桌面、五码结果解析、真实执行 fallback 创建与 restore 还原脚本并 COM 读回断言（还原=meta 的 ZCode exe、我方 flags 剥离用户参数保留、幂等、非我方不碰）；wrapperDir 存活卸载 + 发现/握手随 wrapper 目录 + 卸载监视先还原再退出的接线钉 | `src/core/shortcuts.ts` `src/core/paths.ts` `src/core/ports.ts` `src/core/server.ts` |
 
 ## 文件 → 守卫

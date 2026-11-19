@@ -47783,10 +47783,161 @@ var init_inject = __esm({
   }
 });
 
-// src/core/ports.ts
+// src/core/livefail.ts
 import fs8 from "node:fs";
-import net from "node:net";
 import path4 from "node:path";
+function file() {
+  return path4.join(dataDir(), "live-failures.json");
+}
+function readLiveFailures() {
+  try {
+    return JSON.parse(fs8.readFileSync(file(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+function liveFailureOf(sourceId) {
+  if (!sourceId) return void 0;
+  return readLiveFailures()[sourceId];
+}
+function recordLiveFailure(sourceId, reason) {
+  if (!sourceId) return;
+  const all = readLiveFailures();
+  all[sourceId] = { reason, at: Date.now() };
+  fs8.mkdirSync(dataDir(), { recursive: true });
+  fs8.writeFileSync(file(), JSON.stringify(all));
+}
+function clearLiveFailure(sourceId) {
+  if (!sourceId) return;
+  const all = readLiveFailures();
+  if (!(sourceId in all)) return;
+  delete all[sourceId];
+  fs8.mkdirSync(dataDir(), { recursive: true });
+  fs8.writeFileSync(file(), JSON.stringify(all));
+}
+var init_livefail = __esm({
+  "src/core/livefail.ts"() {
+    "use strict";
+    init_launch();
+  }
+});
+
+// src/core/configApi.ts
+import fs9 from "node:fs";
+import path5 from "node:path";
+function storedCustomSources() {
+  const stored = loadConfig();
+  return Array.isArray(stored.customSources) ? stored.customSources : [];
+}
+function currentConfig(cdpPort, apiPort) {
+  const stored = loadConfig();
+  return {
+    ...DEFAULT_CONFIG,
+    ...stored,
+    port: cdpPort,
+    apiPort,
+    customSources: storedCustomSources()
+  };
+}
+function persisted(config) {
+  const stored = loadConfig();
+  const out = { ...config, port: stored.port, apiPort: stored.apiPort };
+  out.customSources = storedCustomSources();
+  if (out.port === void 0) delete out.port;
+  if (out.apiPort === void 0) delete out.apiPort;
+  return out;
+}
+function backupFile() {
+  return path5.join(dataDir(), "config.backup.json");
+}
+function hasBackup() {
+  return fs9.existsSync(backupFile());
+}
+function readBackup() {
+  return JSON.parse(fs9.readFileSync(backupFile(), "utf8"));
+}
+function writeBackup(config) {
+  fs9.mkdirSync(dataDir(), { recursive: true });
+  fs9.writeFileSync(backupFile(), JSON.stringify(config));
+}
+function publicConfig(config) {
+  return {
+    blur: config.blur,
+    dim: config.dim,
+    monet: config.monet,
+    wallpaperVisible: config.wallpaperVisible,
+    fit: config.fit,
+    wallpaperSet: Boolean(
+      config.wallpaperPath && fs9.existsSync(config.wallpaperPath) || config.sceneVideoUrl || config.live
+    ),
+    mediaType: config.mediaType ?? "image",
+    live: config.live ?? null,
+    liveFps: config.liveFps ?? 30,
+    liveMuted: config.liveMuted ?? true,
+    liveQuality: config.liveQuality ?? "balanced",
+    wallBrightness: config.wallBrightness ?? 100,
+    wallContrast: config.wallContrast ?? 100,
+    wallSaturate: config.wallSaturate ?? 100,
+    wallOpacity: config.wallOpacity ?? 0,
+    posX: config.posX ?? 50,
+    posY: config.posY ?? 50,
+    layerScale: config.layerScale ?? 100,
+    flip: config.flip === true,
+    switchTransition: config.switchTransition ?? "fade",
+    switchTransitionSpeed: config.switchTransitionSpeed ?? "normal",
+    rotationEnabled: config.rotationEnabled === true,
+    rotationMinutes: config.rotationMinutes ?? 30,
+    rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
+    toggleHotkey: config.toggleHotkey ?? "",
+    nextHotkey: config.nextHotkey ?? "",
+    randomHotkey: config.randomHotkey ?? "",
+    hasBackup: hasBackup(),
+    liveFailed: liveFailureOf(config.live?.sourceId),
+    cdpPort: config.port,
+    apiPort: config.apiPort
+  };
+}
+function sanitize(body) {
+  const out = {};
+  if (typeof body?.blur === "number" && body.blur >= 0 && body.blur <= 100) out.blur = body.blur;
+  if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
+  if (typeof body?.monet === "boolean") out.monet = body.monet;
+  if (typeof body?.wallpaperVisible === "boolean") out.wallpaperVisible = body.wallpaperVisible;
+  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
+  if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
+  if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
+  if (["low", "balanced", "high", "ultra"].includes(body?.liveQuality)) out.liveQuality = body.liveQuality;
+  if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
+  if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
+  if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
+  if (typeof body?.wallOpacity === "number") out.wallOpacity = Math.min(90, Math.max(0, Math.round(body.wallOpacity)));
+  if (typeof body?.posX === "number") out.posX = Math.min(100, Math.max(0, Math.round(body.posX)));
+  if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
+  if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
+  if (typeof body?.flip === "boolean") out.flip = body.flip;
+  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
+  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
+  if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
+  if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
+  if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
+  if (typeof body?.toggleHotkey === "string") out.toggleHotkey = body.toggleHotkey.trim().slice(0, 64);
+  if (typeof body?.nextHotkey === "string") out.nextHotkey = body.nextHotkey.trim().slice(0, 64);
+  if (typeof body?.randomHotkey === "string") out.randomHotkey = body.randomHotkey.trim().slice(0, 64);
+  return out;
+}
+var init_configApi = __esm({
+  "src/core/configApi.ts"() {
+    "use strict";
+    init_inject();
+    init_launch();
+    init_livefail();
+  }
+});
+
+// src/core/ports.ts
+import fs10 from "node:fs";
+import net from "node:net";
+import path6 from "node:path";
 function portBase() {
   const env = Number(process.env.ZW_PORT_BASE);
   return Number.isFinite(env) && env >= 1024 && env % 2 === 0 ? env : 28256;
@@ -47840,14 +47991,14 @@ async function pickCdpPort(preferred) {
   return preferred ?? cands[0];
 }
 function discoveryPath() {
-  return path4.join(wrapperDir(), "zw-launch.json");
+  return path6.join(wrapperDir(), "zw-launch.json");
 }
 function handshakePath() {
-  return path4.join(wrapperDir(), "zw-ports.txt");
+  return path6.join(wrapperDir(), "zw-ports.txt");
 }
 function readSessionPorts() {
   try {
-    const meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
+    const meta = JSON.parse(fs10.readFileSync(discoveryPath(), "utf8"));
     const out = {};
     if (typeof meta.cdpPort === "number" && meta.cdpPort > 0) out.cdpPort = meta.cdpPort;
     if (typeof meta.apiPort === "number" && meta.apiPort > 0) out.apiPort = meta.apiPort;
@@ -47859,17 +48010,17 @@ function readSessionPorts() {
 }
 function writeSessionPorts(cdpPort, apiPort) {
   try {
-    fs8.mkdirSync(wrapperDir(), { recursive: true });
+    fs10.mkdirSync(wrapperDir(), { recursive: true });
     let meta = {};
     try {
-      meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
+      meta = JSON.parse(fs10.readFileSync(discoveryPath(), "utf8"));
     } catch {
     }
     meta.cdpPort = cdpPort;
     meta.apiPort = apiPort;
     meta.at = Date.now();
-    fs8.writeFileSync(discoveryPath(), JSON.stringify(meta, null, 1));
-    fs8.writeFileSync(handshakePath(), `cdp=${cdpPort}\r
+    fs10.writeFileSync(discoveryPath(), JSON.stringify(meta, null, 1));
+    fs10.writeFileSync(handshakePath(), `cdp=${cdpPort}\r
 api=${apiPort}\r
 `, "utf8");
   } catch {
@@ -47885,16 +48036,16 @@ var init_ports = __esm({
 });
 
 // src/core/wallpaperType.ts
-import fs9 from "node:fs";
-import path5 from "node:path";
+import fs11 from "node:fs";
+import path7 from "node:path";
 function detectWallpaperType(input) {
-  const ext = path5.extname(input).toLowerCase();
+  const ext = path7.extname(input).toLowerCase();
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
   if (VIDEO_EXTENSIONS.has(ext)) return "video";
   if (ext === ".pkg") return "scene";
   let stat;
   try {
-    stat = fs9.statSync(input);
+    stat = fs11.statSync(input);
   } catch {
     return "unknown";
   }
@@ -47902,12 +48053,12 @@ function detectWallpaperType(input) {
   return detectDirectoryType(input);
 }
 function detectDirectoryType(dir) {
-  const project = readProjectJson(path5.join(dir, "project.json"));
+  const project = readProjectJson(path7.join(dir, "project.json"));
   const declared = typeof project?.type === "string" ? project.type.toLowerCase() : "";
   if (declared === "scene" || declared === "video" || declared === "web") {
     return declared;
   }
-  const entryExt = path5.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
+  const entryExt = path7.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
   if (SCENE_ENTRY_EXTENSIONS.has(entryExt)) return "scene";
   if (VIDEO_EXTENSIONS.has(entryExt)) return "video";
   if (entryExt === ".html" || entryExt === ".htm") return "web";
@@ -47915,7 +48066,7 @@ function detectDirectoryType(dir) {
 }
 function readProjectJson(file2) {
   try {
-    return JSON.parse(fs9.readFileSync(file2, "utf8"));
+    return JSON.parse(fs11.readFileSync(file2, "utf8"));
   } catch {
     return void 0;
   }
@@ -47923,20 +48074,20 @@ function readProjectJson(file2) {
 function detectFromDirectoryContents(dir) {
   let entries;
   try {
-    entries = fs9.readdirSync(dir);
+    entries = fs11.readdirSync(dir);
   } catch {
     return "unknown";
   }
   let nested = [];
   if (entries.some((e2) => e2.toLowerCase() === "files")) {
     try {
-      nested = fs9.readdirSync(path5.join(dir, "files")).map((e2) => path5.join("files", e2));
+      nested = fs11.readdirSync(path7.join(dir, "files")).map((e2) => path7.join("files", e2));
     } catch {
     }
   }
   for (const name of [...entries, ...nested]) {
     const lower = name.toLowerCase();
-    const ext = path5.extname(lower);
+    const ext = path7.extname(lower);
     if (lower === "scene.pkg" || lower === "scene.json") return "scene";
     if (ext === ".html" || ext === ".htm") return "web";
     if (VIDEO_EXTENSIONS.has(ext)) return "video";
@@ -47956,9 +48107,9 @@ var init_wallpaperType = __esm({
 // src/core/steam.ts
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
-import fs10 from "node:fs";
+import fs12 from "node:fs";
 import os3 from "node:os";
-import path6 from "node:path";
+import path8 from "node:path";
 async function regQuery(key, value) {
   if (process.platform !== "win32") return void 0;
   try {
@@ -47971,15 +48122,15 @@ async function regQuery(key, value) {
 }
 function commonSteamDirs(platform, home) {
   if (platform === "win32") {
-    return [path6.join("C:", "Program Files (x86)", "Steam"), path6.join("C:", "Program Files", "Steam")];
+    return [path8.join("C:", "Program Files (x86)", "Steam"), path8.join("C:", "Program Files", "Steam")];
   }
   if (platform === "darwin") {
-    return [path6.join(home, "Library", "Application Support", "Steam")];
+    return [path8.join(home, "Library", "Application Support", "Steam")];
   }
   return [
-    path6.join(home, ".steam", "steam"),
-    path6.join(home, ".local", "share", "Steam"),
-    path6.join(home, ".steam", "root")
+    path8.join(home, ".steam", "steam"),
+    path8.join(home, ".local", "share", "Steam"),
+    path8.join(home, ".steam", "root")
   ];
 }
 function pathKey(p2) {
@@ -47991,7 +48142,7 @@ async function findSteamRoots() {
   const push = (p2) => {
     if (!p2) return;
     try {
-      if (!fs10.existsSync(path6.join(p2, "steamapps"))) return;
+      if (!fs12.existsSync(path8.join(p2, "steamapps"))) return;
     } catch {
       return;
     }
@@ -48008,7 +48159,7 @@ async function findSteamRoots() {
 function parseLibraryFolders(vdfPath) {
   let text;
   try {
-    text = fs10.readFileSync(vdfPath, "utf8");
+    text = fs12.readFileSync(vdfPath, "utf8");
   } catch {
     return [];
   }
@@ -48025,7 +48176,7 @@ async function steamLibraries(roots) {
   const push = (p2) => {
     if (!p2) return;
     try {
-      fs10.accessSync(path6.join(p2, "steamapps"));
+      fs12.accessSync(path8.join(p2, "steamapps"));
     } catch {
       return;
     }
@@ -48035,21 +48186,21 @@ async function steamLibraries(roots) {
   };
   for (const root of roots) {
     push(root);
-    for (const lib of parseLibraryFolders(path6.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
+    for (const lib of parseLibraryFolders(path8.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
   }
   return libs;
 }
 async function findWallpaperEngine(libraries) {
   for (const lib of libraries) {
     for (const name of WE_DIR_CANDIDATES) {
-      const dir = path6.join(lib, "steamapps", "common", name);
+      const dir = path8.join(lib, "steamapps", "common", name);
       try {
-        fs10.accessSync(dir);
+        fs12.accessSync(dir);
       } catch {
         continue;
       }
-      const classic = fs10.existsSync(path6.join(dir, "wallpaper32.exe")) || fs10.existsSync(path6.join(dir, "wallpaper64.exe"));
-      const modern = fs10.existsSync(path6.join(dir, "distribution", "version.json"));
+      const classic = fs12.existsSync(path8.join(dir, "wallpaper32.exe")) || fs12.existsSync(path8.join(dir, "wallpaper64.exe"));
+      const modern = fs12.existsSync(path8.join(dir, "distribution", "version.json"));
       if (classic || modern) return { root: dir };
     }
   }
@@ -48059,14 +48210,14 @@ function dirSize(dir) {
   let total = 0;
   let entries;
   try {
-    entries = fs10.readdirSync(dir, { withFileTypes: true });
+    entries = fs12.readdirSync(dir, { withFileTypes: true });
   } catch {
     return 0;
   }
   for (const e2 of entries) {
     try {
-      if (e2.isDirectory()) total += dirSize(path6.join(dir, e2.name));
-      else total += fs10.statSync(path6.join(dir, e2.name)).size;
+      if (e2.isDirectory()) total += dirSize(path8.join(dir, e2.name));
+      else total += fs12.statSync(path8.join(dir, e2.name)).size;
     } catch {
     }
   }
@@ -48074,7 +48225,7 @@ function dirSize(dir) {
 }
 function readProject(dir) {
   try {
-    return JSON.parse(fs10.readFileSync(path6.join(dir, "project.json"), "utf8"));
+    return JSON.parse(fs12.readFileSync(path8.join(dir, "project.json"), "utf8"));
   } catch {
     return void 0;
   }
@@ -48082,7 +48233,7 @@ function readProject(dir) {
 function entryFromDir(dir, id, origin, workshopId) {
   let stat;
   try {
-    stat = fs10.statSync(dir);
+    stat = fs12.statSync(dir);
   } catch {
     return void 0;
   }
@@ -48090,9 +48241,9 @@ function entryFromDir(dir, id, origin, workshopId) {
   const project = readProject(dir);
   const type = detectWallpaperType(dir);
   if (type === "unknown" && !project) return void 0;
-  const title = typeof project?.title === "string" && project.title.trim() || path6.basename(dir);
+  const title = typeof project?.title === "string" && project.title.trim() || path8.basename(dir);
   const previewDeclared = typeof project?.preview === "string" ? project.preview : void 0;
-  const preview = previewDeclared && fs10.existsSync(path6.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs10.existsSync(path6.join(dir, p2)));
+  const preview = previewDeclared && fs12.existsSync(path8.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs12.existsSync(path8.join(dir, p2)));
   return {
     id,
     dir,
@@ -48115,15 +48266,15 @@ async function enumerateWallpapers(force = false) {
   const wallpapers = [];
   const seen = /* @__PURE__ */ new Set();
   for (const lib of libraries) {
-    const workshopDir = path6.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
+    const workshopDir = path8.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
     let ids;
     try {
-      ids = fs10.readdirSync(workshopDir);
+      ids = fs12.readdirSync(workshopDir);
     } catch {
       continue;
     }
     for (const id of ids) {
-      const dir = path6.join(workshopDir, id);
+      const dir = path8.join(workshopDir, id);
       if (seen.has(pathKey(dir))) continue;
       seen.add(pathKey(dir));
       const entry = entryFromDir(dir, `ws-${id}`, "workshop", id);
@@ -48135,15 +48286,15 @@ async function enumerateWallpapers(force = false) {
       ["defaultprojects", "default"],
       ["myprojects", "myprojects"]
     ]) {
-      const base = path6.join(we.root, "projects", sub);
+      const base = path8.join(we.root, "projects", sub);
       let names3;
       try {
-        names3 = fs10.readdirSync(base);
+        names3 = fs12.readdirSync(base);
       } catch {
         continue;
       }
       for (const name of names3) {
-        const dir = path6.join(base, name);
+        const dir = path8.join(base, name);
         if (seen.has(pathKey(dir))) continue;
         seen.add(pathKey(dir));
         const entry = entryFromDir(dir, `we-${origin}-${name}`, origin);
@@ -48189,8 +48340,8 @@ __export(session_exports, {
   resetAppearance: () => resetAppearance,
   wallpaperStatus: () => wallpaperStatus
 });
-import fs11 from "node:fs";
-import path7 from "node:path";
+import fs13 from "node:fs";
+import path9 from "node:path";
 function mergedStored() {
   return { ...DEFAULT_CONFIG, ...loadConfig() };
 }
@@ -48243,17 +48394,17 @@ async function reapplyStored(opts = {}) {
 }
 async function directApply(config) {
   let assets;
-  if (config.monetSourcePath && fs11.existsSync(config.monetSourcePath)) {
+  if (config.monetSourcePath && fs13.existsSync(config.monetSourcePath)) {
     assets = await loadWallpaper(config.monetSourcePath).catch(() => void 0);
-  } else if (config.mediaType === "image" && config.wallpaperPath && fs11.existsSync(config.wallpaperPath)) {
+  } else if (config.mediaType === "image" && config.wallpaperPath && fs13.existsSync(config.wallpaperPath)) {
     assets = await loadWallpaper(config.wallpaperPath).catch(() => void 0);
   }
   if (config.mediaType === "live") {
-    const preview = config.monetSourcePath && fs11.existsSync(config.monetSourcePath) ? config.monetSourcePath : void 0;
+    const preview = config.monetSourcePath && fs13.existsSync(config.monetSourcePath) ? config.monetSourcePath : void 0;
     const payload2 = buildPayload({ ...config, mediaType: preview ? "image" : config.mediaType }, assets);
     if (preview) {
-      const buf = fs11.readFileSync(preview);
-      const ext = path7.extname(preview).toLowerCase() || ".jpg";
+      const buf = fs13.readFileSync(preview);
+      const ext = path9.extname(preview).toLowerCase() || ".jpg";
       const mime2 = ext === ".png" ? "image/png" : "image/jpeg";
       payload2.wallpaperDataUri = `data:${mime2};base64,${buf.toString("base64")}`;
     }
@@ -48264,17 +48415,17 @@ async function directApply(config) {
   return applyToZCode(config, payload);
 }
 async function applyWallpaper(imagePath, opts = {}) {
-  const abs = path7.resolve(imagePath);
+  const abs = path9.resolve(imagePath);
   const kind = detectWallpaperType(abs);
   if (kind === "scene" || kind === "video" || kind === "web") {
     const r2 = await applyLiveWallpaper(abs, opts);
     return { windows: r2.windows };
   }
   const config = baseConfig(opts, loadConfig());
-  if (!fs11.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
-  fs11.mkdirSync(dataDir(), { recursive: true });
-  const dest = path7.join(dataDir(), "wallpaper" + path7.extname(abs).toLowerCase());
-  if (dest !== abs) fs11.copyFileSync(abs, dest);
+  if (!fs13.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
+  fs13.mkdirSync(dataDir(), { recursive: true });
+  const dest = path9.join(dataDir(), "wallpaper" + path9.extname(abs).toLowerCase());
+  if (dest !== abs) fs13.copyFileSync(abs, dest);
   const next = {
     ...config,
     mediaType: "image",
@@ -48283,10 +48434,10 @@ async function applyWallpaper(imagePath, opts = {}) {
     sceneVideoUrl: void 0,
     monetSourcePath: dest
   };
-  saveConfig({ ...next, port: loadConfig().port });
+  saveConfig(persisted(next));
   if (await isServeAlive(next.apiPort)) {
-    const data = await fs11.promises.readFile(dest);
-    const mime2 = `image/${path7.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
+    const data = await fs13.promises.readFile(dest);
+    const mime2 = `image/${path9.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
     const r2 = await serveApi(next.apiPort, "/api/wallpaper", {
       dataUri: `data:${mime2};base64,${data.toString("base64")}`
     });
@@ -48302,7 +48453,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
   const input = sourceOrPath.trim();
   const lib = await enumerateWallpapers();
   const isKnownId = lib.wallpapers.some((w) => w.id === input);
-  const looksLikePath = /[\\/]/.test(input) || fs11.existsSync(input);
+  const looksLikePath = /[\\/]/.test(input) || fs13.existsSync(input);
   const sourceId = isKnownId ? input : looksLikePath ? void 0 : (() => {
     if (/^\d{6,}$/.test(input)) return `ws-${input}`;
     return void 0;
@@ -48311,7 +48462,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
     throw new Error(`unknown wallpaper source: ${input} (pass a source id, a workshop item id, or a filesystem path)`);
   }
   if (await isServeAlive(config.apiPort)) {
-    const r2 = sourceId ? await serveApi(config.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config.apiPort, "/api/import", { path: path7.resolve(input) });
+    const r2 = sourceId ? await serveApi(config.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config.apiPort, "/api/import", { path: path9.resolve(input) });
     return {
       windows: Number(r2.windows ?? 0),
       sourceId: String(r2.sourceId ?? sourceId ?? ""),
@@ -48340,7 +48491,7 @@ async function applyColorsOnly(opts) {
     const r2 = await serveApi(config.apiPort, "/api/config", patch);
     return Number(r2.windows ?? 0);
   }
-  saveConfig({ ...config });
+  saveConfig(persisted(config));
   return directApply(config);
 }
 async function resetAppearance(port) {
@@ -48351,14 +48502,15 @@ async function resetAppearance(port) {
     return 0;
   }
   await resetZCode(port ?? stored.port ?? DEFAULT_CONFIG.port);
-  saveConfig({
+  const cleared = {
     ...stored,
     wallpaperPath: void 0,
     mediaType: void 0,
     live: void 0,
     sceneVideoUrl: void 0,
     monetSourcePath: void 0
-  });
+  };
+  saveConfig(persisted(cleared));
   return 0;
 }
 async function wallpaperStatus() {
@@ -48391,6 +48543,7 @@ var init_session = __esm({
     "use strict";
     init_inject();
     init_launch();
+    init_configApi();
     init_ports();
     init_wallpaperType();
     init_steam();
@@ -48431,18 +48584,18 @@ __export(shortcuts_exports, {
   wrappedShortcutsRemaining: () => wrappedShortcutsRemaining,
   writeEarlyLaunchVbs: () => writeEarlyLaunchVbs
 });
-import fs12 from "node:fs";
+import fs14 from "node:fs";
 import os4 from "node:os";
-import path8 from "node:path";
+import path10 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function launcherHome() {
-  let dir = path8.dirname(fileURLToPath2(import.meta.url));
+  let dir = path10.dirname(fileURLToPath2(import.meta.url));
   for (let i2 = 0; i2 < 6; i2++) {
-    if (fs12.existsSync(path8.join(dir, "dist", "cli.js"))) break;
-    dir = path8.dirname(dir);
+    if (fs14.existsSync(path10.join(dir, "dist", "cli.js"))) break;
+    dir = path10.dirname(dir);
   }
   const home = wrapperDir();
-  fs12.mkdirSync(home, { recursive: true });
+  fs14.mkdirSync(home, { recursive: true });
   return { dir: home, root: dir };
 }
 function probeBlock(cli) {
@@ -48462,7 +48615,7 @@ function probeBlock(cli) {
 function buildEarlyLaunchSh(node, cli, port, originalCmd, logFile) {
   const parts = originalCmd.trim().split(/\s+/).filter((t2) => t2 && !t2.startsWith("--remote-debugging-port=") && !ANTI_OCCLUSION_FLAGS.includes(t2));
   const health = `http://127.0.0.1:${port + 1}/api/health`;
-  const portsFile = path8.join(path8.dirname(logFile), "zw-ports.txt");
+  const portsFile = path10.join(path10.dirname(logFile), "zw-ports.txt");
   const spawnServe = `"${node}" "$CLI" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1 &`;
   return [
     "#!/bin/sh",
@@ -48501,9 +48654,9 @@ function buildEarlyLaunchSh(node, cli, port, originalCmd, logFile) {
   ].join("\n");
 }
 function buildEarlyLaunchCommand(node, cli, port, zcodeApp, logFile) {
-  const appName = path8.basename(zcodeApp).replace(/\.app$/, "");
+  const appName = path10.basename(zcodeApp).replace(/\.app$/, "");
   const health = `http://127.0.0.1:${port + 1}/api/health`;
-  const portsFile = path8.join(path8.dirname(logFile), "zw-ports.txt");
+  const portsFile = path10.join(path10.dirname(logFile), "zw-ports.txt");
   const spawnServe = `"${node}" "$CLI" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1 &`;
   return [
     "#!/bin/sh",
@@ -48560,13 +48713,13 @@ function desktopEntryIsWrapped(execLine, wrapperPath) {
   const t2 = execLine.trim();
   if (!t2) return false;
   const first = t2.split(/\s+/)[0].replace(/^(["'])(.*)\1$/, "$2");
-  return path8.resolve(first) === path8.resolve(wrapperPath);
+  return path10.resolve(first) === path10.resolve(wrapperPath);
 }
 function desktopEntryIsZcode(execLine) {
   const t2 = execLine.trim();
   if (!t2) return false;
   const first = t2.split(/\s+/)[0].replace(/^(["'])(.*)\1$/, "$2");
-  const base = path8.basename(first).toLowerCase();
+  const base = path10.basename(first).toLowerCase();
   return base.startsWith("zcode");
 }
 function rewriteDesktopEntry(content, wrapperPath) {
@@ -48623,15 +48776,15 @@ async function restoreWrappedShortcuts() {
   const zcode = await resolveZcodeExe();
   const lnks = [];
   const collect = (dir) => {
-    for (const f2 of fs12.readdirSync(dir)) if (f2.endsWith(".lnk")) lnks.push(path8.join(dir, f2));
+    for (const f2 of fs14.readdirSync(dir)) if (f2.endsWith(".lnk")) lnks.push(path10.join(dir, f2));
   };
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs12.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs14.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path8.join(dir, sub.name));
+          collect(path10.join(dir, sub.name));
         } catch {
         }
       }
@@ -48689,7 +48842,7 @@ async function cleanupWrapperDirIfUnused() {
   if (process.platform === "darwin") return false;
   if (await wrappedShortcutsRemaining() > 0) return false;
   try {
-    fs12.rmSync(wrapperDir(), { recursive: true, force: true });
+    fs14.rmSync(wrapperDir(), { recursive: true, force: true });
     console.log("serve: wrapper dir removed (no shortcut references it anymore)");
     return true;
   } catch {
@@ -48707,16 +48860,16 @@ function shortcutDirs() {
   const pub = process.env.PUBLIC ?? "C:\\Users\\Public";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
-    path8.join(home, "Desktop"),
-    ...process.env.OneDrive ? [path8.join(process.env.OneDrive, "Desktop")] : [],
+    path10.join(home, "Desktop"),
+    ...process.env.OneDrive ? [path10.join(process.env.OneDrive, "Desktop")] : [],
     // The ALL-USERS desktop — installers commonly drop their shortcut here
     // (D30 Win10 report: the desktop .lnk "never got wrapped" because this
     // directory was never scanned; rewrites of admin-owned entries may still
     // fail without elevation, which the fallback launcher covers).
-    path8.join(pub, "Desktop"),
-    path8.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
-    path8.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
-    path8.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
+    path10.join(pub, "Desktop"),
+    path10.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
+    path10.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
+    path10.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
   ];
 }
 function parseLnkOutcome(out) {
@@ -48763,9 +48916,9 @@ try {
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
 }
 async function createFallbackLauncher(launcher, zcode) {
-  const vbsFile = path8.join(launcher.dir, "zw-launch.vbs");
-  if (!fs12.existsSync(vbsFile)) return "";
-  const lnkPath = path8.join(shortcutDirs()[0], FALLBACK_LNK_NAME);
+  const vbsFile = path10.join(launcher.dir, "zw-launch.vbs");
+  if (!fs14.existsSync(vbsFile)) return "";
+  const lnkPath = path10.join(shortcutDirs()[0], FALLBACK_LNK_NAME);
   try {
     const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildCreateFallbackScript(vbsFile, zcode, lnkPath)], {
       timeout: 15e3,
@@ -48786,9 +48939,9 @@ async function ensureWindowsShortcuts(port) {
   const nameMatched = [];
   const others = [];
   const collect = (dir) => {
-    for (const f2 of fs12.readdirSync(dir)) {
+    for (const f2 of fs14.readdirSync(dir)) {
       if (!f2.endsWith(".lnk")) continue;
-      const p2 = path8.join(dir, f2);
+      const p2 = path10.join(dir, f2);
       if (/^zcode/i.test(f2)) nameMatched.push(p2);
       else others.push(p2);
     }
@@ -48796,10 +48949,10 @@ async function ensureWindowsShortcuts(port) {
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs12.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs14.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path8.join(dir, sub.name));
+          collect(path10.join(dir, sub.name));
         } catch {
         }
       }
@@ -48838,8 +48991,8 @@ if ($out.Count) { $out -join [char]10 }`;
     }
     return result;
   }
-  const vbsFile = path8.join(launcher.dir, "zw-launch.vbs");
-  const metaFile = path8.join(launcher.dir, "zw-launch.json");
+  const vbsFile = path10.join(launcher.dir, "zw-launch.vbs");
+  const metaFile = path10.join(launcher.dir, "zw-launch.json");
   let zcodeKnown = "";
   let wrappedCount = 0;
   const antiOcclusion = ANTI_OCCLUSION_FLAGS;
@@ -48930,14 +49083,14 @@ try {
 }
 function writeEarlyLaunchVbs(port, zcode, launcher) {
   const anti = ANTI_OCCLUSION_FLAGS;
-  const cli = path8.join(launcher.root, "dist", "cli.js");
+  const cli = path10.join(launcher.root, "dist", "cli.js");
   const node = process.execPath;
-  if (!fs12.existsSync(cli) || !fs12.existsSync(node)) return;
+  if (!fs14.existsSync(cli) || !fs14.existsSync(node)) return;
   const DQ = String.fromCharCode(34);
-  const logFile = path8.join(launcher.dir, "zw-serve.log");
-  const cmdFile = path8.join(launcher.dir, "zw-serve.cmd");
-  const portsFile = path8.join(launcher.dir, "zw-ports.txt");
-  const cliPluginDir = path8.dirname(path8.dirname(path8.dirname(cli)));
+  const logFile = path10.join(launcher.dir, "zw-serve.log");
+  const cmdFile = path10.join(launcher.dir, "zw-serve.cmd");
+  const portsFile = path10.join(launcher.dir, "zw-ports.txt");
+  const cliPluginDir = path10.dirname(path10.dirname(path10.dirname(cli)));
   const serveBat = [
     "@echo off",
     `"${node}" %1 serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1`,
@@ -49116,20 +49269,20 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
   ];
   const crlf = String.fromCharCode(13, 10);
   const want = lines.join(crlf) + crlf;
-  const vbsFile = path8.join(launcher.dir, "zw-launch.vbs");
+  const vbsFile = path10.join(launcher.dir, "zw-launch.vbs");
   try {
-    const metaPath = path8.join(launcher.dir, "zw-launch.json");
-    const prev = fs12.existsSync(metaPath) ? JSON.parse(fs12.readFileSync(metaPath, "utf8")) : {};
-    const sameVbs = fs12.existsSync(vbsFile) && fs12.readFileSync(vbsFile, "utf8") === want;
+    const metaPath = path10.join(launcher.dir, "zw-launch.json");
+    const prev = fs14.existsSync(metaPath) ? JSON.parse(fs14.readFileSync(metaPath, "utf8")) : {};
+    const sameVbs = fs14.existsSync(vbsFile) && fs14.readFileSync(vbsFile, "utf8") === want;
     const meta = { ...prev, zcode, node, cli, port };
     if (!sameVbs) {
-      fs12.writeFileSync(vbsFile, want, { encoding: "utf8" });
-      fs12.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
+      fs14.writeFileSync(vbsFile, want, { encoding: "utf8" });
+      fs14.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
       console.log(`serve: early-launch wrapper refreshed (node=${node})`);
-    } else if (!fs12.existsSync(cmdFile)) {
-      fs12.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
+    } else if (!fs14.existsSync(cmdFile)) {
+      fs14.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
     }
-    if (JSON.stringify(prev) !== JSON.stringify(meta)) fs12.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
+    if (JSON.stringify(prev) !== JSON.stringify(meta)) fs14.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
   } catch {
   }
 }
@@ -49138,31 +49291,31 @@ function msgBoxText(staleZcode) {
 }
 async function ensureMacLauncher(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const zcodeApp = MAC_ZCODE_CANDIDATES.find((p2) => fs12.existsSync(p2));
+  const zcodeApp = MAC_ZCODE_CANDIDATES.find((p2) => fs14.existsSync(p2));
   if (!zcodeApp) {
     result.skipped.push("ZCode.app not found");
     return result;
   }
   const { dir, root } = launcherHome();
-  const cli = path8.join(root, "dist", "cli.js");
-  if (!fs12.existsSync(cli)) {
+  const cli = path10.join(root, "dist", "cli.js");
+  if (!fs14.existsSync(cli)) {
     result.skipped.push("plugin install not found");
     return result;
   }
   const appName = "ZCode Wallpaper.app";
-  const appDir = path8.join(os4.homedir(), "Applications", appName);
-  const scriptPath = path8.join(appDir, "Contents", "MacOS", "zw-launch");
-  const plistPath = path8.join(appDir, "Contents", "Info.plist");
-  const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path8.join(dir, "early.log"));
+  const appDir = path10.join(os4.homedir(), "Applications", appName);
+  const scriptPath = path10.join(appDir, "Contents", "MacOS", "zw-launch");
+  const plistPath = path10.join(appDir, "Contents", "Info.plist");
+  const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path10.join(dir, "early.log"));
   try {
-    const same = fs12.existsSync(scriptPath) && fs12.existsSync(plistPath) && fs12.readFileSync(scriptPath, "utf8") === want;
+    const same = fs14.existsSync(scriptPath) && fs14.existsSync(plistPath) && fs14.readFileSync(scriptPath, "utf8") === want;
     if (same) {
       result.skipped.push(appDir);
     } else {
-      fs12.mkdirSync(path8.dirname(scriptPath), { recursive: true });
-      fs12.writeFileSync(scriptPath, want);
-      fs12.chmodSync(scriptPath, 493);
-      fs12.writeFileSync(plistPath, buildAppBundlePlist("ZCode Wallpaper", "com.zcode-wallpaper.early"));
+      fs14.mkdirSync(path10.dirname(scriptPath), { recursive: true });
+      fs14.writeFileSync(scriptPath, want);
+      fs14.chmodSync(scriptPath, 493);
+      fs14.writeFileSync(plistPath, buildAppBundlePlist("ZCode Wallpaper", "com.zcode-wallpaper.early"));
       result.updated.push(appDir);
     }
   } catch (err) {
@@ -49172,28 +49325,27 @@ async function ensureMacLauncher(port) {
 }
 async function ensureLinuxDesktopEntries(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const base = path8.join(os4.homedir(), ".local", "share", "applications");
-  const dirs = [base, path8.join(base, "ZCode")];
+  const base = path10.join(os4.homedir(), ".local", "share", "applications");
+  const dirs = [base, path10.join(base, "ZCode")];
   const entries = [];
   for (const d of dirs) {
     try {
-      entries.push(...fs12.readdirSync(d).filter((f2) => f2.endsWith(".desktop")).map((f2) => path8.join(d, f2)));
+      entries.push(...fs14.readdirSync(d).filter((f2) => f2.endsWith(".desktop")).map((f2) => path10.join(d, f2)));
     } catch {
     }
   }
   if (entries.length === 0) return result;
   const { dir, root } = launcherHome();
-  const cli = path8.join(root, "dist", "cli.js");
-  if (!fs12.existsSync(cli)) {
+  const cli = path10.join(root, "dist", "cli.js");
+  if (!fs14.existsSync(cli)) {
     result.skipped.push("plugin install not found");
     return result;
   }
-  const wrapper = path8.join(dir, "zw-launch.sh");
-  const logFile = path8.join(dir, "early.log");
-  let wrapperWritten = false;
+  const wrapper = path10.join(dir, "zw-launch.sh");
+  const logFile = path10.join(dir, "early.log");
   for (const entry of entries) {
     try {
-      const content = fs12.readFileSync(entry, "utf8");
+      const content = fs14.readFileSync(entry, "utf8");
       const currentExec = /^Exec=(.*)$/m.exec(content)?.[1] ?? "";
       if (!desktopEntryIsZcode(currentExec) && !desktopEntryIsWrapped(currentExec, wrapper)) {
         result.skipped.push(entry);
@@ -49204,11 +49356,10 @@ async function ensureLinuxDesktopEntries(port) {
         result.skipped.push(entry);
         continue;
       }
-      fs12.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
-      fs12.chmodSync(wrapper, 493);
-      wrapperWritten = true;
+      fs14.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
+      fs14.chmodSync(wrapper, 493);
       if (r2.next !== content) {
-        fs12.writeFileSync(entry, r2.next);
+        fs14.writeFileSync(entry, r2.next);
         result.updated.push(entry);
       } else {
         result.skipped.push(entry);
@@ -49217,7 +49368,6 @@ async function ensureLinuxDesktopEntries(port) {
       result.failed.push({ path: entry, reason: err.message });
     }
   }
-  void wrapperWritten;
   return result;
 }
 var ANTI_OCCLUSION_FLAGS, DESKTOP_MARKER, FALLBACK_LNK_NAME, MAC_ZCODE_CANDIDATES;
@@ -49232,24 +49382,24 @@ var init_shortcuts = __esm({
     ];
     DESKTOP_MARKER = "X-zcode-wallpaper-exec";
     FALLBACK_LNK_NAME = "ZCode Wallpaper.lnk";
-    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path8.join(os4.homedir(), "Applications", "ZCode.app")];
+    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path10.join(os4.homedir(), "Applications", "ZCode.app")];
   }
 });
 
 // src/core/media.ts
-import fs13 from "node:fs";
+import fs15 from "node:fs";
 import crypto from "node:crypto";
-import path9 from "node:path";
+import path11 from "node:path";
 function sendStaticFile(req, res, filePath, opts = {}) {
   const isHead = req.method === "HEAD";
   let stat;
   try {
-    stat = fs13.statSync(filePath);
+    stat = fs15.statSync(filePath);
   } catch {
     return false;
   }
   if (!stat.isFile()) return false;
-  const type = MIME[path9.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+  const type = MIME[path11.extname(filePath).toLowerCase()] ?? "application/octet-stream";
   const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}-${crypto.createHash("sha1").update(filePath).digest("hex").slice(0, 12)}"`;
   const baseHeaders = {
     "Content-Type": type,
@@ -49273,7 +49423,7 @@ function sendStaticFile(req, res, filePath, opts = {}) {
   });
   const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
   const pipe = (opts2) => {
-    const stream = opts2 ? fs13.createReadStream(filePath, opts2) : fs13.createReadStream(filePath);
+    const stream = opts2 ? fs15.createReadStream(filePath, opts2) : fs15.createReadStream(filePath);
     stream.on("error", () => {
       try {
         res.destroy();
@@ -49327,9 +49477,9 @@ function sendStaticFile(req, res, filePath, opts = {}) {
 function safeJoin(root, rel) {
   const clean = rel.replace(/\\/g, "/").split("/").filter((s2) => s2 && s2 !== "." && s2 !== "..").join("/");
   if (!clean) return root;
-  const target = path9.resolve(root, clean);
-  const relFromRoot = path9.relative(path9.resolve(root), target);
-  if (relFromRoot.startsWith("..") || path9.isAbsolute(relFromRoot)) return void 0;
+  const target = path11.resolve(root, clean);
+  const relFromRoot = path11.relative(path11.resolve(root), target);
+  if (relFromRoot.startsWith("..") || path11.isAbsolute(relFromRoot)) return void 0;
   return target;
 }
 var MIME;
@@ -49408,45 +49558,6 @@ var init_ledger = __esm({
   }
 });
 
-// src/core/livefail.ts
-import fs14 from "node:fs";
-import path10 from "node:path";
-function file() {
-  return path10.join(dataDir(), "live-failures.json");
-}
-function readLiveFailures() {
-  try {
-    return JSON.parse(fs14.readFileSync(file(), "utf8"));
-  } catch {
-    return {};
-  }
-}
-function liveFailureOf(sourceId) {
-  if (!sourceId) return void 0;
-  return readLiveFailures()[sourceId];
-}
-function recordLiveFailure(sourceId, reason) {
-  if (!sourceId) return;
-  const all = readLiveFailures();
-  all[sourceId] = { reason, at: Date.now() };
-  fs14.mkdirSync(dataDir(), { recursive: true });
-  fs14.writeFileSync(file(), JSON.stringify(all));
-}
-function clearLiveFailure(sourceId) {
-  if (!sourceId) return;
-  const all = readLiveFailures();
-  if (!(sourceId in all)) return;
-  delete all[sourceId];
-  fs14.mkdirSync(dataDir(), { recursive: true });
-  fs14.writeFileSync(file(), JSON.stringify(all));
-}
-var init_livefail = __esm({
-  "src/core/livefail.ts"() {
-    "use strict";
-    init_launch();
-  }
-});
-
 // src/core/earlyWatch.ts
 function earlyHostTick(w, now, disabledNow) {
   const hostSilent = w.hostSeen && w.lastHostAlive > 0 && now - w.lastHostAlive > HOST_SILENT_MS;
@@ -49474,118 +49585,6 @@ var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
     VERSION = "1.0.21";
-  }
-});
-
-// src/core/configApi.ts
-import fs15 from "node:fs";
-import path11 from "node:path";
-function storedCustomSources() {
-  const stored = loadConfig();
-  return Array.isArray(stored.customSources) ? stored.customSources : [];
-}
-function currentConfig(cdpPort, apiPort) {
-  const stored = loadConfig();
-  return {
-    ...DEFAULT_CONFIG,
-    ...stored,
-    port: cdpPort,
-    apiPort,
-    customSources: storedCustomSources()
-  };
-}
-function persisted(config) {
-  const stored = loadConfig();
-  const out = { ...config, port: stored.port, apiPort: stored.apiPort };
-  out.customSources = storedCustomSources();
-  if (out.port === void 0) delete out.port;
-  if (out.apiPort === void 0) delete out.apiPort;
-  return out;
-}
-function backupFile() {
-  return path11.join(dataDir(), "config.backup.json");
-}
-function hasBackup() {
-  return fs15.existsSync(backupFile());
-}
-function readBackup() {
-  return JSON.parse(fs15.readFileSync(backupFile(), "utf8"));
-}
-function writeBackup(config) {
-  fs15.mkdirSync(dataDir(), { recursive: true });
-  fs15.writeFileSync(backupFile(), JSON.stringify(config));
-}
-function publicConfig(config) {
-  return {
-    blur: config.blur,
-    dim: config.dim,
-    monet: config.monet,
-    wallpaperVisible: config.wallpaperVisible,
-    fit: config.fit,
-    wallpaperSet: Boolean(
-      config.wallpaperPath && fs15.existsSync(config.wallpaperPath) || config.sceneVideoUrl || config.live
-    ),
-    mediaType: config.mediaType ?? "image",
-    live: config.live ?? null,
-    liveFps: config.liveFps ?? 30,
-    liveMuted: config.liveMuted ?? true,
-    liveQuality: config.liveQuality ?? "balanced",
-    wallBrightness: config.wallBrightness ?? 100,
-    wallContrast: config.wallContrast ?? 100,
-    wallSaturate: config.wallSaturate ?? 100,
-    wallOpacity: config.wallOpacity ?? 0,
-    posX: config.posX ?? 50,
-    posY: config.posY ?? 50,
-    layerScale: config.layerScale ?? 100,
-    flip: config.flip === true,
-    switchTransition: config.switchTransition ?? "fade",
-    switchTransitionSpeed: config.switchTransitionSpeed ?? "normal",
-    rotationEnabled: config.rotationEnabled === true,
-    rotationMinutes: config.rotationMinutes ?? 30,
-    rotationOrder: config.rotationOrder === "random" ? "random" : "sequence",
-    toggleHotkey: config.toggleHotkey ?? "",
-    nextHotkey: config.nextHotkey ?? "",
-    randomHotkey: config.randomHotkey ?? "",
-    hasBackup: hasBackup(),
-    liveFailed: liveFailureOf(config.live?.sourceId),
-    cdpPort: config.port,
-    apiPort: config.apiPort
-  };
-}
-function sanitize(body) {
-  const out = {};
-  if (typeof body?.blur === "number" && body.blur >= 0 && body.blur <= 100) out.blur = body.blur;
-  if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
-  if (typeof body?.monet === "boolean") out.monet = body.monet;
-  if (typeof body?.wallpaperVisible === "boolean") out.wallpaperVisible = body.wallpaperVisible;
-  if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
-  if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
-  if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
-  if (["low", "balanced", "high", "ultra"].includes(body?.liveQuality)) out.liveQuality = body.liveQuality;
-  if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
-  if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
-  if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
-  if (typeof body?.wallOpacity === "number") out.wallOpacity = Math.min(90, Math.max(0, Math.round(body.wallOpacity)));
-  if (typeof body?.posX === "number") out.posX = Math.min(100, Math.max(0, Math.round(body.posX)));
-  if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
-  if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
-  if (typeof body?.flip === "boolean") out.flip = body.flip;
-  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
-  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
-  if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
-  if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
-  if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
-  if (typeof body?.toggleHotkey === "string") out.toggleHotkey = body.toggleHotkey.trim().slice(0, 64);
-  if (typeof body?.nextHotkey === "string") out.nextHotkey = body.nextHotkey.trim().slice(0, 64);
-  if (typeof body?.randomHotkey === "string") out.randomHotkey = body.randomHotkey.trim().slice(0, 64);
-  return out;
-}
-var init_configApi = __esm({
-  "src/core/configApi.ts"() {
-    "use strict";
-    init_inject();
-    init_launch();
-    init_livefail();
   }
 });
 
@@ -53823,6 +53822,8 @@ Commands:
                                  ultra (default balanced)
     --unmute                     Play the wallpaper's own audio
     --port <N>                   CDP port (default 28256)
+  apply-scene|scene <path-or-id> Live scene / video wallpaper (same options
+                                 as apply, plus --fps, --quality, --unmute)
   wallpapers                     List subscribed Wallpaper Engine wallpapers
   colors [--port N]              Re-apply stored theme without wallpaper change
   reset [--port N]               Remove wallpaper and color overrides

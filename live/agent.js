@@ -888,7 +888,6 @@
       rec,
       onVerdict: (reason) => machine.fire("BUDGET_EXHAUSTED", { reason })
     });
-    const heal = null;
     const machine = createMachine(function(ev) {
       if (ev.rejected) {
         rec("MACH", "! " + ev.event + " @ " + ev.from + " rejected");

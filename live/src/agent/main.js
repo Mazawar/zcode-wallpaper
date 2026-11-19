@@ -63,8 +63,6 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     rec,
     onVerdict: (reason) => machine.fire("BUDGET_EXHAUSTED", { reason }),
   });
-  const heal = null; // retired 0.4.8 — declarative CSS rule in the payload (D9)
-
   // ── the machine: every transition is visible; failures carry policy ──────
   const machine = createMachine(function (ev) {
     if (ev.rejected) { rec("MACH", "! " + ev.event + " @ " + ev.from + " rejected"); return; }

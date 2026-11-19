@@ -116,7 +116,6 @@ export interface BeautifyConfig {
   layerScale?: number;
   /** Horizontal mirror (compositor-only, no render cost). */
   flip?: boolean;
-  /** Wallpaper-switch animation shared by manual picks and auto-rotation. */
   /** Wallpaper switch animation shared by manual picks and auto-rotation
    *  (dsh's effect family: the outgoing snapshot leaves with the effect
    *  while the new source assembles underneath). */

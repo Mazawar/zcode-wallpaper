@@ -31,6 +31,8 @@ Commands:
                                  ultra (default balanced)
     --unmute                     Play the wallpaper's own audio
     --port <N>                   CDP port (default 28256)
+  apply-scene|scene <path-or-id> Live scene / video wallpaper (same options
+                                 as apply, plus --fps, --quality, --unmute)
   wallpapers                     List subscribed Wallpaper Engine wallpapers
   colors [--port N]              Re-apply stored theme without wallpaper change
   reset [--port N]               Remove wallpaper and color overrides

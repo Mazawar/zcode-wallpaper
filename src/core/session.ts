@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { applyToZCode, buildLiveUrl, buildPayload, DEFAULT_CONFIG, loadWallpaper, resetZCode, type BeautifyConfig } from "./inject.js";
 import { dataDir, loadConfig, saveConfig } from "./launch.js";
+import { persisted } from "./configApi.js";
 import { readSessionPorts } from "./ports.js";
 import { detectWallpaperType } from "./wallpaperType.js";
 import { enumerateWallpapers } from "./steam.js";
@@ -142,7 +143,11 @@ export async function applyWallpaper(imagePath: string, opts: ApplyOptions = {})
     sceneVideoUrl: undefined,
     monetSourcePath: dest,
   };
-  saveConfig({ ...next, port: loadConfig().port } as Record<string, unknown>);
+  // persisted() pins the disk ports to the stored session truth (a one-shot
+  // --port/--api-port flag must not become the new default) and re-reads
+  // customSources so a registration captured after this config object was
+  // loaded is never clobbered.
+  saveConfig(persisted(next));
 
   if (await isServeAlive(next.apiPort)) {
     const data = await fs.promises.readFile(dest);
@@ -229,7 +234,7 @@ export async function applyColorsOnly(opts: ApplyOptions): Promise<number> {
     const r = await serveApi(config.apiPort, "/api/config", patch);
     return Number(r.windows ?? 0);
   }
-  saveConfig({ ...config } as Record<string, unknown>);
+  saveConfig(persisted(config));
   return directApply(config);
 }
 
@@ -241,14 +246,15 @@ export async function resetAppearance(port?: number): Promise<number> {
     return 0;
   }
   await resetZCode(port ?? stored.port ?? DEFAULT_CONFIG.port);
-  saveConfig({
+  const cleared = {
     ...stored,
     wallpaperPath: undefined,
     mediaType: undefined,
     live: undefined,
     sceneVideoUrl: undefined,
     monetSourcePath: undefined,
-  } as Record<string, unknown>);
+  } as Partial<BeautifyConfig>;
+  saveConfig(persisted(cleared as BeautifyConfig));
   return 0;
 }
 

@@ -55004,436 +55004,15 @@ var init_inject = __esm({
   }
 });
 
-// src/core/ports.ts
-var ports_exports = {};
-__export(ports_exports, {
-  PORT_POOL_SIZE: () => PORT_POOL_SIZE,
-  apiCandidates: () => apiCandidates,
-  cdpCandidates: () => cdpCandidates,
-  cdpResponds: () => cdpResponds,
-  isPortFree: () => isPortFree,
-  pickCdpPort: () => pickCdpPort,
-  portBase: () => portBase,
-  readHandshake: () => readHandshake,
-  readSessionPorts: () => readSessionPorts,
-  writeSessionPorts: () => writeSessionPorts
-});
-import fs8 from "node:fs";
-import net from "node:net";
-import path4 from "node:path";
-function portBase() {
-  const env = Number(process.env.ZW_PORT_BASE);
-  return Number.isFinite(env) && env >= 1024 && env % 2 === 0 ? env : 28256;
-}
-function cdpCandidates(preferred) {
-  const pool = Array.from({ length: PORT_POOL_SIZE }, (_, i2) => portBase() + 2 * i2);
-  return orderPreferred(pool, preferred);
-}
-function apiCandidates(preferred) {
-  const pool = Array.from({ length: PORT_POOL_SIZE }, (_, i2) => portBase() + 1 + 2 * i2);
-  return orderPreferred(pool, preferred);
-}
-function orderPreferred(pool, preferred) {
-  if (preferred === void 0 || !pool.includes(preferred)) return pool;
-  return [preferred, ...pool.filter((p2) => p2 !== preferred)];
-}
-function isPortFree(port) {
-  return new Promise((resolve) => {
-    const srv = net.createServer();
-    let free = false;
-    const finish = () => resolve(free);
-    srv.once("error", () => resolve(false));
-    srv.listen(port, "127.0.0.1", () => {
-      free = true;
-      srv.close(() => finish());
-    });
-    setTimeout(() => {
-      if (free) return;
-      try {
-        srv.close();
-      } catch {
-      }
-      finish();
-    }, 600).unref();
-  });
-}
-async function cdpResponds(port) {
-  try {
-    const r2 = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(900) });
-    return r2.ok;
-  } catch {
-    return false;
-  }
-}
-async function pickCdpPort(preferred) {
-  const cands = cdpCandidates(preferred);
-  for (const c3 of cands) {
-    if (await isPortFree(c3)) return c3;
-    if (await cdpResponds(c3)) return c3;
-  }
-  return preferred ?? cands[0];
-}
-function discoveryPath() {
-  return path4.join(wrapperDir(), "zw-launch.json");
-}
-function handshakePath() {
-  return path4.join(wrapperDir(), "zw-ports.txt");
-}
-function readSessionPorts() {
-  try {
-    const meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
-    const out = {};
-    if (typeof meta.cdpPort === "number" && meta.cdpPort > 0) out.cdpPort = meta.cdpPort;
-    if (typeof meta.apiPort === "number" && meta.apiPort > 0) out.apiPort = meta.apiPort;
-    if (typeof meta.at === "number") out.at = meta.at;
-    return out;
-  } catch {
-    return {};
-  }
-}
-function writeSessionPorts(cdpPort, apiPort) {
-  try {
-    fs8.mkdirSync(wrapperDir(), { recursive: true });
-    let meta = {};
-    try {
-      meta = JSON.parse(fs8.readFileSync(discoveryPath(), "utf8"));
-    } catch {
-    }
-    meta.cdpPort = cdpPort;
-    meta.apiPort = apiPort;
-    meta.at = Date.now();
-    fs8.writeFileSync(discoveryPath(), JSON.stringify(meta, null, 1));
-    fs8.writeFileSync(handshakePath(), `cdp=${cdpPort}\r
-api=${apiPort}\r
-`, "utf8");
-  } catch {
-  }
-}
-function readHandshake() {
-  try {
-    const text = fs8.readFileSync(handshakePath(), "utf8");
-    const out = {};
-    const cdp = /^cdp=(\d+)/m.exec(text);
-    const api = /^api=(\d+)/m.exec(text);
-    if (cdp) out.cdpPort = Number(cdp[1]);
-    if (api) out.apiPort = Number(api[1]);
-    return out;
-  } catch {
-    return {};
-  }
-}
-var PORT_POOL_SIZE;
-var init_ports = __esm({
-  "src/core/ports.ts"() {
-    "use strict";
-    init_paths();
-    PORT_POOL_SIZE = 10;
-  }
-});
-
-// src/core/wallpaperType.ts
-import fs9 from "node:fs";
-import path5 from "node:path";
-function detectWallpaperType(input) {
-  const ext = path5.extname(input).toLowerCase();
-  if (IMAGE_EXTENSIONS.has(ext)) return "image";
-  if (VIDEO_EXTENSIONS.has(ext)) return "video";
-  if (ext === ".pkg") return "scene";
-  let stat;
-  try {
-    stat = fs9.statSync(input);
-  } catch {
-    return "unknown";
-  }
-  if (!stat.isDirectory()) return "unknown";
-  return detectDirectoryType(input);
-}
-function detectDirectoryType(dir) {
-  const project = readProjectJson(path5.join(dir, "project.json"));
-  const declared = typeof project?.type === "string" ? project.type.toLowerCase() : "";
-  if (declared === "scene" || declared === "video" || declared === "web") {
-    return declared;
-  }
-  const entryExt = path5.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
-  if (SCENE_ENTRY_EXTENSIONS.has(entryExt)) return "scene";
-  if (VIDEO_EXTENSIONS.has(entryExt)) return "video";
-  if (entryExt === ".html" || entryExt === ".htm") return "web";
-  return detectFromDirectoryContents(dir);
-}
-function readProjectJson(file2) {
-  try {
-    return JSON.parse(fs9.readFileSync(file2, "utf8"));
-  } catch {
-    return void 0;
-  }
-}
-function detectFromDirectoryContents(dir) {
-  let entries;
-  try {
-    entries = fs9.readdirSync(dir);
-  } catch {
-    return "unknown";
-  }
-  let nested = [];
-  if (entries.some((e2) => e2.toLowerCase() === "files")) {
-    try {
-      nested = fs9.readdirSync(path5.join(dir, "files")).map((e2) => path5.join("files", e2));
-    } catch {
-    }
-  }
-  for (const name of [...entries, ...nested]) {
-    const lower = name.toLowerCase();
-    const ext = path5.extname(lower);
-    if (lower === "scene.pkg" || lower === "scene.json") return "scene";
-    if (ext === ".html" || ext === ".htm") return "web";
-    if (VIDEO_EXTENSIONS.has(ext)) return "video";
-  }
-  return "unknown";
-}
-var IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, SCENE_ENTRY_EXTENSIONS;
-var init_wallpaperType = __esm({
-  "src/core/wallpaperType.ts"() {
-    "use strict";
-    IMAGE_EXTENSIONS = /* @__PURE__ */ new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
-    VIDEO_EXTENSIONS = /* @__PURE__ */ new Set([".mp4", ".webm"]);
-    SCENE_ENTRY_EXTENSIONS = /* @__PURE__ */ new Set([".pkg", ".json"]);
-  }
-});
-
-// src/core/steam.ts
-import { execFile as execFile2 } from "node:child_process";
-import { promisify as promisify2 } from "node:util";
-import fs10 from "node:fs";
-import os3 from "node:os";
-import path6 from "node:path";
-async function regQuery(key, value) {
-  if (process.platform !== "win32") return void 0;
-  try {
-    const { stdout } = await execFileAsync2("reg", ["query", key, "/v", value], { timeout: 4e3, windowsHide: true });
-    const m = new RegExp(`${value}\\s+REG_\\w+\\s+(.+)`).exec(stdout);
-    return m ? m[1].trim() : void 0;
-  } catch {
-    return void 0;
-  }
-}
-function commonSteamDirs(platform, home) {
-  if (platform === "win32") {
-    return [path6.join("C:", "Program Files (x86)", "Steam"), path6.join("C:", "Program Files", "Steam")];
-  }
-  if (platform === "darwin") {
-    return [path6.join(home, "Library", "Application Support", "Steam")];
-  }
-  return [
-    path6.join(home, ".steam", "steam"),
-    path6.join(home, ".local", "share", "Steam"),
-    path6.join(home, ".steam", "root")
-  ];
-}
-function pathKey(p2) {
-  return process.platform === "win32" ? p2.toLowerCase() : p2;
-}
-async function findSteamRoots() {
-  const roots = [];
-  const seen = /* @__PURE__ */ new Set();
-  const push = (p2) => {
-    if (!p2) return;
-    try {
-      if (!fs10.existsSync(path6.join(p2, "steamapps"))) return;
-    } catch {
-      return;
-    }
-    if (seen.has(pathKey(p2))) return;
-    seen.add(pathKey(p2));
-    roots.push(p2);
-  };
-  push(process.env.ZW_STEAM_ROOT);
-  push(await regQuery("HKCU\\Software\\Valve\\Steam", "SteamPath"));
-  push(await regQuery("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"));
-  for (const d of commonSteamDirs(process.platform, os3.homedir())) push(d);
-  return roots;
-}
-function parseLibraryFolders(vdfPath) {
-  let text;
-  try {
-    text = fs10.readFileSync(vdfPath, "utf8");
-  } catch {
-    return [];
-  }
-  const out = [];
-  for (const m of text.matchAll(/"path"\s+"([^"]+)"/g)) {
-    const dir = m[1].replace(/\\\\/g, "\\");
-    if (!out.includes(dir)) out.push(dir);
-  }
-  return out;
-}
-async function steamLibraries(roots) {
-  const libs = [];
-  const seen = /* @__PURE__ */ new Set();
-  const push = (p2) => {
-    if (!p2) return;
-    try {
-      fs10.accessSync(path6.join(p2, "steamapps"));
-    } catch {
-      return;
-    }
-    if (seen.has(pathKey(p2))) return;
-    seen.add(pathKey(p2));
-    libs.push(p2);
-  };
-  for (const root of roots) {
-    push(root);
-    for (const lib of parseLibraryFolders(path6.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
-  }
-  return libs;
-}
-async function findWallpaperEngine(libraries) {
-  for (const lib of libraries) {
-    for (const name of WE_DIR_CANDIDATES) {
-      const dir = path6.join(lib, "steamapps", "common", name);
-      try {
-        fs10.accessSync(dir);
-      } catch {
-        continue;
-      }
-      const classic = fs10.existsSync(path6.join(dir, "wallpaper32.exe")) || fs10.existsSync(path6.join(dir, "wallpaper64.exe"));
-      const modern = fs10.existsSync(path6.join(dir, "distribution", "version.json"));
-      if (classic || modern) return { root: dir };
-    }
-  }
-  return void 0;
-}
-function dirSize(dir) {
-  let total = 0;
-  let entries;
-  try {
-    entries = fs10.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return 0;
-  }
-  for (const e2 of entries) {
-    try {
-      if (e2.isDirectory()) total += dirSize(path6.join(dir, e2.name));
-      else total += fs10.statSync(path6.join(dir, e2.name)).size;
-    } catch {
-    }
-  }
-  return total;
-}
-function readProject(dir) {
-  try {
-    return JSON.parse(fs10.readFileSync(path6.join(dir, "project.json"), "utf8"));
-  } catch {
-    return void 0;
-  }
-}
-function entryFromDir(dir, id, origin, workshopId) {
-  let stat;
-  try {
-    stat = fs10.statSync(dir);
-  } catch {
-    return void 0;
-  }
-  if (!stat.isDirectory()) return void 0;
-  const project = readProject(dir);
-  const type = detectWallpaperType(dir);
-  if (type === "unknown" && !project) return void 0;
-  const title = typeof project?.title === "string" && project.title.trim() || path6.basename(dir);
-  const previewDeclared = typeof project?.preview === "string" ? project.preview : void 0;
-  const preview = previewDeclared && fs10.existsSync(path6.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs10.existsSync(path6.join(dir, p2)));
-  return {
-    id,
-    dir,
-    title,
-    type,
-    preview,
-    sizeBytes: dirSize(dir),
-    origin,
-    workshopId,
-    mtimeMs: stat.mtimeMs
-  };
-}
-async function enumerateWallpapers(force = false) {
-  if (!force && cachedLibrary && Date.now() - cachedLibrary.at < LIBRARY_TTL_MS) {
-    return cachedLibrary.value;
-  }
-  const steamRoots = await findSteamRoots();
-  const libraries = await steamLibraries(steamRoots);
-  const we = await findWallpaperEngine(libraries);
-  const wallpapers = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const lib of libraries) {
-    const workshopDir = path6.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
-    let ids;
-    try {
-      ids = fs10.readdirSync(workshopDir);
-    } catch {
-      continue;
-    }
-    for (const id of ids) {
-      const dir = path6.join(workshopDir, id);
-      if (seen.has(pathKey(dir))) continue;
-      seen.add(pathKey(dir));
-      const entry = entryFromDir(dir, `ws-${id}`, "workshop", id);
-      if (entry) wallpapers.push(entry);
-    }
-  }
-  if (we) {
-    for (const [sub, origin] of [
-      ["defaultprojects", "default"],
-      ["myprojects", "myprojects"]
-    ]) {
-      const base = path6.join(we.root, "projects", sub);
-      let names3;
-      try {
-        names3 = fs10.readdirSync(base);
-      } catch {
-        continue;
-      }
-      for (const name of names3) {
-        const dir = path6.join(base, name);
-        if (seen.has(pathKey(dir))) continue;
-        seen.add(pathKey(dir));
-        const entry = entryFromDir(dir, `we-${origin}-${name}`, origin);
-        if (entry) wallpapers.push(entry);
-      }
-    }
-  }
-  wallpapers.sort((a2, b) => b.mtimeMs - a2.mtimeMs);
-  const value = { steamRoots, libraries, we, wallpapers };
-  cachedLibrary = { at: Date.now(), value };
-  return value;
-}
-async function resolveSourceDir(id, custom3) {
-  const customHit = custom3.find((c3) => c3.id === id);
-  if (customHit) {
-    const entry = entryFromDir(customHit.dir, id, "custom");
-    return entry ?? void 0;
-  }
-  const lib = await enumerateWallpapers();
-  return lib.wallpapers.find((w) => w.id === id);
-}
-var execFileAsync2, WE_APP_ID, WE_DIR_CANDIDATES, PREVIEW_FALLBACKS, cachedLibrary, LIBRARY_TTL_MS;
-var init_steam = __esm({
-  "src/core/steam.ts"() {
-    "use strict";
-    init_wallpaperType();
-    execFileAsync2 = promisify2(execFile2);
-    WE_APP_ID = "431960";
-    WE_DIR_CANDIDATES = ["WallpaperEngine", "wallpaper_engine", "Wallpaper Engine"];
-    PREVIEW_FALLBACKS = ["preview.gif", "preview.jpg", "preview.jpeg", "preview.png"];
-    LIBRARY_TTL_MS = 1e4;
-  }
-});
-
 // src/core/livefail.ts
-import fs12 from "node:fs";
-import path8 from "node:path";
+import fs8 from "node:fs";
+import path4 from "node:path";
 function file() {
-  return path8.join(dataDir(), "live-failures.json");
+  return path4.join(dataDir(), "live-failures.json");
 }
 function readLiveFailures() {
   try {
-    return JSON.parse(fs12.readFileSync(file(), "utf8"));
+    return JSON.parse(fs8.readFileSync(file(), "utf8"));
   } catch {
     return {};
   }
@@ -55446,16 +55025,16 @@ function recordLiveFailure(sourceId, reason) {
   if (!sourceId) return;
   const all = readLiveFailures();
   all[sourceId] = { reason, at: Date.now() };
-  fs12.mkdirSync(dataDir(), { recursive: true });
-  fs12.writeFileSync(file(), JSON.stringify(all));
+  fs8.mkdirSync(dataDir(), { recursive: true });
+  fs8.writeFileSync(file(), JSON.stringify(all));
 }
 function clearLiveFailure(sourceId) {
   if (!sourceId) return;
   const all = readLiveFailures();
   if (!(sourceId in all)) return;
   delete all[sourceId];
-  fs12.mkdirSync(dataDir(), { recursive: true });
-  fs12.writeFileSync(file(), JSON.stringify(all));
+  fs8.mkdirSync(dataDir(), { recursive: true });
+  fs8.writeFileSync(file(), JSON.stringify(all));
 }
 var init_livefail = __esm({
   "src/core/livefail.ts"() {
@@ -55465,8 +55044,8 @@ var init_livefail = __esm({
 });
 
 // src/core/configApi.ts
-import fs13 from "node:fs";
-import path9 from "node:path";
+import fs9 from "node:fs";
+import path5 from "node:path";
 function storedCustomSources() {
   const stored = loadConfig();
   return Array.isArray(stored.customSources) ? stored.customSources : [];
@@ -55490,17 +55069,17 @@ function persisted(config2) {
   return out;
 }
 function backupFile() {
-  return path9.join(dataDir(), "config.backup.json");
+  return path5.join(dataDir(), "config.backup.json");
 }
 function hasBackup() {
-  return fs13.existsSync(backupFile());
+  return fs9.existsSync(backupFile());
 }
 function readBackup() {
-  return JSON.parse(fs13.readFileSync(backupFile(), "utf8"));
+  return JSON.parse(fs9.readFileSync(backupFile(), "utf8"));
 }
 function writeBackup(config2) {
-  fs13.mkdirSync(dataDir(), { recursive: true });
-  fs13.writeFileSync(backupFile(), JSON.stringify(config2));
+  fs9.mkdirSync(dataDir(), { recursive: true });
+  fs9.writeFileSync(backupFile(), JSON.stringify(config2));
 }
 function publicConfig(config2) {
   return {
@@ -55510,7 +55089,7 @@ function publicConfig(config2) {
     wallpaperVisible: config2.wallpaperVisible,
     fit: config2.fit,
     wallpaperSet: Boolean(
-      config2.wallpaperPath && fs13.existsSync(config2.wallpaperPath) || config2.sceneVideoUrl || config2.live
+      config2.wallpaperPath && fs9.existsSync(config2.wallpaperPath) || config2.sceneVideoUrl || config2.live
     ),
     mediaType: config2.mediaType ?? "image",
     live: config2.live ?? null,
@@ -55573,6 +55152,427 @@ var init_configApi = __esm({
     init_inject();
     init_launch();
     init_livefail();
+  }
+});
+
+// src/core/ports.ts
+var ports_exports = {};
+__export(ports_exports, {
+  PORT_POOL_SIZE: () => PORT_POOL_SIZE,
+  apiCandidates: () => apiCandidates,
+  cdpCandidates: () => cdpCandidates,
+  cdpResponds: () => cdpResponds,
+  isPortFree: () => isPortFree,
+  pickCdpPort: () => pickCdpPort,
+  portBase: () => portBase,
+  readHandshake: () => readHandshake,
+  readSessionPorts: () => readSessionPorts,
+  writeSessionPorts: () => writeSessionPorts
+});
+import fs10 from "node:fs";
+import net from "node:net";
+import path6 from "node:path";
+function portBase() {
+  const env = Number(process.env.ZW_PORT_BASE);
+  return Number.isFinite(env) && env >= 1024 && env % 2 === 0 ? env : 28256;
+}
+function cdpCandidates(preferred) {
+  const pool = Array.from({ length: PORT_POOL_SIZE }, (_, i2) => portBase() + 2 * i2);
+  return orderPreferred(pool, preferred);
+}
+function apiCandidates(preferred) {
+  const pool = Array.from({ length: PORT_POOL_SIZE }, (_, i2) => portBase() + 1 + 2 * i2);
+  return orderPreferred(pool, preferred);
+}
+function orderPreferred(pool, preferred) {
+  if (preferred === void 0 || !pool.includes(preferred)) return pool;
+  return [preferred, ...pool.filter((p2) => p2 !== preferred)];
+}
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    let free = false;
+    const finish = () => resolve(free);
+    srv.once("error", () => resolve(false));
+    srv.listen(port, "127.0.0.1", () => {
+      free = true;
+      srv.close(() => finish());
+    });
+    setTimeout(() => {
+      if (free) return;
+      try {
+        srv.close();
+      } catch {
+      }
+      finish();
+    }, 600).unref();
+  });
+}
+async function cdpResponds(port) {
+  try {
+    const r2 = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(900) });
+    return r2.ok;
+  } catch {
+    return false;
+  }
+}
+async function pickCdpPort(preferred) {
+  const cands = cdpCandidates(preferred);
+  for (const c3 of cands) {
+    if (await isPortFree(c3)) return c3;
+    if (await cdpResponds(c3)) return c3;
+  }
+  return preferred ?? cands[0];
+}
+function discoveryPath() {
+  return path6.join(wrapperDir(), "zw-launch.json");
+}
+function handshakePath() {
+  return path6.join(wrapperDir(), "zw-ports.txt");
+}
+function readSessionPorts() {
+  try {
+    const meta = JSON.parse(fs10.readFileSync(discoveryPath(), "utf8"));
+    const out = {};
+    if (typeof meta.cdpPort === "number" && meta.cdpPort > 0) out.cdpPort = meta.cdpPort;
+    if (typeof meta.apiPort === "number" && meta.apiPort > 0) out.apiPort = meta.apiPort;
+    if (typeof meta.at === "number") out.at = meta.at;
+    return out;
+  } catch {
+    return {};
+  }
+}
+function writeSessionPorts(cdpPort, apiPort) {
+  try {
+    fs10.mkdirSync(wrapperDir(), { recursive: true });
+    let meta = {};
+    try {
+      meta = JSON.parse(fs10.readFileSync(discoveryPath(), "utf8"));
+    } catch {
+    }
+    meta.cdpPort = cdpPort;
+    meta.apiPort = apiPort;
+    meta.at = Date.now();
+    fs10.writeFileSync(discoveryPath(), JSON.stringify(meta, null, 1));
+    fs10.writeFileSync(handshakePath(), `cdp=${cdpPort}\r
+api=${apiPort}\r
+`, "utf8");
+  } catch {
+  }
+}
+function readHandshake() {
+  try {
+    const text = fs10.readFileSync(handshakePath(), "utf8");
+    const out = {};
+    const cdp = /^cdp=(\d+)/m.exec(text);
+    const api = /^api=(\d+)/m.exec(text);
+    if (cdp) out.cdpPort = Number(cdp[1]);
+    if (api) out.apiPort = Number(api[1]);
+    return out;
+  } catch {
+    return {};
+  }
+}
+var PORT_POOL_SIZE;
+var init_ports = __esm({
+  "src/core/ports.ts"() {
+    "use strict";
+    init_paths();
+    PORT_POOL_SIZE = 10;
+  }
+});
+
+// src/core/wallpaperType.ts
+import fs11 from "node:fs";
+import path7 from "node:path";
+function detectWallpaperType(input) {
+  const ext = path7.extname(input).toLowerCase();
+  if (IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (VIDEO_EXTENSIONS.has(ext)) return "video";
+  if (ext === ".pkg") return "scene";
+  let stat;
+  try {
+    stat = fs11.statSync(input);
+  } catch {
+    return "unknown";
+  }
+  if (!stat.isDirectory()) return "unknown";
+  return detectDirectoryType(input);
+}
+function detectDirectoryType(dir) {
+  const project = readProjectJson(path7.join(dir, "project.json"));
+  const declared = typeof project?.type === "string" ? project.type.toLowerCase() : "";
+  if (declared === "scene" || declared === "video" || declared === "web") {
+    return declared;
+  }
+  const entryExt = path7.extname(typeof project?.file === "string" ? project.file : "").toLowerCase();
+  if (SCENE_ENTRY_EXTENSIONS.has(entryExt)) return "scene";
+  if (VIDEO_EXTENSIONS.has(entryExt)) return "video";
+  if (entryExt === ".html" || entryExt === ".htm") return "web";
+  return detectFromDirectoryContents(dir);
+}
+function readProjectJson(file2) {
+  try {
+    return JSON.parse(fs11.readFileSync(file2, "utf8"));
+  } catch {
+    return void 0;
+  }
+}
+function detectFromDirectoryContents(dir) {
+  let entries;
+  try {
+    entries = fs11.readdirSync(dir);
+  } catch {
+    return "unknown";
+  }
+  let nested = [];
+  if (entries.some((e2) => e2.toLowerCase() === "files")) {
+    try {
+      nested = fs11.readdirSync(path7.join(dir, "files")).map((e2) => path7.join("files", e2));
+    } catch {
+    }
+  }
+  for (const name of [...entries, ...nested]) {
+    const lower = name.toLowerCase();
+    const ext = path7.extname(lower);
+    if (lower === "scene.pkg" || lower === "scene.json") return "scene";
+    if (ext === ".html" || ext === ".htm") return "web";
+    if (VIDEO_EXTENSIONS.has(ext)) return "video";
+  }
+  return "unknown";
+}
+var IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, SCENE_ENTRY_EXTENSIONS;
+var init_wallpaperType = __esm({
+  "src/core/wallpaperType.ts"() {
+    "use strict";
+    IMAGE_EXTENSIONS = /* @__PURE__ */ new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
+    VIDEO_EXTENSIONS = /* @__PURE__ */ new Set([".mp4", ".webm"]);
+    SCENE_ENTRY_EXTENSIONS = /* @__PURE__ */ new Set([".pkg", ".json"]);
+  }
+});
+
+// src/core/steam.ts
+import { execFile as execFile2 } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
+import fs12 from "node:fs";
+import os3 from "node:os";
+import path8 from "node:path";
+async function regQuery(key, value) {
+  if (process.platform !== "win32") return void 0;
+  try {
+    const { stdout } = await execFileAsync2("reg", ["query", key, "/v", value], { timeout: 4e3, windowsHide: true });
+    const m = new RegExp(`${value}\\s+REG_\\w+\\s+(.+)`).exec(stdout);
+    return m ? m[1].trim() : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function commonSteamDirs(platform, home) {
+  if (platform === "win32") {
+    return [path8.join("C:", "Program Files (x86)", "Steam"), path8.join("C:", "Program Files", "Steam")];
+  }
+  if (platform === "darwin") {
+    return [path8.join(home, "Library", "Application Support", "Steam")];
+  }
+  return [
+    path8.join(home, ".steam", "steam"),
+    path8.join(home, ".local", "share", "Steam"),
+    path8.join(home, ".steam", "root")
+  ];
+}
+function pathKey(p2) {
+  return process.platform === "win32" ? p2.toLowerCase() : p2;
+}
+async function findSteamRoots() {
+  const roots = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (p2) => {
+    if (!p2) return;
+    try {
+      if (!fs12.existsSync(path8.join(p2, "steamapps"))) return;
+    } catch {
+      return;
+    }
+    if (seen.has(pathKey(p2))) return;
+    seen.add(pathKey(p2));
+    roots.push(p2);
+  };
+  push(process.env.ZW_STEAM_ROOT);
+  push(await regQuery("HKCU\\Software\\Valve\\Steam", "SteamPath"));
+  push(await regQuery("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"));
+  for (const d of commonSteamDirs(process.platform, os3.homedir())) push(d);
+  return roots;
+}
+function parseLibraryFolders(vdfPath) {
+  let text;
+  try {
+    text = fs12.readFileSync(vdfPath, "utf8");
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const m of text.matchAll(/"path"\s+"([^"]+)"/g)) {
+    const dir = m[1].replace(/\\\\/g, "\\");
+    if (!out.includes(dir)) out.push(dir);
+  }
+  return out;
+}
+async function steamLibraries(roots) {
+  const libs = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (p2) => {
+    if (!p2) return;
+    try {
+      fs12.accessSync(path8.join(p2, "steamapps"));
+    } catch {
+      return;
+    }
+    if (seen.has(pathKey(p2))) return;
+    seen.add(pathKey(p2));
+    libs.push(p2);
+  };
+  for (const root of roots) {
+    push(root);
+    for (const lib of parseLibraryFolders(path8.join(root, "steamapps", "libraryfolders.vdf"))) push(lib);
+  }
+  return libs;
+}
+async function findWallpaperEngine(libraries) {
+  for (const lib of libraries) {
+    for (const name of WE_DIR_CANDIDATES) {
+      const dir = path8.join(lib, "steamapps", "common", name);
+      try {
+        fs12.accessSync(dir);
+      } catch {
+        continue;
+      }
+      const classic = fs12.existsSync(path8.join(dir, "wallpaper32.exe")) || fs12.existsSync(path8.join(dir, "wallpaper64.exe"));
+      const modern = fs12.existsSync(path8.join(dir, "distribution", "version.json"));
+      if (classic || modern) return { root: dir };
+    }
+  }
+  return void 0;
+}
+function dirSize(dir) {
+  let total = 0;
+  let entries;
+  try {
+    entries = fs12.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const e2 of entries) {
+    try {
+      if (e2.isDirectory()) total += dirSize(path8.join(dir, e2.name));
+      else total += fs12.statSync(path8.join(dir, e2.name)).size;
+    } catch {
+    }
+  }
+  return total;
+}
+function readProject(dir) {
+  try {
+    return JSON.parse(fs12.readFileSync(path8.join(dir, "project.json"), "utf8"));
+  } catch {
+    return void 0;
+  }
+}
+function entryFromDir(dir, id, origin, workshopId) {
+  let stat;
+  try {
+    stat = fs12.statSync(dir);
+  } catch {
+    return void 0;
+  }
+  if (!stat.isDirectory()) return void 0;
+  const project = readProject(dir);
+  const type = detectWallpaperType(dir);
+  if (type === "unknown" && !project) return void 0;
+  const title = typeof project?.title === "string" && project.title.trim() || path8.basename(dir);
+  const previewDeclared = typeof project?.preview === "string" ? project.preview : void 0;
+  const preview = previewDeclared && fs12.existsSync(path8.join(dir, previewDeclared)) ? previewDeclared : PREVIEW_FALLBACKS.find((p2) => fs12.existsSync(path8.join(dir, p2)));
+  return {
+    id,
+    dir,
+    title,
+    type,
+    preview,
+    sizeBytes: dirSize(dir),
+    origin,
+    workshopId,
+    mtimeMs: stat.mtimeMs
+  };
+}
+async function enumerateWallpapers(force = false) {
+  if (!force && cachedLibrary && Date.now() - cachedLibrary.at < LIBRARY_TTL_MS) {
+    return cachedLibrary.value;
+  }
+  const steamRoots = await findSteamRoots();
+  const libraries = await steamLibraries(steamRoots);
+  const we = await findWallpaperEngine(libraries);
+  const wallpapers = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const lib of libraries) {
+    const workshopDir = path8.join(lib, "steamapps", "workshop", "content", WE_APP_ID);
+    let ids;
+    try {
+      ids = fs12.readdirSync(workshopDir);
+    } catch {
+      continue;
+    }
+    for (const id of ids) {
+      const dir = path8.join(workshopDir, id);
+      if (seen.has(pathKey(dir))) continue;
+      seen.add(pathKey(dir));
+      const entry = entryFromDir(dir, `ws-${id}`, "workshop", id);
+      if (entry) wallpapers.push(entry);
+    }
+  }
+  if (we) {
+    for (const [sub, origin] of [
+      ["defaultprojects", "default"],
+      ["myprojects", "myprojects"]
+    ]) {
+      const base = path8.join(we.root, "projects", sub);
+      let names3;
+      try {
+        names3 = fs12.readdirSync(base);
+      } catch {
+        continue;
+      }
+      for (const name of names3) {
+        const dir = path8.join(base, name);
+        if (seen.has(pathKey(dir))) continue;
+        seen.add(pathKey(dir));
+        const entry = entryFromDir(dir, `we-${origin}-${name}`, origin);
+        if (entry) wallpapers.push(entry);
+      }
+    }
+  }
+  wallpapers.sort((a2, b) => b.mtimeMs - a2.mtimeMs);
+  const value = { steamRoots, libraries, we, wallpapers };
+  cachedLibrary = { at: Date.now(), value };
+  return value;
+}
+async function resolveSourceDir(id, custom3) {
+  const customHit = custom3.find((c3) => c3.id === id);
+  if (customHit) {
+    const entry = entryFromDir(customHit.dir, id, "custom");
+    return entry ?? void 0;
+  }
+  const lib = await enumerateWallpapers();
+  return lib.wallpapers.find((w) => w.id === id);
+}
+var execFileAsync2, WE_APP_ID, WE_DIR_CANDIDATES, PREVIEW_FALLBACKS, cachedLibrary, LIBRARY_TTL_MS;
+var init_steam = __esm({
+  "src/core/steam.ts"() {
+    "use strict";
+    init_wallpaperType();
+    execFileAsync2 = promisify2(execFile2);
+    WE_APP_ID = "431960";
+    WE_DIR_CANDIDATES = ["WallpaperEngine", "wallpaper_engine", "Wallpaper Engine"];
+    PREVIEW_FALLBACKS = ["preview.gif", "preview.jpg", "preview.jpeg", "preview.png"];
+    LIBRARY_TTL_MS = 1e4;
   }
 });
 
@@ -59867,7 +59867,6 @@ async function ensureLinuxDesktopEntries(port) {
   }
   const wrapper = path12.join(dir, "zw-launch.sh");
   const logFile = path12.join(dir, "early.log");
-  let wrapperWritten = false;
   for (const entry of entries) {
     try {
       const content = fs17.readFileSync(entry, "utf8");
@@ -59883,7 +59882,6 @@ async function ensureLinuxDesktopEntries(port) {
       }
       fs17.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
       fs17.chmodSync(wrapper, 493);
-      wrapperWritten = true;
       if (r2.next !== content) {
         fs17.writeFileSync(entry, r2.next);
         result.updated.push(entry);
@@ -59894,7 +59892,6 @@ async function ensureLinuxDesktopEntries(port) {
       result.failed.push({ path: entry, reason: err.message });
     }
   }
-  void wrapperWritten;
   return result;
 }
 var ANTI_OCCLUSION_FLAGS, DESKTOP_MARKER, FALLBACK_LNK_NAME, MAC_ZCODE_CANDIDATES;
@@ -71107,11 +71104,12 @@ init_zod();
 // src/core/session.ts
 init_inject();
 init_launch();
+init_configApi();
 init_ports();
 init_wallpaperType();
 init_steam();
-import fs11 from "node:fs";
-import path7 from "node:path";
+import fs13 from "node:fs";
+import path9 from "node:path";
 function mergedStored() {
   return { ...DEFAULT_CONFIG, ...loadConfig() };
 }
@@ -71164,17 +71162,17 @@ async function reapplyStored(opts = {}) {
 }
 async function directApply(config2) {
   let assets;
-  if (config2.monetSourcePath && fs11.existsSync(config2.monetSourcePath)) {
+  if (config2.monetSourcePath && fs13.existsSync(config2.monetSourcePath)) {
     assets = await loadWallpaper(config2.monetSourcePath).catch(() => void 0);
-  } else if (config2.mediaType === "image" && config2.wallpaperPath && fs11.existsSync(config2.wallpaperPath)) {
+  } else if (config2.mediaType === "image" && config2.wallpaperPath && fs13.existsSync(config2.wallpaperPath)) {
     assets = await loadWallpaper(config2.wallpaperPath).catch(() => void 0);
   }
   if (config2.mediaType === "live") {
-    const preview = config2.monetSourcePath && fs11.existsSync(config2.monetSourcePath) ? config2.monetSourcePath : void 0;
+    const preview = config2.monetSourcePath && fs13.existsSync(config2.monetSourcePath) ? config2.monetSourcePath : void 0;
     const payload2 = buildPayload({ ...config2, mediaType: preview ? "image" : config2.mediaType }, assets);
     if (preview) {
-      const buf = fs11.readFileSync(preview);
-      const ext = path7.extname(preview).toLowerCase() || ".jpg";
+      const buf = fs13.readFileSync(preview);
+      const ext = path9.extname(preview).toLowerCase() || ".jpg";
       const mime2 = ext === ".png" ? "image/png" : "image/jpeg";
       payload2.wallpaperDataUri = `data:${mime2};base64,${buf.toString("base64")}`;
     }
@@ -71185,17 +71183,17 @@ async function directApply(config2) {
   return applyToZCode(config2, payload);
 }
 async function applyWallpaper(imagePath, opts = {}) {
-  const abs = path7.resolve(imagePath);
+  const abs = path9.resolve(imagePath);
   const kind = detectWallpaperType(abs);
   if (kind === "scene" || kind === "video" || kind === "web") {
     const r2 = await applyLiveWallpaper(abs, opts);
     return { windows: r2.windows };
   }
   const config2 = baseConfig(opts, loadConfig());
-  if (!fs11.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
-  fs11.mkdirSync(dataDir(), { recursive: true });
-  const dest = path7.join(dataDir(), "wallpaper" + path7.extname(abs).toLowerCase());
-  if (dest !== abs) fs11.copyFileSync(abs, dest);
+  if (!fs13.existsSync(abs)) throw new Error(`Image not found: ${abs}`);
+  fs13.mkdirSync(dataDir(), { recursive: true });
+  const dest = path9.join(dataDir(), "wallpaper" + path9.extname(abs).toLowerCase());
+  if (dest !== abs) fs13.copyFileSync(abs, dest);
   const next = {
     ...config2,
     mediaType: "image",
@@ -71204,10 +71202,10 @@ async function applyWallpaper(imagePath, opts = {}) {
     sceneVideoUrl: void 0,
     monetSourcePath: dest
   };
-  saveConfig({ ...next, port: loadConfig().port });
+  saveConfig(persisted(next));
   if (await isServeAlive(next.apiPort)) {
-    const data = await fs11.promises.readFile(dest);
-    const mime2 = `image/${path7.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
+    const data = await fs13.promises.readFile(dest);
+    const mime2 = `image/${path9.extname(dest).slice(1) === "png" ? "png" : "jpeg"}`;
     const r2 = await serveApi(next.apiPort, "/api/wallpaper", {
       dataUri: `data:${mime2};base64,${data.toString("base64")}`
     });
@@ -71223,7 +71221,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
   const input = sourceOrPath.trim();
   const lib = await enumerateWallpapers();
   const isKnownId = lib.wallpapers.some((w) => w.id === input);
-  const looksLikePath = /[\\/]/.test(input) || fs11.existsSync(input);
+  const looksLikePath = /[\\/]/.test(input) || fs13.existsSync(input);
   const sourceId = isKnownId ? input : looksLikePath ? void 0 : (() => {
     if (/^\d{6,}$/.test(input)) return `ws-${input}`;
     return void 0;
@@ -71232,7 +71230,7 @@ async function applyLiveWallpaper(sourceOrPath, opts = {}) {
     throw new Error(`unknown wallpaper source: ${input} (pass a source id, a workshop item id, or a filesystem path)`);
   }
   if (await isServeAlive(config2.apiPort)) {
-    const r2 = sourceId ? await serveApi(config2.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config2.apiPort, "/api/import", { path: path7.resolve(input) });
+    const r2 = sourceId ? await serveApi(config2.apiPort, "/api/apply-source", { sourceId }) : await serveApi(config2.apiPort, "/api/import", { path: path9.resolve(input) });
     return {
       windows: Number(r2.windows ?? 0),
       sourceId: String(r2.sourceId ?? sourceId ?? ""),
@@ -71261,7 +71259,7 @@ async function applyColorsOnly(opts) {
     const r2 = await serveApi(config2.apiPort, "/api/config", patch);
     return Number(r2.windows ?? 0);
   }
-  saveConfig({ ...config2 });
+  saveConfig(persisted(config2));
   return directApply(config2);
 }
 async function resetAppearance(port) {
@@ -71272,14 +71270,15 @@ async function resetAppearance(port) {
     return 0;
   }
   await resetZCode(port ?? stored.port ?? DEFAULT_CONFIG.port);
-  saveConfig({
+  const cleared = {
     ...stored,
     wallpaperPath: void 0,
     mediaType: void 0,
     live: void 0,
     sceneVideoUrl: void 0,
     monetSourcePath: void 0
-  });
+  };
+  saveConfig(persisted(cleared));
   return 0;
 }
 async function wallpaperStatus() {

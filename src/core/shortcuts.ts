@@ -1018,7 +1018,6 @@ async function ensureLinuxDesktopEntries(port: number): Promise<ShortcutSyncResu
   }
   const wrapper = path.join(dir, "zw-launch.sh");
   const logFile = path.join(dir, "early.log");
-  let wrapperWritten = false;
 
   for (const entry of entries) {
     try {
@@ -1037,7 +1036,6 @@ async function ensureLinuxDesktopEntries(port: number): Promise<ShortcutSyncResu
       // reinstalls, and it is cheap to rewrite one small script
       fs.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r.original, logFile));
       fs.chmodSync(wrapper, 0o755);
-      wrapperWritten = true;
       if (r.next !== content) {
         fs.writeFileSync(entry, r.next);
         result.updated.push(entry);
@@ -1048,6 +1046,5 @@ async function ensureLinuxDesktopEntries(port: number): Promise<ShortcutSyncResu
       result.failed.push({ path: entry, reason: (err as Error).message });
     }
   }
-  void wrapperWritten;
   return result;
 }
