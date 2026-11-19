@@ -148,6 +148,21 @@ export async function existingServePid(apiPort: number): Promise<number | undefi
   }
 }
 
+/** A route failure that knows its HTTP status: input-validation failures are
+ *  400s, anything else a route throws is an internal 500. Before this class
+ *  every error answered 400 — including enumerateWallpapers choking — so a
+ *  client could not tell "my request was bad" from "the serve is broken". */
+class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+const badRequest = (message: string): ApiError => new ApiError(400, message);
+
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -155,7 +170,7 @@ function readBody(req: http.IncomingMessage): Promise<string> {
     req.on("data", (c: Buffer) => {
       size += c.length;
       if (size > MAX_BODY_BYTES) {
-        reject(new Error("request body too large"));
+        reject(new ApiError(400, "request body too large"));
         req.destroy();
         return;
       }
@@ -164,6 +179,18 @@ function readBody(req: http.IncomingMessage): Promise<string> {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
+}
+
+/** Reads and parses a JSON request body. Malformed JSON is a client error —
+ *  the request never made it to the handler's semantics. */
+// biome-ignore lint/suspicious/noExplicitAny: route bodies narrow their own fields; a generic here keeps 20+ handlers readable
+async function readJsonBody(req: http.IncomingMessage): Promise<any> {
+  const text = await readBody(req);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw badRequest("request body must be valid JSON");
+  }
 }
 
 /** Streams a raw request body to a file (resource packages can be hundreds of MB). */
@@ -176,7 +203,7 @@ function readBodyToFile(req: http.IncomingMessage, dest: string, maxBytes: numbe
       if (size > maxBytes) {
         out.destroy();
         req.destroy();
-        reject(new Error(`package too large (max ${maxBytes / 1024 / 1024 / 1024} GB)`));
+        reject(new ApiError(400, `package too large (max ${maxBytes / 1024 / 1024 / 1024} GB)`));
         return;
       }
       if (!out.write(c)) {
@@ -340,6 +367,566 @@ export async function startServe(opts: ServeOptions): Promise<void> {
   process.on("uncaughtException", (err) => console.error(`serve: uncaught exception — ${(err as Error).stack ?? err}`));
   process.on("unhandledRejection", (err) => console.error(`serve: unhandled rejection — ${(err as Error)?.stack ?? err}`));
 
+  /** The image routes' shared response shape (ok + held windows + config). */
+  const reply = (res: http.ServerResponse, config: BeautifyConfig): void => {
+    sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(config) });
+  };
+
+  /** The image routes' shared tail (/api/wallpaper upload and /api/apply-image
+   *  library pick alike — they used to be two near-identical bodies): swap
+   *  the config to this image file and push it out. */
+  const applyImageConfig = async (imagePath: string): Promise<BeautifyConfig> => {
+    const config = runtimeConfig();
+    const next: BeautifyConfig = {
+      ...config,
+      mediaType: "image",
+      wallpaperPath: imagePath,
+      live: undefined,
+      sceneVideoUrl: undefined,
+      monetSourcePath: imagePath,
+    };
+    saveConfig(persisted(next));
+    await publishConfig(next);
+    return next;
+  };
+
+  // ── the control API surface ────────────────────────────────────────────────
+  // One entry per route, in the order the old if-chain checked them; bodies
+  // are the chain's bodies. Prefixed surfaces (the static runtime files and
+  // /files/<id>/…) stay bespoke in handleRequest — they are path-prefix
+  // routes, not exact matches. Closures may reference startServe state
+  // declared later (pickWallpaperId) — they only run at request time.
+  type Route = {
+    method: string;
+    path: string;
+    run: (req: http.IncomingMessage, res: http.ServerResponse, url: URL) => Promise<void>;
+  };
+  const routes: Route[] = [
+    {
+      method: "GET",
+      path: "/api/log",
+      run: async (_req, res) => {
+        sendJson(res, 200, { log: serveLog });
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/host-alive",
+      run: async (_req, res) => {
+        (globalThis as { __zwHostAlive?: number }).__zwHostAlive = Date.now();
+        sendJson(res, 200, { ok: true });
+      },
+    },
+    // Transfer ledger (D7): the live load phase polls this — bytes moving
+    // means "still downloading", never "failing to render".
+    {
+      method: "GET",
+      path: "/api/transfer",
+      run: async (_req, res, url) => {
+        sendJson(res, 200, transferSnapshot(String(url.searchParams.get("id") ?? "")));
+      },
+    },
+    // Live verdict (D6): a hard failure reported by the agent persists per
+    // source; the payload rebuild downgrades it to poster-only with the
+    // reason, which flows back over SSE.
+    {
+      method: "POST",
+      path: "/api/live-verdict",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        const id = String(body.sourceId ?? "");
+        if (!id) {
+          sendJson(res, 400, { error: "sourceId required" });
+          return;
+        }
+        recordLiveFailure(id, String(body.reason ?? "renderer"));
+        serveLog.push(`[live:fail] ${id} — ${body.reason ?? "renderer"} (downgraded to poster)`);
+        await publishConfig(runtimeConfig());
+        sendJson(res, 200, { ok: true, downgraded: true });
+      },
+    },
+    // Retry (D6): clear the current source's failure memory — explicit user
+    // intent outranks memory — and push the full live payload again.
+    {
+      method: "POST",
+      path: "/api/live-retry",
+      run: async (_req, res) => {
+        const cfg = runtimeConfig();
+        clearLiveFailure(cfg.live?.sourceId);
+        await publishConfig(cfg);
+        sendJson(res, 200, { ok: true });
+      },
+    },
+    // SSE: the config channel. New subscribers get the current payload as
+    // their first event, so a runtime that connects late never misses a
+    // push — and if the boot publish hasn't happened yet (fresh serve, no
+    // config mutation so far), build it NOW: the agent's head-start payload
+    // is only the thin bootstrap css, and waiting for the next unrelated
+    // publish left the wallpaper unmounted for a minute-plus (2026-10-30:
+    // 66s observed on a plain restart).
+    {
+      method: "GET",
+      path: "/api/events",
+      run: async (req, res) => {
+        const current = currentRuntimePayload();
+        hub.subscribe(req, res, current);
+        if (!current) void publishConfig(runtimeConfig()).catch(() => undefined);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/health",
+      run: async (_req, res) => {
+        sendJson(res, 200, {
+          ok: true,
+          service: "zcode-wallpaper",
+          pid: process.pid,
+          cdpPort,
+          apiPort,
+          version: VERSION,
+          ...(cdpAbsent ? { cdp: "absent — this ZCode launch has no debug port; restart ZCode to get injection back" } : {}),
+        });
+      },
+    },
+    // A newer plugin generation asks a stale serve to step aside (D18):
+    // the shortcut wrapper's serve can linger across an update and keep
+    // serving old code from the port it still owns.
+    {
+      method: "POST",
+      path: "/api/retire",
+      run: async (_req, res) => {
+        sendJson(res, 200, { ok: true, pid: process.pid });
+        console.log(`serve: retired by a newer plugin generation (was v${VERSION})`);
+        setImmediate(() => {
+          void shutdownServe().catch(() => undefined).then(() => process.exit(0));
+        });
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/config",
+      run: async (_req, res) => {
+        sendJson(res, 200, publicConfig(runtimeConfig()));
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/config",
+      run: async (req, res) => {
+        const patch = sanitize(await readJsonBody(req));
+        const before = runtimeConfig();
+        const config = { ...before, ...patch };
+        if (patch.rotationEnabled === true && !before.rotationEnabled) lastRotateAt = Date.now();
+        saveConfig(persisted(config));
+        await publishConfig(config);
+        reply(res, config);
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/wallpaper",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        const dataUri = typeof body?.dataUri === "string" ? body.dataUri : "";
+        const m = /^data:(image\/(?:jpeg|png|webp|gif|bmp));base64,(.+)$/.exec(dataUri);
+        if (!m) throw badRequest("dataUri must be a base64 image data URI");
+        const bytes = Buffer.from(m[2], "base64");
+        if (bytes.length > MAX_WALLPAPER_BYTES) {
+          throw badRequest(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
+        }
+        fs.mkdirSync(dataDir(), { recursive: true });
+        const dest = path.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
+        fs.writeFileSync(dest, bytes);
+        primeAssets(dest, await loadWallpaper(dest));
+        reply(res, await applyImageConfig(dest));
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/reset",
+      run: async (_req, res) => {
+        const storedRaw = loadConfig();
+        const stored = storedRaw as Partial<BeautifyConfig>;
+        if (stored.wallpaperPath || stored.live || stored.sceneVideoUrl) {
+          writeBackup(storedRaw);
+        }
+        await resetSessions();
+        const unloaded: BeautifyConfig = {
+          ...DEFAULT_CONFIG,
+          ...stored,
+          wallpaperPath: undefined,
+          mediaType: undefined,
+          live: undefined,
+          sceneVideoUrl: undefined,
+          monetSourcePath: undefined,
+        };
+        saveConfig(persisted(unloaded));
+        // resetSessions can miss a window (CDP hiccup); a live agent that
+        // survived gets the cleared payload pushed so no window keeps a
+        // wallpaper the user just unloaded.
+        await publishConfig(unloaded).catch(() => void 0);
+        invalidateAssets();
+        sendJson(res, 200, { ok: true, hasBackup: true });
+      },
+    },
+    // Options-only reset (1.0.13): picture/playback knobs return to their
+    // defaults; the current wallpaper, its identity fields and the imported
+    // library are NOT touched — that is what 卸载壁纸 (/api/reset) is for.
+    {
+      method: "POST",
+      path: "/api/reset-options",
+      run: async (_req, res) => {
+        const stored = loadConfig() as Partial<BeautifyConfig>;
+        const next: BeautifyConfig = {
+          ...stored,
+          ...DEFAULT_CONFIG,
+          port: stored.port ?? DEFAULT_CONFIG.port,
+          apiPort: stored.apiPort ?? DEFAULT_CONFIG.apiPort,
+          rotationEnabled: false, // absent from DEFAULT_CONFIG; explicit false stops a running rotation
+        };
+        saveConfig(persisted(next));
+        await publishConfig(next);
+        reply(res, next);
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/restore",
+      run: async (_req, res) => {
+        let saved: Partial<BeautifyConfig>;
+        try {
+          saved = readBackup();
+        } catch {
+          throw badRequest("no wallpaper backup available");
+        }
+        const config: BeautifyConfig = { ...runtimeConfig(), ...saved };
+        saveConfig(persisted(config));
+        await publishConfig(config);
+        // A prior /api/reset cleared the bootstrap registration; re-register
+        // + re-evaluate so the wallpaper survives reloads again.
+        await rearmSessions(config, apiPort);
+        reply(res, config);
+      },
+    },
+    // --- wallpaper library ---------------------------------------------------
+    {
+      method: "GET",
+      path: "/api/wallpapers",
+      run: async (_req, res) => {
+        const lib = await enumerateWallpapers();
+        const custom = storedCustomSources();
+        const entries = lib.wallpapers.map((w) => ({
+          id: w.id,
+          title: w.title,
+          type: w.type,
+          origin: w.origin,
+          sizeBytes: w.sizeBytes,
+          mtimeMs: w.mtimeMs,
+          dir: w.dir,
+          previewUrl: w.preview ? `/files/${w.id}/${w.preview}` : undefined,
+        }));
+        const customs = [];
+        for (const c of custom) {
+          const entry = await resolveSourceDir(c.id, custom);
+          if (entry) {
+            customs.push({
+              id: c.id,
+              title: entry.title,
+              type: entry.type,
+              origin: "custom" as const,
+              sizeBytes: entry.sizeBytes,
+              mtimeMs: entry.mtimeMs,
+              dir: entry.dir,
+              previewUrl: entry.preview ? `/files/${c.id}/${entry.preview}` : undefined,
+            });
+          }
+        }
+        // The active source id across all wallpaper kinds: live scenes carry
+        // it in config.live; video wallpapers only in sceneVideoUrl's path.
+        const curCfg = runtimeConfig();
+        const current =
+          curCfg.live?.sourceId ??
+          (curCfg.mediaType === "video" && curCfg.sceneVideoUrl
+            ? (/\/files\/([^/]+)\//.exec(curCfg.sceneVideoUrl)?.[1] ?? null)
+            : null);
+        sendJson(res, 200, {
+          we: lib.we ? { root: lib.we.root } : null,
+          steamRoots: lib.steamRoots,
+          wallpapers: [...customs, ...entries],
+          current,
+        });
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/apply-source",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        const id = typeof body?.sourceId === "string" ? body.sourceId.trim() : "";
+        if (!id) throw badRequest("sourceId is required");
+        // unknown-source is THE user-facing failure of this route (picker
+        // input); internal fs errors ride along as 400s, an acceptable blur.
+        const result = await applySource(id, runtimeConfig()).catch((err: Error) => {
+          throw badRequest(err.message);
+        });
+        sendJson(res, 200, {
+          ...publicConfig(runtimeConfig()),
+          ok: true,
+          windows: heldWindowCount(),
+          mediaType: result.mediaType,
+          title: result.entry.title,
+          type: result.entry.type,
+        });
+      },
+    },
+    // Register a picked local path (scene dir / .pkg / video / .zw.zip
+    // package) and apply it. Zip paths run through the package importer.
+    {
+      method: "POST",
+      path: "/api/import",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        const input = typeof body?.path === "string" ? body.path.trim() : "";
+        if (!input) throw badRequest("path is required");
+        const abs = path.resolve(input);
+        let result: ApplyLiveResult;
+        let sourceId: string;
+        if (/\.zip$/i.test(abs)) {
+          if (!fs.existsSync(abs)) throw badRequest(`package not found: ${abs}`);
+          const r = await importPackageFromFile(abs, runtimeConfig(), true).catch((err: Error) => {
+            throw badRequest(err.message);
+          });
+          sourceId = r.id;
+          result = r;
+        } else {
+          const { id } = registerCustomSource(abs);
+          sourceId = id;
+          result = await applySource(id, runtimeConfig()).catch((err: Error) => {
+            throw badRequest(err.message);
+          });
+        }
+        sendJson(res, 200, {
+          ...publicConfig(runtimeConfig()),
+          ok: true,
+          windows: heldWindowCount(),
+          sourceId,
+          mediaType: result.mediaType,
+          title: result.entry.title,
+          type: result.entry.type,
+        });
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/pick-path",
+      run: async (_req, res) => {
+        const picked = await pickFileViaDialog();
+        sendJson(res, 200, { ok: Boolean(picked), path: picked });
+      },
+    },
+    // --- cross-machine resource packages -----------------------------------
+    // Export a wallpaper directory as a .zw.zip the user can carry to
+    // another machine (its panel's 导入资源包… accepts it back).
+    {
+      method: "GET",
+      path: "/api/export",
+      run: async (_req, res, url) => {
+        const id = url.searchParams.get("id") ?? "";
+        const entry = id ? await resolveSourceDir(id, storedCustomSources()) : undefined;
+        if (!entry) {
+          sendJson(res, 404, { error: `unknown source: ${id}` });
+          return;
+        }
+        const { default: AdmZip } = await import("adm-zip");
+        const zip = new AdmZip();
+        zip.addLocalFolder(entry.dir);
+        const safeTitle = entry.title.replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
+        const zipPath = path.join(os.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        await zip.writeZipPromise(zipPath);
+        const size = fs.statSync(zipPath).size;
+        res.writeHead(200, {
+          "Content-Type": "application/zip",
+          "Content-Length": size,
+          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safeTitle)}.zw.zip`,
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Expose-Headers": "Content-Disposition",
+        });
+        const stream = fs.createReadStream(zipPath);
+        stream.pipe(res);
+        stream.on("close", () => fs.rm(zipPath, { force: true }, () => undefined));
+      },
+    },
+    // Import an uploaded .zw.zip package: binary body -> temp -> extract ->
+    // register (and optionally apply). Sizes up to ~4 GB stream to disk.
+    {
+      method: "POST",
+      path: "/api/import-package",
+      run: async (req, res, url) => {
+        const apply = url.searchParams.get("apply") === "1";
+        const tempZip = path.join(os.tmpdir(), `zw-import-${Date.now()}.zip`);
+        await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
+        try {
+          const r = await importPackageFromFile(tempZip, runtimeConfig(), apply).catch((err: Error) => {
+            throw badRequest(err.message);
+          });
+          sendJson(res, 200, {
+            ok: true,
+            sourceId: r.id,
+            title: r.entry.title,
+            type: r.entry.type,
+            mediaType: r.mediaType,
+            windows: heldWindowCount(),
+          });
+        } finally {
+          fs.rmSync(tempZip, { force: true });
+        }
+      },
+    },
+    // Browser-chooser import (same UX as image upload): file bytes ->
+    // server-side storage. Accepts .zw.zip packages, bare .pkg scene files
+    // (a minimal project.json is synthesized) and video files. No
+    // Wallpaper Engine / Steam involved.
+    {
+      method: "POST",
+      path: "/api/upload-wallpaper",
+      run: async (req, res, url) => {
+        const apply = url.searchParams.get("apply") === "1";
+        const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
+        const ext = path.extname(name).toLowerCase();
+        if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
+          throw badRequest(`unsupported file type: ${ext || "(none)"} — use .zip / .pkg / .mp4 / .webm`);
+        }
+        const tempFile = path.join(os.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
+        try {
+          const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "导入的壁纸";
+          if (ext === ".zip") {
+            const r = await importPackageFromFile(tempFile, runtimeConfig(), apply).catch((err: Error) => {
+              throw badRequest(err.message);
+            });
+            sendJson(res, 200, { ok: true, sourceId: r.id, title: r.entry.title, type: r.entry.type, mediaType: r.mediaType, windows: heldWindowCount() });
+            return;
+          }
+          // .pkg / video: store under the packages dir with a synthesized
+          // project.json so enumeration and serving treat it like any source.
+          const dest = path.join(dataDir(), "packages", `upl-${Date.now()}`);
+          fs.mkdirSync(dest, { recursive: true });
+          if (ext === ".pkg") {
+            fs.copyFileSync(tempFile, path.join(dest, "scene.pkg"));
+            fs.writeFileSync(path.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
+          } else {
+            fs.copyFileSync(tempFile, path.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
+            fs.writeFileSync(path.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
+          }
+          const { id } = registerCustomSource(dest);
+          const result = await applySource(id, runtimeConfig(), apply);
+          sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
+        } finally {
+          fs.rmSync(tempFile, { force: true });
+        }
+      },
+    },
+    // Delete a custom-imported source (sources.ts owns the switch-away +
+    // background file cleanup policy).
+    {
+      method: "POST",
+      path: "/api/delete-source",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        const id = typeof body?.id === "string" ? body.id : "";
+        if (!id) throw badRequest("id is required");
+        const r = await deleteSource(id, runtimeConfig()).catch((err: Error) => {
+          throw badRequest(err.message);
+        });
+        sendJson(res, 200, r);
+      },
+    },
+    // --- live-frame feedback (Monet source from real rendered pixels) --------
+    {
+      method: "POST",
+      path: "/api/live-frame",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        const source = typeof body?.source === "string" ? body.source : "";
+        const m = /^data:image\/(?:jpeg|png);base64,(.+)$/.exec(typeof body?.dataUrl === "string" ? body.dataUrl : "");
+        if (!source || !m) {
+          sendJson(res, 400, { error: "source and dataUrl are required" });
+          return;
+        }
+        const file = liveFrameFile(source);
+        fs.mkdirSync(dataDir(), { recursive: true });
+        fs.writeFileSync(file, Buffer.from(m[1], "base64"));
+        const config = runtimeConfig();
+        if (config.live?.sourceId === source) {
+          const next: BeautifyConfig = { ...config, monetSourcePath: file };
+          saveConfig(persisted(next));
+          await publishConfig(next);
+        }
+        sendJson(res, 200, { ok: true, file });
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/diag",
+      run: async (_req, res, url) => {
+        const msg = url.searchParams.get("msg") ?? "";
+        const lvl = url.searchParams.get("lvl") ?? "info";
+        console.log(`[live:${lvl}] ${msg}`);
+        sendJson(res, 204, {});
+      },
+    },
+    // Static images the user uploaded (library listing for the panel).
+    {
+      method: "GET",
+      path: "/api/library",
+      run: async (_req, res) => {
+        const images: Array<{ name: string; path: string }> = [];
+        try {
+          for (const f of fs.readdirSync(dataDir())) {
+            if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f)) {
+              images.push({ name: f, path: path.join(dataDir(), f) });
+            }
+          }
+        } catch {
+          /* empty data dir */
+        }
+        sendJson(res, 200, { images });
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/switch",
+      run: async (req, res) => {
+        // D31: one-key switching for the hotkeys (and available to the panel).
+        // next walks the shared rotation cursor; random excludes the current.
+        // Either flavor resets the rotation clock so auto-rotation doesn't
+        // fire right behind a manual switch.
+        const body = await readJsonBody(req);
+        const mode = body?.mode === "random" ? "random" : "next";
+        const id = await pickWallpaperId(mode);
+        if (!id) {
+          sendJson(res, 200, { ok: false, error: "壁纸库里没有其他壁纸可切换" });
+          return;
+        }
+        lastRotateAt = Date.now();
+        await applySource(id, runtimeConfig());
+        console.log(`serve: manual switch (${mode}) -> ${id}`);
+        sendJson(res, 200, { ok: true, id });
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/apply-image",
+      run: async (req, res) => {
+        const body = await readJsonBody(req);
+        if (typeof body?.path !== "string" || !fs.existsSync(body.path)) {
+          throw badRequest("provide an existing image path");
+        }
+        reply(res, await applyImageConfig(body.path));
+      },
+    },
+  ];
+
   async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     try {
@@ -392,489 +979,15 @@ export async function startServe(opts: ServeOptions): Promise<void> {
 
       // --- control API -------------------------------------------------------
 
-      if (req.method === "GET" && url.pathname === "/api/log") {
-        sendJson(res, 200, { log: serveLog });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/host-alive") {
-        (globalThis as { __zwHostAlive?: number }).__zwHostAlive = Date.now();
-        sendJson(res, 200, { ok: true });
-        return;
-      }
-
-      // Transfer ledger (D7): the live load phase polls this — bytes moving
-      // means "still downloading", never "failing to render".
-      if (req.method === "GET" && url.pathname === "/api/transfer") {
-        sendJson(res, 200, transferSnapshot(String(url.searchParams.get("id") ?? "")));
-        return;
-      }
-
-      // Live verdict (D6): a hard failure reported by the agent persists per
-      // source; the payload rebuild downgrades it to poster-only with the
-      // reason, which flows back over SSE.
-      if (req.method === "POST" && url.pathname === "/api/live-verdict") {
-        const body = JSON.parse(await readBody(req)) as { sourceId?: string; reason?: string };
-        const id = String(body.sourceId ?? "");
-        if (!id) {
-          sendJson(res, 400, { error: "sourceId required" });
+      for (const route of routes) {
+        if (req.method === route.method && url.pathname === route.path) {
+          await route.run(req, res, url);
           return;
         }
-        recordLiveFailure(id, String(body.reason ?? "renderer"));
-        serveLog.push(`[live:fail] ${id} — ${body.reason ?? "renderer"} (downgraded to poster)`);
-        await publishConfig(runtimeConfig());
-        sendJson(res, 200, { ok: true, downgraded: true });
-        return;
       }
-
-      // Retry (D6): clear the current source's failure memory — explicit user
-      // intent outranks memory — and push the full live payload again.
-      if (req.method === "POST" && url.pathname === "/api/live-retry") {
-        const cfg = runtimeConfig();
-        clearLiveFailure(cfg.live?.sourceId);
-        await publishConfig(cfg);
-        sendJson(res, 200, { ok: true });
-        return;
-      }
-
-      // SSE: the config channel. New subscribers get the current payload as
-      // their first event, so a runtime that connects late never misses a
-      // push — and if the boot publish hasn't happened yet (fresh serve, no
-      // config mutation so far), build it NOW: the agent's head-start payload
-      // is only the thin bootstrap css, and waiting for the next unrelated
-      // publish left the wallpaper unmounted for a minute-plus (2026-10-30:
-      // 66s observed on a plain restart).
-      if (req.method === "GET" && url.pathname === "/api/events") {
-        const current = currentRuntimePayload();
-        hub.subscribe(req, res, current);
-        if (!current) void publishConfig(runtimeConfig()).catch(() => undefined);
-        return;
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/health") {
-        sendJson(res, 200, {
-          ok: true,
-          service: "zcode-wallpaper",
-          pid: process.pid,
-          cdpPort,
-          apiPort,
-          version: VERSION,
-          ...(cdpAbsent ? { cdp: "absent — this ZCode launch has no debug port; restart ZCode to get injection back" } : {}),
-        });
-        return;
-      }
-
-      // A newer plugin generation asks a stale serve to step aside (D18):
-      // the shortcut wrapper's serve can linger across an update and keep
-      // serving old code from the port it still owns.
-      if (req.method === "POST" && url.pathname === "/api/retire") {
-        sendJson(res, 200, { ok: true, pid: process.pid });
-        console.log(`serve: retired by a newer plugin generation (was v${VERSION})`);
-        setImmediate(() => {
-          void shutdownServe().catch(() => undefined).then(() => process.exit(0));
-        });
-        return;
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/config") {
-        sendJson(res, 200, publicConfig(runtimeConfig()));
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/config") {
-        const patch = sanitize(JSON.parse(await readBody(req)));
-        const before = runtimeConfig();
-        const config = { ...before, ...patch };
-        if (patch.rotationEnabled === true && !before.rotationEnabled) lastRotateAt = Date.now();
-        saveConfig(persisted(config));
-        await publishConfig(config);
-        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(config) });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/wallpaper") {
-        const body = JSON.parse(await readBody(req));
-        const dataUri = typeof body?.dataUri === "string" ? body.dataUri : "";
-        const m = /^data:(image\/(?:jpeg|png|webp|gif|bmp));base64,(.+)$/.exec(dataUri);
-        if (!m) throw new Error("dataUri must be a base64 image data URI");
-        const bytes = Buffer.from(m[2], "base64");
-        if (bytes.length > MAX_WALLPAPER_BYTES) {
-          throw new Error(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
-        }
-        const config = runtimeConfig();
-        fs.mkdirSync(dataDir(), { recursive: true });
-        const dest = path.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
-        fs.writeFileSync(dest, bytes);
-        primeAssets(dest, await loadWallpaper(dest));
-        const next: BeautifyConfig = {
-          ...config,
-          mediaType: "image",
-          wallpaperPath: dest,
-          live: undefined,
-          sceneVideoUrl: undefined,
-          monetSourcePath: dest,
-        };
-        saveConfig(persisted(next));
-        await publishConfig(next);
-        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/reset") {
-        const storedRaw = loadConfig();
-        const stored = storedRaw as Partial<BeautifyConfig>;
-        if (stored.wallpaperPath || stored.live || stored.sceneVideoUrl) {
-          writeBackup(storedRaw);
-        }
-        await resetSessions();
-        const unloaded: BeautifyConfig = {
-          ...DEFAULT_CONFIG,
-          ...stored,
-          wallpaperPath: undefined,
-          mediaType: undefined,
-          live: undefined,
-          sceneVideoUrl: undefined,
-          monetSourcePath: undefined,
-        };
-        saveConfig(persisted(unloaded));
-        // resetSessions can miss a window (CDP hiccup); a live agent that
-        // survived gets the cleared payload pushed so no window keeps a
-        // wallpaper the user just unloaded.
-        await publishConfig(unloaded).catch(() => void 0);
-        invalidateAssets();
-        sendJson(res, 200, { ok: true, hasBackup: true });
-        return;
-      }
-
-      // Options-only reset (1.0.13): picture/playback knobs return to their
-      // defaults; the current wallpaper, its identity fields and the imported
-      // library are NOT touched — that is what 卸载壁纸 (/api/reset) is for.
-      if (req.method === "POST" && url.pathname === "/api/reset-options") {
-        const stored = loadConfig() as Partial<BeautifyConfig>;
-        const next: BeautifyConfig = {
-          ...stored,
-          ...DEFAULT_CONFIG,
-          port: stored.port ?? DEFAULT_CONFIG.port,
-          apiPort: stored.apiPort ?? DEFAULT_CONFIG.apiPort,
-          rotationEnabled: false, // absent from DEFAULT_CONFIG; explicit false stops a running rotation
-        };
-        saveConfig(persisted(next));
-        await publishConfig(next);
-        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/restore") {
-        let saved: Partial<BeautifyConfig>;
-        try {
-          saved = readBackup();
-        } catch {
-          throw new Error("no wallpaper backup available");
-        }
-        const config: BeautifyConfig = { ...runtimeConfig(), ...saved };
-        saveConfig(persisted(config));
-        await publishConfig(config);
-        // A prior /api/reset cleared the bootstrap registration; re-register
-        // + re-evaluate so the wallpaper survives reloads again.
-        await rearmSessions(config, apiPort);
-        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(config) });
-        return;
-      }
-
-      // --- wallpaper library ---------------------------------------------------
-
-      if (req.method === "GET" && url.pathname === "/api/wallpapers") {
-        const lib = await enumerateWallpapers();
-        const custom = storedCustomSources();
-        const entries = lib.wallpapers.map((w) => ({
-          id: w.id,
-          title: w.title,
-          type: w.type,
-          origin: w.origin,
-          sizeBytes: w.sizeBytes,
-          mtimeMs: w.mtimeMs,
-          dir: w.dir,
-          previewUrl: w.preview ? `/files/${w.id}/${w.preview}` : undefined,
-        }));
-        const customs = [];
-        for (const c of custom) {
-          const entry = await resolveSourceDir(c.id, custom);
-          if (entry) {
-            customs.push({
-              id: c.id,
-              title: entry.title,
-              type: entry.type,
-              origin: "custom" as const,
-              sizeBytes: entry.sizeBytes,
-              mtimeMs: entry.mtimeMs,
-              dir: entry.dir,
-              previewUrl: entry.preview ? `/files/${c.id}/${entry.preview}` : undefined,
-            });
-          }
-        }
-        // The active source id across all wallpaper kinds: live scenes carry
-        // it in config.live; video wallpapers only in sceneVideoUrl's path.
-        const curCfg = runtimeConfig();
-        const current =
-          curCfg.live?.sourceId ??
-          (curCfg.mediaType === "video" && curCfg.sceneVideoUrl
-            ? (/\/files\/([^/]+)\//.exec(curCfg.sceneVideoUrl)?.[1] ?? null)
-            : null);
-        sendJson(res, 200, {
-          we: lib.we ? { root: lib.we.root } : null,
-          steamRoots: lib.steamRoots,
-          wallpapers: [...customs, ...entries],
-          current,
-        });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/apply-source") {
-        const body = JSON.parse(await readBody(req));
-        const id = typeof body?.sourceId === "string" ? body.sourceId.trim() : "";
-        if (!id) throw new Error("sourceId is required");
-        const result = await applySource(id, runtimeConfig());
-        sendJson(res, 200, {
-          ...publicConfig(runtimeConfig()),
-          ok: true,
-          windows: heldWindowCount(),
-          mediaType: result.mediaType,
-          title: result.entry.title,
-          type: result.entry.type,
-        });
-        return;
-      }
-
-      // Register a picked local path (scene dir / .pkg / video / .zw.zip
-      // package) and apply it. Zip paths run through the package importer.
-      if (req.method === "POST" && url.pathname === "/api/import") {
-        const body = JSON.parse(await readBody(req));
-        const input = typeof body?.path === "string" ? body.path.trim() : "";
-        if (!input) throw new Error("path is required");
-        const abs = path.resolve(input);
-        let result: ApplyLiveResult;
-        let sourceId: string;
-        if (/\.zip$/i.test(abs)) {
-          if (!fs.existsSync(abs)) throw new Error(`package not found: ${abs}`);
-          const r = await importPackageFromFile(abs, runtimeConfig(), true);
-          sourceId = r.id;
-          result = r;
-        } else {
-          const { id } = registerCustomSource(abs);
-          sourceId = id;
-          result = await applySource(id, runtimeConfig());
-        }
-        sendJson(res, 200, {
-          ...publicConfig(runtimeConfig()),
-          ok: true,
-          windows: heldWindowCount(),
-          sourceId,
-          mediaType: result.mediaType,
-          title: result.entry.title,
-          type: result.entry.type,
-        });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/pick-path") {
-        const picked = await pickFileViaDialog();
-        sendJson(res, 200, { ok: Boolean(picked), path: picked });
-        return;
-      }
-
-      // --- cross-machine resource packages -----------------------------------
-
-      // Export a wallpaper directory as a .zw.zip the user can carry to
-      // another machine (its panel's 导入资源包… accepts it back).
-      if (req.method === "GET" && url.pathname === "/api/export") {
-        const id = url.searchParams.get("id") ?? "";
-        const entry = id ? await resolveSourceDir(id, storedCustomSources()) : undefined;
-        if (!entry) {
-          sendJson(res, 404, { error: `unknown source: ${id}` });
-          return;
-        }
-        const { default: AdmZip } = await import("adm-zip");
-        const zip = new AdmZip();
-        zip.addLocalFolder(entry.dir);
-        const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path.join(os.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
-        await zip.writeZipPromise(zipPath);
-        const size = fs.statSync(zipPath).size;
-        res.writeHead(200, {
-          "Content-Type": "application/zip",
-          "Content-Length": size,
-          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safeTitle)}.zw.zip`,
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Expose-Headers": "Content-Disposition",
-        });
-        const stream = fs.createReadStream(zipPath);
-        stream.pipe(res);
-        stream.on("close", () => fs.rm(zipPath, { force: true }, () => undefined));
-        return;
-      }
-
-      // Import an uploaded .zw.zip package: binary body -> temp -> extract ->
-      // register (and optionally apply). Sizes up to ~4 GB stream to disk.
-      if (req.method === "POST" && url.pathname === "/api/import-package") {
-        const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path.join(os.tmpdir(), `zw-import-${Date.now()}.zip`);
-        await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
-        try {
-          const r = await importPackageFromFile(tempZip, runtimeConfig(), apply);
-          sendJson(res, 200, {
-            ok: true,
-            sourceId: r.id,
-            title: r.entry.title,
-            type: r.entry.type,
-            mediaType: r.mediaType,
-            windows: heldWindowCount(),
-          });
-        } finally {
-          fs.rmSync(tempZip, { force: true });
-        }
-        return;
-      }
-
-      // Browser-chooser import (same UX as image upload): file bytes ->
-      // server-side storage. Accepts .zw.zip packages, bare .pkg scene files
-      // (a minimal project.json is synthesized) and video files. No
-      // Wallpaper Engine / Steam involved.
-      if (req.method === "POST" && url.pathname === "/api/upload-wallpaper") {
-        const apply = url.searchParams.get("apply") === "1";
-        const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
-        const ext = path.extname(name).toLowerCase();
-        if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
-          throw new Error(`unsupported file type: ${ext || "(none)"} — use .zip / .pkg / .mp4 / .webm`);
-        }
-        const tempFile = path.join(os.tmpdir(), `zw-upl-${Date.now()}${ext}`);
-        await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
-        try {
-          const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "导入的壁纸";
-          if (ext === ".zip") {
-            const r = await importPackageFromFile(tempFile, runtimeConfig(), apply);
-            sendJson(res, 200, { ok: true, sourceId: r.id, title: r.entry.title, type: r.entry.type, mediaType: r.mediaType, windows: heldWindowCount() });
-            return;
-          }
-          // .pkg / video: store under the packages dir with a synthesized
-          // project.json so enumeration and serving treat it like any source.
-          const dest = path.join(dataDir(), "packages", `upl-${Date.now()}`);
-          fs.mkdirSync(dest, { recursive: true });
-          if (ext === ".pkg") {
-            fs.copyFileSync(tempFile, path.join(dest, "scene.pkg"));
-            fs.writeFileSync(path.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
-          } else {
-            fs.copyFileSync(tempFile, path.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
-            fs.writeFileSync(path.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
-          }
-          const { id } = registerCustomSource(dest);
-          const result = await applySource(id, runtimeConfig(), apply);
-          sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
-        } finally {
-          fs.rmSync(tempFile, { force: true });
-        }
-        return;
-      }
-
-      // Delete a custom-imported source (sources.ts owns the switch-away +
-      // background file cleanup policy).
-      if (req.method === "POST" && url.pathname === "/api/delete-source") {
-        const body = JSON.parse(await readBody(req));
-        const id = typeof body?.id === "string" ? body.id : "";
-        if (!id) throw new Error("id is required");
-        const r = await deleteSource(id, runtimeConfig());
-        sendJson(res, 200, r);
-        return;
-      }
-
-      // --- live-frame feedback (Monet source from real rendered pixels) --------
-
-      if (req.method === "POST" && url.pathname === "/api/live-frame") {
-        const body = JSON.parse(await readBody(req));
-        const source = typeof body?.source === "string" ? body.source : "";
-        const m = /^data:image\/(?:jpeg|png);base64,(.+)$/.exec(typeof body?.dataUrl === "string" ? body.dataUrl : "");
-        if (!source || !m) {
-          sendJson(res, 400, { error: "source and dataUrl are required" });
-          return;
-        }
-        const file = liveFrameFile(source);
-        fs.mkdirSync(dataDir(), { recursive: true });
-        fs.writeFileSync(file, Buffer.from(m[1], "base64"));
-        const config = runtimeConfig();
-        if (config.live?.sourceId === source) {
-          const next: BeautifyConfig = { ...config, monetSourcePath: file };
-          saveConfig(persisted(next));
-          await publishConfig(next);
-        }
-        sendJson(res, 200, { ok: true, file });
-        return;
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/diag") {
-        const msg = url.searchParams.get("msg") ?? "";
-        const lvl = url.searchParams.get("lvl") ?? "info";
-        console.log(`[live:${lvl}] ${msg}`);
-        sendJson(res, 204, {});
-        return;
-      }
-
-      // Static images the user uploaded (library listing for the panel).
-      if (req.method === "GET" && url.pathname === "/api/library") {
-        const images: Array<{ name: string; path: string }> = [];
-        try {
-          for (const f of fs.readdirSync(dataDir())) {
-            if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f)) {
-              images.push({ name: f, path: path.join(dataDir(), f) });
-            }
-          }
-        } catch {
-          /* empty data dir */
-        }
-        sendJson(res, 200, { images });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/switch") {
-        // D31: one-key switching for the hotkeys (and available to the panel).
-        // next walks the shared rotation cursor; random excludes the current.
-        // Either flavor resets the rotation clock so auto-rotation doesn't
-        // fire right behind a manual switch.
-        const body = JSON.parse(await readBody(req));
-        const mode = body?.mode === "random" ? "random" : "next";
-        const id = await pickWallpaperId(mode);
-        if (!id) {
-          sendJson(res, 200, { ok: false, error: "壁纸库里没有其他壁纸可切换" });
-          return;
-        }
-        lastRotateAt = Date.now();
-        await applySource(id, runtimeConfig());
-        console.log(`serve: manual switch (${mode}) -> ${id}`);
-        sendJson(res, 200, { ok: true, id });
-        return;
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/apply-image") {
-        const body = JSON.parse(await readBody(req));
-        if (typeof body?.path !== "string" || !fs.existsSync(body.path)) {
-          throw new Error("provide an existing image path");
-        }
-        const config = runtimeConfig();
-        const next: BeautifyConfig = {
-          ...config,
-          mediaType: "image",
-          wallpaperPath: body.path,
-          live: undefined,
-          sceneVideoUrl: undefined,
-          monetSourcePath: body.path,
-        };
-        saveConfig(persisted(next));
-        await publishConfig(next);
-        sendJson(res, 200, { ok: true, windows: heldWindowCount(), ...publicConfig(next) });
-        return;
-      }
-
       sendJson(res, 404, { error: "not found" });
     } catch (err) {
-      sendJson(res, 400, { error: (err as Error).message });
+      sendJson(res, err instanceof ApiError ? err.status : 500, { error: (err as Error).message });
     }
   }
 
