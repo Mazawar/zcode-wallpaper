@@ -25,6 +25,8 @@
 │   源层     steam.ts 发现 · sources.ts 应用/导入导出/删除 · media.ts    │
 │   会话层   sessions.ts（注入保持/自愈） · shortcuts.ts · launch.ts     │
 │   失败记忆 livefail.ts（live 硬失败落盘，payload 回退依据）            │
+│   生命周期 enablement.ts（插件停用判定：多作用域最新显式写入胜出；     │
+│            卸载身份 ownPluginId）——server/MCP 消费其裁决              │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 

@@ -368,9 +368,9 @@ await server.connect(new StdioServerTransport());
 async function gracefulShutdown(): Promise<void> {
   let restore = true;
   try {
-    const srv = await import("../core/server.js");
+    const { pluginDisabledBy } = await import("../core/enablement.js");
     const cfgPath = path.join(os.homedir(), ".zcode", "cli", "config.json");
-    restore = srv.pluginDisabledBy(cfgPath) !== null;
+    restore = pluginDisabledBy(cfgPath) !== null;
     console.error(
       `[serve] stdio closed — plugin ${restore ? "disabled: restoring default appearance" : "still enabled: leaving the wallpaper mounted for the successor serve"}`,
     );

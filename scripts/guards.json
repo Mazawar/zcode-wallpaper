@@ -72,6 +72,15 @@
       ]
     },
     {
+      "id": "verify-enablement.mjs",
+      "what": "插件停用判定：多作用域『最新显式写入胜出、平局偏停用』纯解析器跑全场景 + own-id 读取与保守回退（全部 zcode-wallpaper 键 false 才停用）真实临时文件验证 + server/MCP 接线钉（停用/卸载监视与 gracefulShutdown 必须走 enablement，不得退回静默猜测）",
+      "files": [
+        "src/core/enablement.ts",
+        "src/core/server.ts",
+        "src/mcp/server.ts"
+      ]
+    },
+    {
       "id": "verify-hotkey.mjs",
       "what": "快捷键翻转语义（D28）：组合键文法（归一化/录制/精确匹配/修饰键强制/可编辑目标豁免）跑真实 hotkey.js + agent/panel/payload 三方接线钉（录制框 data-zw-hotkey 豁免、翻转走 /api/config 同面板开关）",
       "files": [

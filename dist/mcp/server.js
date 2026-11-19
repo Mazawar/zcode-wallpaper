@@ -459,8 +459,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path15, errorMaps, issueData } = params;
-      const fullPath = [...path15, ...issueData.path || []];
+      const { data, path: path16, errorMaps, issueData } = params;
+      const fullPath = [...path16, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -768,11 +768,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path15, key) {
+      constructor(parent, value, path16, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path15;
+        this._path = path16;
         this._key = key;
       }
       get path() {
@@ -7374,8 +7374,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path15) {
-      let input = path15;
+    function removeDotSegments(path16) {
+      let input = path16;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -7449,11 +7449,11 @@ var require_utils = __commonJS({
       }
       return output.join("");
     }
-    function removeDotSegmentsRelative(path15) {
-      if (path15 === "" || path15[0] === "/") {
-        return removeDotSegments(path15);
+    function removeDotSegmentsRelative(path16) {
+      if (path16 === "" || path16[0] === "/") {
+        return removeDotSegments(path16);
       }
-      const segments = path15.split("/");
+      const segments = path16.split("/");
       const last = segments.length - 1;
       const output = [];
       let trailingDirectory = false;
@@ -7816,8 +7816,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path15 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path15 && path15 !== "/" ? path15 : void 0;
+        const path16 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path16 && path16 !== "/" ? path16 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -11354,12 +11354,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f2;
     };
-    function addFormats(ajv, list, fs19, exportName) {
+    function addFormats(ajv, list, fs20, exportName) {
       var _a;
       var _b;
       (_a = (_b = ajv.opts.code).formats) !== null && _a !== void 0 ? _a : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f2 of list)
-        ajv.addFormat(f2, fs19[f2]);
+        ajv.addFormat(f2, fs20[f2]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -17388,7 +17388,7 @@ var require_gifframe = __commonJS({
 var require_gifutil = __commonJS({
   "node_modules/gifwrap/src/gifutil.js"(exports) {
     "use strict";
-    var fs19 = __require("fs");
+    var fs20 = __require("fs");
     var ImageQ = require_image_q();
     var BitmapImage2 = require_bitmapimage();
     var { GifFrame: GifFrame2 } = require_gifframe();
@@ -17503,14 +17503,14 @@ var require_gifutil = __commonJS({
       jimpImage.bitmap.data = bitmapImageToShare.bitmap.data;
       return jimpImage;
     };
-    exports.write = function(path15, frames, spec, encoder) {
+    exports.write = function(path16, frames, spec, encoder) {
       encoder = encoder || defaultCodec;
-      const matches = path15.match(/\.[a-zA-Z]+$/);
+      const matches = path16.match(/\.[a-zA-Z]+$/);
       if (matches !== null && INVALID_SUFFIXES.includes(matches[0].toLowerCase())) {
-        throw new Error(`GIF '${path15}' has an unexpected suffix`);
+        throw new Error(`GIF '${path16}' has an unexpected suffix`);
       }
       return encoder.encodeGif(frames, spec).then((gif2) => {
-        return _writeBinary(path15, gif2.buffer).then(() => {
+        return _writeBinary(path16, gif2.buffer).then(() => {
           return gif2;
         });
       });
@@ -17582,9 +17582,9 @@ var require_gifutil = __commonJS({
         }
       }
     }
-    function _readBinary(path15) {
+    function _readBinary(path16) {
       return new Promise((resolve, reject) => {
-        fs19.readFile(path15, (err, buffer) => {
+        fs20.readFile(path16, (err, buffer) => {
           if (err) {
             return reject(err);
           }
@@ -17592,9 +17592,9 @@ var require_gifutil = __commonJS({
         });
       });
     }
-    function _writeBinary(path15, buffer) {
+    function _writeBinary(path16, buffer) {
       return new Promise((resolve, reject) => {
-        fs19.writeFile(path15, buffer, (err) => {
+        fs20.writeFile(path16, buffer, (err) => {
           if (err) {
             return reject(err);
           }
@@ -19605,9 +19605,9 @@ var require_decoder = __commonJS({
         return a2 < 0 ? 0 : a2 > 255 ? 255 : a2;
       }
       constructor.prototype = {
-        load: function load(path15) {
+        load: function load(path16) {
           var xhr = new XMLHttpRequest();
-          xhr.open("GET", path15, true);
+          xhr.open("GET", path16, true);
           xhr.responseType = "arraybuffer";
           xhr.onload = (function() {
             var data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
@@ -31713,11 +31713,11 @@ var require_Mime = __commonJS({
         }
       }
     };
-    Mime.prototype.getType = function(path15) {
-      path15 = String(path15);
-      let last = path15.replace(/^.*[/\\]/, "").toLowerCase();
+    Mime.prototype.getType = function(path16) {
+      path16 = String(path16);
+      let last = path16.replace(/^.*[/\\]/, "").toLowerCase();
       let ext = last.replace(/^.*\./, "").toLowerCase();
-      let hasPath = last.length < path15.length;
+      let hasPath = last.length < path16.length;
       let hasDot = ext.length < last.length - 1;
       return (hasDot || !hasPath) && this._types[ext] || null;
     };
@@ -34265,9 +34265,9 @@ var NotRegularFileError;
 var init_NotRegularFileError = __esm({
   "node_modules/strtok3/lib/NotRegularFileError.js"() {
     NotRegularFileError = class extends Error {
-      constructor(path15) {
-        super(`Not a regular file: ${path15}`);
-        this.path = path15;
+      constructor(path16) {
+        super(`Not a regular file: ${path16}`);
+        this.path = path16;
         this.name = "NotRegularFileError";
       }
     };
@@ -38475,8 +38475,8 @@ function isTokenizerStreamBoundsError(error2) {
   }
   return /strtok3[/\\]lib[/\\]stream[/\\]/.test(error2.stack);
 }
-async function fileTypeFromFile(path15, options) {
-  return new FileTypeParser2(options).fromFile(path15, options);
+async function fileTypeFromFile(path16, options) {
+  return new FileTypeParser2(options).fromFile(path16, options);
 }
 async function fileTypeFromStream(stream, options) {
   return new FileTypeParser2(options).fromStream(stream);
@@ -38507,9 +38507,9 @@ var init_file_type = __esm({
           }
         }
       }
-      async fromFile(path15) {
+      async fromFile(path16) {
         this.options.signal?.throwIfAborted();
-        const fileHandle = await fs6.open(path15, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
+        const fileHandle = await fs6.open(path16, fileSystemConstants.O_RDONLY | fileSystemConstants.O_NONBLOCK);
         const fileStat = await fileHandle.stat();
         if (!fileStat.isFile()) {
           await fileHandle.close();
@@ -38518,7 +38518,7 @@ var init_file_type = __esm({
         const tokenizer = new FileTokenizer(fileHandle, {
           ...this.getTokenizerOptions(),
           fileInfo: {
-            path: path15,
+            path: path16,
             size: fileStat.size
           }
         });
@@ -38853,9 +38853,9 @@ function createJimp({ plugins: pluginsArg, formats: formatsArg } = {}) {
      * await image.write("test/output.png");
      * ```
      */
-    async write(path15, options) {
-      const mimeType = import_lite.default.getType(path15);
-      await writeFile(path15, await this.getBuffer(mimeType, options));
+    async write(path16, options) {
+      const mimeType = import_lite.default.getType(path16);
+      await writeFile(path16, await this.getBuffer(mimeType, options));
     }
     /**
      * Clone the image into a new Jimp instance.
@@ -55778,20 +55778,110 @@ var init_earlyWatch = __esm({
   }
 });
 
-// src/core/assets.ts
+// src/core/enablement.ts
+var enablement_exports = {};
+__export(enablement_exports, {
+  activeWorkspaceDirs: () => activeWorkspaceDirs,
+  ownPluginId: () => ownPluginId,
+  pluginDisabledBy: () => pluginDisabledBy,
+  pluginDisabledKeyIn: () => pluginDisabledKeyIn,
+  readOwnScopeEntry: () => readOwnScopeEntry,
+  resolveDisablement: () => resolveDisablement
+});
 import fs15 from "node:fs";
+import os4 from "node:os";
+import path11 from "node:path";
+function resolveDisablement(key, entries) {
+  if (!entries.length) return null;
+  const newest = entries.reduce((a2, b) => b.mtime >= a2.mtime ? b : a2);
+  return newest.disabled ? { scope: newest.scope, key } : null;
+}
+function readOwnScopeEntry(cfgPath, id) {
+  try {
+    const ep = JSON.parse(fs15.readFileSync(cfgPath, "utf8"))?.plugins?.enabledPlugins;
+    if (!ep || ep[id] === void 0) return null;
+    return { scope: cfgPath, disabled: ep[id] === false, mtime: fs15.statSync(cfgPath).mtimeMs };
+  } catch {
+    return null;
+  }
+}
+function pluginDisabledKeyIn(cfgPath) {
+  try {
+    const cfg = JSON.parse(fs15.readFileSync(cfgPath, "utf8"));
+    const ep = cfg?.plugins?.enabledPlugins;
+    if (!ep || typeof ep !== "object") return null;
+    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
+    return keys.length > 0 && keys.every((k) => ep[k] === false) ? keys.join("+") : null;
+  } catch {
+    return null;
+  }
+}
+function ownPluginId() {
+  try {
+    const rec = JSON.parse(
+      fs15.readFileSync(path11.join(os4.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
+    );
+    const hit = rec.plugins?.find((p2) => p2.installPath && path11.resolve(pluginRoot).startsWith(path11.resolve(p2.installPath)));
+    return hit ? hit.id : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function activeWorkspaceDirs() {
+  try {
+    const logDir = path11.join(os4.homedir(), ".zcode", "cli", "log");
+    const files = fs15.readdirSync(logDir).filter((f2) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f2)).sort();
+    if (!files.length) return [];
+    const file2 = path11.join(logDir, files[files.length - 1]);
+    const stat = fs15.statSync(file2);
+    const tail = Math.min(stat.size, 256 * 1024);
+    const fd = fs15.openSync(file2, "r");
+    const buf = Buffer.alloc(tail);
+    fs15.readSync(fd, buf, 0, tail, stat.size - tail);
+    fs15.closeSync(fd);
+    const out = /* @__PURE__ */ new Set();
+    for (const m of buf.toString("utf8").matchAll(/"workspaceKey":"((?:[^"\\]|\\.)*)"/g)) {
+      out.add(JSON.parse(`"${m[1]}"`));
+    }
+    return [...out];
+  } catch {
+    return [];
+  }
+}
+function pluginDisabledBy(userCfgPath) {
+  const ownId = ownPluginId();
+  const scopes = [userCfgPath, ...activeWorkspaceDirs().map((ws) => path11.join(ws, ".zcode", "config.json"))];
+  if (ownId) {
+    const mine = scopes.map((p2) => readOwnScopeEntry(p2, ownId)).filter((x2) => x2 !== null);
+    return resolveDisablement(ownId, mine);
+  }
+  for (const p2 of scopes) {
+    const key = pluginDisabledKeyIn(p2);
+    if (key) return { scope: p2, key };
+  }
+  return null;
+}
+var init_enablement = __esm({
+  "src/core/enablement.ts"() {
+    "use strict";
+    init_paths();
+  }
+});
+
+// src/core/assets.ts
+import fs16 from "node:fs";
 function invalidateAssets() {
   cachedAssets = void 0;
   lastGoodAssets = void 0;
 }
 function primeAssets(file2, assets) {
-  cachedAssets = { file: file2, mtimeMs: fs15.statSync(file2).mtimeMs, assets };
+  cachedAssets = { file: file2, mtimeMs: fs16.statSync(file2).mtimeMs, assets };
   lastGoodAssets = assets;
 }
 async function getAssets(config2, allowDecode = true) {
   const sourcePath = config2.monetSourcePath;
-  if (!sourcePath || !fs15.existsSync(sourcePath)) return void 0;
-  const mtimeMs = fs15.statSync(sourcePath).mtimeMs;
+  if (!sourcePath || !fs16.existsSync(sourcePath)) return void 0;
+  const mtimeMs = fs16.statSync(sourcePath).mtimeMs;
   if (cachedAssets?.file === sourcePath && cachedAssets.mtimeMs === mtimeMs) {
     return cachedAssets.assets;
   }
@@ -56232,25 +56322,25 @@ var require_utils2 = __commonJS({
       }
       mkdirSync(folder);
     };
-    Utils.prototype.writeFileTo = function(path15, content, overwrite, attr) {
+    Utils.prototype.writeFileTo = function(path16, content, overwrite, attr) {
       const self2 = this;
-      if (self2.fs.existsSync(path15)) {
+      if (self2.fs.existsSync(path16)) {
         if (!overwrite) return false;
-        var stat = self2.fs.statSync(path15);
+        var stat = self2.fs.statSync(path16);
         if (stat.isDirectory()) {
           return false;
         }
       }
-      var folder = pth.dirname(path15);
+      var folder = pth.dirname(path16);
       if (!self2.fs.existsSync(folder)) {
         self2.makeDir(folder);
       }
       var fd;
       try {
-        fd = self2.fs.openSync(path15, "w", 438);
+        fd = self2.fs.openSync(path16, "w", 438);
       } catch (e2) {
-        self2.fs.chmodSync(path15, 438);
-        fd = self2.fs.openSync(path15, "w", 438);
+        self2.fs.chmodSync(path16, 438);
+        fd = self2.fs.openSync(path16, "w", 438);
       }
       if (fd) {
         try {
@@ -56259,22 +56349,22 @@ var require_utils2 = __commonJS({
           self2.fs.closeSync(fd);
         }
       }
-      self2.fs.chmodSync(path15, attr || 438);
+      self2.fs.chmodSync(path16, attr || 438);
       return true;
     };
-    Utils.prototype.writeFileToAsync = function(path15, content, overwrite, attr, callback) {
+    Utils.prototype.writeFileToAsync = function(path16, content, overwrite, attr, callback) {
       if (typeof attr === "function") {
         callback = attr;
         attr = void 0;
       }
       const self2 = this;
-      self2.fs.exists(path15, function(exist) {
+      self2.fs.exists(path16, function(exist) {
         if (exist && !overwrite) return callback(false);
-        self2.fs.stat(path15, function(err, stat) {
+        self2.fs.stat(path16, function(err, stat) {
           if (exist && stat && stat.isDirectory()) {
             return callback(false);
           }
-          var folder = pth.dirname(path15);
+          var folder = pth.dirname(path16);
           self2.fs.exists(folder, function(exists) {
             if (!exists) {
               try {
@@ -56287,16 +56377,16 @@ var require_utils2 = __commonJS({
               self2.fs.write(fd, content, 0, content.length, 0, function(writeErr) {
                 self2.fs.close(fd, function() {
                   if (writeErr) return callback(false);
-                  self2.fs.chmod(path15, attr || 438, function() {
+                  self2.fs.chmod(path16, attr || 438, function() {
                     callback(true);
                   });
                 });
               });
             };
-            self2.fs.open(path15, "w", 438, function(err2, fd) {
+            self2.fs.open(path16, "w", 438, function(err2, fd) {
               if (err2) {
-                self2.fs.chmod(path15, 438, function() {
-                  self2.fs.open(path15, "w", 438, function(retryErr, fd2) {
+                self2.fs.chmod(path16, 438, function() {
+                  self2.fs.open(path16, "w", 438, function(retryErr, fd2) {
                     if (retryErr || !fd2) return callback(false);
                     writeToFd(fd2);
                   });
@@ -56332,10 +56422,10 @@ var require_utils2 = __commonJS({
         if (stat.isSymbolicLink()) throw Errors.FILE_IN_THE_WAY(`"${cur}"`);
       }
     };
-    Utils.prototype.findFiles = function(path15) {
+    Utils.prototype.findFiles = function(path16) {
       const self2 = this;
       const canLstat = typeof self2.fs.lstatSync === "function";
-      const rootReal = self2.fs.realpathSync(path15);
+      const rootReal = self2.fs.realpathSync(path16);
       function escapesRoot(p2) {
         if (!canLstat) return false;
         if (!self2.fs.lstatSync(p2).isSymbolicLink()) return false;
@@ -56354,23 +56444,23 @@ var require_utils2 = __commonJS({
         }
         let files = [];
         self2.fs.readdirSync(dir).forEach(function(file2) {
-          const path16 = pth.join(dir, file2);
-          if (escapesRoot(path16)) return;
-          const stat = self2.fs.statSync(path16);
-          if (!pattern || pattern.test(path16)) {
-            files.push(pth.normalize(path16) + (stat.isDirectory() ? self2.sep : ""));
+          const path17 = pth.join(dir, file2);
+          if (escapesRoot(path17)) return;
+          const stat = self2.fs.statSync(path17);
+          if (!pattern || pattern.test(path17)) {
+            files.push(pth.normalize(path17) + (stat.isDirectory() ? self2.sep : ""));
           }
           if (stat.isDirectory() && recursive) {
-            const realDir = self2.fs.realpathSync(path16);
+            const realDir = self2.fs.realpathSync(path17);
             if (!visited.has(realDir)) {
               visited.add(realDir);
-              files = files.concat(findSync(path16, pattern, recursive, visited));
+              files = files.concat(findSync(path17, pattern, recursive, visited));
             }
           }
         });
         return files;
       }
-      return findSync(path15, void 0, true, /* @__PURE__ */ new Set([rootReal]));
+      return findSync(path16, void 0, true, /* @__PURE__ */ new Set([rootReal]));
     };
     Utils.prototype.findFilesAsync = function(dir, cb) {
       const self2 = this;
@@ -56467,14 +56557,14 @@ var require_utils2 = __commonJS({
           return "UNSUPPORTED (" + method + ")";
       }
     };
-    Utils.canonical = function(path15) {
-      if (!path15) return "";
-      const safeSuffix = pth.posix.normalize("/" + path15.split("\\").join("/"));
+    Utils.canonical = function(path16) {
+      if (!path16) return "";
+      const safeSuffix = pth.posix.normalize("/" + path16.split("\\").join("/"));
       return pth.join(".", safeSuffix);
     };
-    Utils.zipnamefix = function(path15) {
-      if (!path15) return "";
-      const safeSuffix = pth.posix.normalize("/" + path15.split("\\").join("/"));
+    Utils.zipnamefix = function(path16) {
+      if (!path16) return "";
+      const safeSuffix = pth.posix.normalize("/" + path16.split("\\").join("/"));
       return pth.posix.join(".", safeSuffix);
     };
     Utils.findLast = function(arr, callback) {
@@ -56491,9 +56581,9 @@ var require_utils2 = __commonJS({
       prefix = pth.resolve(pth.normalize(prefix));
       var parts = name.split("/");
       for (var i2 = 0, l2 = parts.length; i2 < l2; i2++) {
-        var path15 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
-        if (path15 === prefix || path15.startsWith(prefix + pth.sep)) {
-          return path15;
+        var path16 = pth.normalize(pth.join(prefix, parts.slice(i2, l2).join(pth.sep)));
+        if (path16 === prefix || path16.startsWith(prefix + pth.sep)) {
+          return path16;
         }
       }
       return pth.normalize(pth.join(prefix, pth.basename(name)));
@@ -56543,8 +56633,8 @@ var require_utils2 = __commonJS({
 var require_fattr = __commonJS({
   "node_modules/adm-zip/util/fattr.js"(exports, module) {
     var pth = __require("path");
-    module.exports = function(path15, { fs: fs19 }) {
-      var _path = path15 || "", _obj = newAttr(), _stat = null;
+    module.exports = function(path16, { fs: fs20 }) {
+      var _path = path16 || "", _obj = newAttr(), _stat = null;
       function newAttr() {
         return {
           directory: false,
@@ -56555,8 +56645,8 @@ var require_fattr = __commonJS({
           atime: 0
         };
       }
-      if (_path && fs19.existsSync(_path)) {
-        _stat = fs19.statSync(_path);
+      if (_path && fs20.existsSync(_path)) {
+        _stat = fs20.statSync(_path);
         _obj.directory = _stat.isDirectory();
         _obj.mtime = _stat.mtime;
         _obj.atime = _stat.atime;
@@ -58729,29 +58819,29 @@ var require_adm_zip = __commonJS({
 });
 
 // src/core/sources.ts
-import fs16 from "node:fs";
-import path11 from "node:path";
+import fs17 from "node:fs";
+import path12 from "node:path";
 import crypto2 from "node:crypto";
 function findVideoInDir(dir) {
   for (const subdir of ["", "files"]) {
-    const base = path11.join(dir, subdir);
+    const base = path12.join(dir, subdir);
     let entries;
     try {
-      entries = fs16.readdirSync(base);
+      entries = fs17.readdirSync(base);
     } catch {
       continue;
     }
     const hit = entries.find((e2) => /\.(mp4|webm)$/i.test(e2));
-    if (hit) return path11.join(base, hit);
+    if (hit) return path12.join(base, hit);
   }
   return void 0;
 }
 function toRel(dir, file2) {
-  return path11.relative(dir, file2).replace(/\\/g, "/");
+  return path12.relative(dir, file2).replace(/\\/g, "/");
 }
 function liveFrameFile(sourceId) {
   const safe = sourceId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return path11.join(dataDir(), `live-frame-${safe}.jpg`);
+  return path12.join(dataDir(), `live-frame-${safe}.jpg`);
 }
 async function applySource(id, config2, apply = true) {
   const entry = await resolveSourceDir(id, storedCustomSources());
@@ -58765,7 +58855,7 @@ async function applySource(id, config2, apply = true) {
       live: { sourceId: id, kind: type, title: entry.title, poster: entry.preview },
       sceneVideoUrl: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path11.join(entry.dir, entry.preview) : config2.monetSourcePath
+      monetSourcePath: entry.preview ? path12.join(entry.dir, entry.preview) : config2.monetSourcePath
     };
   } else if (type === "video") {
     const video = findVideoInDir(entry.dir);
@@ -58777,7 +58867,7 @@ async function applySource(id, config2, apply = true) {
       sceneVideoUrl: `http://127.0.0.1:${config2.apiPort}/files/${id}/${file2}`,
       live: void 0,
       wallpaperPath: void 0,
-      monetSourcePath: entry.preview ? path11.join(entry.dir, entry.preview) : config2.monetSourcePath
+      monetSourcePath: entry.preview ? path12.join(entry.dir, entry.preview) : config2.monetSourcePath
     };
   } else {
     throw new Error(`unsupported wallpaper type (${type}): ${entry.title}`);
@@ -58807,31 +58897,31 @@ async function migrateLegacyVideo() {
 function resolveSceneInput(input) {
   let stat;
   try {
-    stat = fs16.statSync(input);
+    stat = fs17.statSync(input);
   } catch {
     return input;
   }
   if (stat.isDirectory()) return input;
-  if (input.toLowerCase().endsWith(".pkg")) return path11.dirname(path11.resolve(input));
-  let dir = path11.dirname(path11.resolve(input));
+  if (input.toLowerCase().endsWith(".pkg")) return path12.dirname(path12.resolve(input));
+  let dir = path12.dirname(path12.resolve(input));
   for (let hop = 0; hop < 4; hop++) {
-    if (fs16.existsSync(path11.join(dir, "project.json"))) return dir;
-    const parent = path11.dirname(dir);
+    if (fs17.existsSync(path12.join(dir, "project.json"))) return dir;
+    const parent = path12.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return path11.dirname(path11.resolve(input));
+  return path12.dirname(path12.resolve(input));
 }
 function registerCustomSource(input) {
-  const dir = path11.resolve(resolveSceneInput(input));
-  if (!fs16.existsSync(dir) || !fs16.statSync(dir).isDirectory()) {
+  const dir = path12.resolve(resolveSceneInput(input));
+  if (!fs17.existsSync(dir) || !fs17.statSync(dir).isDirectory()) {
     throw new Error(`not a wallpaper directory: ${dir}`);
   }
   const id = `custom-${crypto2.createHash("sha1").update(dir.toLowerCase()).digest("hex").slice(0, 10)}`;
   const sources = storedCustomSources().filter((c3) => c3.id !== id);
   let name;
   try {
-    const p2 = JSON.parse(fs16.readFileSync(path11.join(dir, "project.json"), "utf8"));
+    const p2 = JSON.parse(fs17.readFileSync(path12.join(dir, "project.json"), "utf8"));
     if (typeof p2?.title === "string") name = p2.title;
   } catch {
   }
@@ -58842,16 +58932,16 @@ function registerCustomSource(input) {
 async function importPackageFromFile(zipPath, config2, apply) {
   const { default: AdmZip } = await Promise.resolve().then(() => __toESM(require_adm_zip(), 1));
   const zip = new AdmZip(zipPath);
-  const dest = path11.join(dataDir(), "packages", `pkg-${Date.now()}`);
-  fs16.mkdirSync(dest, { recursive: true });
+  const dest = path12.join(dataDir(), "packages", `pkg-${Date.now()}`);
+  fs17.mkdirSync(dest, { recursive: true });
   zip.extractAllTo(dest, true);
   let root = dest;
   for (let i2 = 0; i2 < 2; i2++) {
-    const entries = fs16.readdirSync(root, { withFileTypes: true });
-    if (entries.length === 1 && entries[0].isDirectory()) root = path11.join(root, entries[0].name);
+    const entries = fs17.readdirSync(root, { withFileTypes: true });
+    if (entries.length === 1 && entries[0].isDirectory()) root = path12.join(root, entries[0].name);
     else break;
   }
-  if (!fs16.existsSync(path11.join(root, "project.json")) && !fs16.existsSync(path11.join(root, "scene.pkg"))) {
+  if (!fs17.existsSync(path12.join(root, "project.json")) && !fs17.existsSync(path12.join(root, "scene.pkg"))) {
     throw new Error("package contains no project.json / scene.pkg \u2014 not a wallpaper package");
   }
   const { id } = registerCustomSource(root);
@@ -58881,17 +58971,17 @@ async function deleteSource(id, config2) {
       await publishConfig(config2).catch(() => void 0);
     }
   }
-  const packagesRoot = path11.join(dataDir(), "packages");
-  const rel = path11.relative(packagesRoot, path11.resolve(hit.dir));
-  const managed = rel !== "" && !rel.startsWith("..") && !path11.isAbsolute(rel);
+  const packagesRoot = path12.join(dataDir(), "packages");
+  const rel = path12.relative(packagesRoot, path12.resolve(hit.dir));
+  const managed = rel !== "" && !rel.startsWith("..") && !path12.isAbsolute(rel);
   saveConfig({ ...loadConfig(), customSources: storedCustomSources().filter((c3) => c3.id !== id) });
   const frameFile = liveFrameFile(id);
   void (async () => {
     for (let i2 = 0; i2 < 8; i2++) {
       await new Promise((r2) => setTimeout(r2, 750 * (i2 + 1)));
       try {
-        if (managed) fs16.rmSync(hit.dir, { recursive: true, force: true });
-        fs16.rmSync(frameFile, { force: true });
+        if (managed) fs17.rmSync(hit.dir, { recursive: true, force: true });
+        fs17.rmSync(frameFile, { force: true });
         return;
       } catch {
       }
@@ -59108,18 +59198,18 @@ __export(shortcuts_exports, {
   wrappedShortcutsRemaining: () => wrappedShortcutsRemaining,
   writeEarlyLaunchVbs: () => writeEarlyLaunchVbs
 });
-import fs17 from "node:fs";
-import os4 from "node:os";
-import path12 from "node:path";
+import fs18 from "node:fs";
+import os5 from "node:os";
+import path13 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function launcherHome() {
-  let dir = path12.dirname(fileURLToPath2(import.meta.url));
+  let dir = path13.dirname(fileURLToPath2(import.meta.url));
   for (let i2 = 0; i2 < 6; i2++) {
-    if (fs17.existsSync(path12.join(dir, "dist", "cli.js"))) break;
-    dir = path12.dirname(dir);
+    if (fs18.existsSync(path13.join(dir, "dist", "cli.js"))) break;
+    dir = path13.dirname(dir);
   }
   const home = wrapperDir();
-  fs17.mkdirSync(home, { recursive: true });
+  fs18.mkdirSync(home, { recursive: true });
   return { dir: home, root: dir };
 }
 function probeBlock(cli) {
@@ -59139,7 +59229,7 @@ function probeBlock(cli) {
 function buildEarlyLaunchSh(node, cli, port, originalCmd, logFile) {
   const parts = originalCmd.trim().split(/\s+/).filter((t2) => t2 && !t2.startsWith("--remote-debugging-port=") && !ANTI_OCCLUSION_FLAGS.includes(t2));
   const health = `http://127.0.0.1:${port + 1}/api/health`;
-  const portsFile = path12.join(path12.dirname(logFile), "zw-ports.txt");
+  const portsFile = path13.join(path13.dirname(logFile), "zw-ports.txt");
   const spawnServe = `"${node}" "$CLI" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1 &`;
   return [
     "#!/bin/sh",
@@ -59178,9 +59268,9 @@ function buildEarlyLaunchSh(node, cli, port, originalCmd, logFile) {
   ].join("\n");
 }
 function buildEarlyLaunchCommand(node, cli, port, zcodeApp, logFile) {
-  const appName = path12.basename(zcodeApp).replace(/\.app$/, "");
+  const appName = path13.basename(zcodeApp).replace(/\.app$/, "");
   const health = `http://127.0.0.1:${port + 1}/api/health`;
-  const portsFile = path12.join(path12.dirname(logFile), "zw-ports.txt");
+  const portsFile = path13.join(path13.dirname(logFile), "zw-ports.txt");
   const spawnServe = `"${node}" "$CLI" serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1 &`;
   return [
     "#!/bin/sh",
@@ -59237,13 +59327,13 @@ function desktopEntryIsWrapped(execLine, wrapperPath) {
   const t2 = execLine.trim();
   if (!t2) return false;
   const first = t2.split(/\s+/)[0].replace(/^(["'])(.*)\1$/, "$2");
-  return path12.resolve(first) === path12.resolve(wrapperPath);
+  return path13.resolve(first) === path13.resolve(wrapperPath);
 }
 function desktopEntryIsZcode(execLine) {
   const t2 = execLine.trim();
   if (!t2) return false;
   const first = t2.split(/\s+/)[0].replace(/^(["'])(.*)\1$/, "$2");
-  const base = path12.basename(first).toLowerCase();
+  const base = path13.basename(first).toLowerCase();
   return base.startsWith("zcode");
 }
 function rewriteDesktopEntry(content, wrapperPath) {
@@ -59300,15 +59390,15 @@ async function restoreWrappedShortcuts() {
   const zcode = await resolveZcodeExe();
   const lnks = [];
   const collect = (dir) => {
-    for (const f2 of fs17.readdirSync(dir)) if (f2.endsWith(".lnk")) lnks.push(path12.join(dir, f2));
+    for (const f2 of fs18.readdirSync(dir)) if (f2.endsWith(".lnk")) lnks.push(path13.join(dir, f2));
   };
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs17.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs18.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path12.join(dir, sub.name));
+          collect(path13.join(dir, sub.name));
         } catch {
         }
       }
@@ -59366,7 +59456,7 @@ async function cleanupWrapperDirIfUnused() {
   if (process.platform === "darwin") return false;
   if (await wrappedShortcutsRemaining() > 0) return false;
   try {
-    fs17.rmSync(wrapperDir(), { recursive: true, force: true });
+    fs18.rmSync(wrapperDir(), { recursive: true, force: true });
     console.log("serve: wrapper dir removed (no shortcut references it anymore)");
     return true;
   } catch {
@@ -59384,16 +59474,16 @@ function shortcutDirs() {
   const pub = process.env.PUBLIC ?? "C:\\Users\\Public";
   return [
     // Desktop may be OneDrive-redirected; cover both physical locations.
-    path12.join(home, "Desktop"),
-    ...process.env.OneDrive ? [path12.join(process.env.OneDrive, "Desktop")] : [],
+    path13.join(home, "Desktop"),
+    ...process.env.OneDrive ? [path13.join(process.env.OneDrive, "Desktop")] : [],
     // The ALL-USERS desktop — installers commonly drop their shortcut here
     // (D30 Win10 report: the desktop .lnk "never got wrapped" because this
     // directory was never scanned; rewrites of admin-owned entries may still
     // fail without elevation, which the fallback launcher covers).
-    path12.join(pub, "Desktop"),
-    path12.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
-    path12.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
-    path12.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
+    path13.join(pub, "Desktop"),
+    path13.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
+    path13.join("C:", "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
+    path13.join(appData, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar")
   ];
 }
 function parseLnkOutcome(out) {
@@ -59440,9 +59530,9 @@ try {
 } catch { Write-Output ('err|' + $_.Exception.Message) }`;
 }
 async function createFallbackLauncher(launcher, zcode) {
-  const vbsFile = path12.join(launcher.dir, "zw-launch.vbs");
-  if (!fs17.existsSync(vbsFile)) return "";
-  const lnkPath = path12.join(shortcutDirs()[0], FALLBACK_LNK_NAME);
+  const vbsFile = path13.join(launcher.dir, "zw-launch.vbs");
+  if (!fs18.existsSync(vbsFile)) return "";
+  const lnkPath = path13.join(shortcutDirs()[0], FALLBACK_LNK_NAME);
   try {
     const { stdout } = await execFileP("powershell", ["-NoProfile", "-Command", buildCreateFallbackScript(vbsFile, zcode, lnkPath)], {
       timeout: 15e3,
@@ -59463,9 +59553,9 @@ async function ensureWindowsShortcuts(port) {
   const nameMatched = [];
   const others = [];
   const collect = (dir) => {
-    for (const f2 of fs17.readdirSync(dir)) {
+    for (const f2 of fs18.readdirSync(dir)) {
       if (!f2.endsWith(".lnk")) continue;
-      const p2 = path12.join(dir, f2);
+      const p2 = path13.join(dir, f2);
       if (/^zcode/i.test(f2)) nameMatched.push(p2);
       else others.push(p2);
     }
@@ -59473,10 +59563,10 @@ async function ensureWindowsShortcuts(port) {
   for (const dir of shortcutDirs()) {
     try {
       collect(dir);
-      for (const sub of fs17.readdirSync(dir, { withFileTypes: true })) {
+      for (const sub of fs18.readdirSync(dir, { withFileTypes: true })) {
         if (!sub.isDirectory()) continue;
         try {
-          collect(path12.join(dir, sub.name));
+          collect(path13.join(dir, sub.name));
         } catch {
         }
       }
@@ -59515,8 +59605,8 @@ if ($out.Count) { $out -join [char]10 }`;
     }
     return result;
   }
-  const vbsFile = path12.join(launcher.dir, "zw-launch.vbs");
-  const metaFile = path12.join(launcher.dir, "zw-launch.json");
+  const vbsFile = path13.join(launcher.dir, "zw-launch.vbs");
+  const metaFile = path13.join(launcher.dir, "zw-launch.json");
   let zcodeKnown = "";
   let wrappedCount = 0;
   const antiOcclusion = ANTI_OCCLUSION_FLAGS;
@@ -59607,14 +59697,14 @@ try {
 }
 function writeEarlyLaunchVbs(port, zcode, launcher) {
   const anti = ANTI_OCCLUSION_FLAGS;
-  const cli = path12.join(launcher.root, "dist", "cli.js");
+  const cli = path13.join(launcher.root, "dist", "cli.js");
   const node = process.execPath;
-  if (!fs17.existsSync(cli) || !fs17.existsSync(node)) return;
+  if (!fs18.existsSync(cli) || !fs18.existsSync(node)) return;
   const DQ = String.fromCharCode(34);
-  const logFile = path12.join(launcher.dir, "zw-serve.log");
-  const cmdFile = path12.join(launcher.dir, "zw-serve.cmd");
-  const portsFile = path12.join(launcher.dir, "zw-ports.txt");
-  const cliPluginDir = path12.dirname(path12.dirname(path12.dirname(cli)));
+  const logFile = path13.join(launcher.dir, "zw-serve.log");
+  const cmdFile = path13.join(launcher.dir, "zw-serve.cmd");
+  const portsFile = path13.join(launcher.dir, "zw-ports.txt");
+  const cliPluginDir = path13.dirname(path13.dirname(path13.dirname(cli)));
   const serveBat = [
     "@echo off",
     `"${node}" %1 serve --early --port ${port} --api-port ${port + 1} --pick-ports >> "${logFile}" 2>&1`,
@@ -59793,20 +59883,20 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
   ];
   const crlf = String.fromCharCode(13, 10);
   const want = lines.join(crlf) + crlf;
-  const vbsFile = path12.join(launcher.dir, "zw-launch.vbs");
+  const vbsFile = path13.join(launcher.dir, "zw-launch.vbs");
   try {
-    const metaPath = path12.join(launcher.dir, "zw-launch.json");
-    const prev = fs17.existsSync(metaPath) ? JSON.parse(fs17.readFileSync(metaPath, "utf8")) : {};
-    const sameVbs = fs17.existsSync(vbsFile) && fs17.readFileSync(vbsFile, "utf8") === want;
+    const metaPath = path13.join(launcher.dir, "zw-launch.json");
+    const prev = fs18.existsSync(metaPath) ? JSON.parse(fs18.readFileSync(metaPath, "utf8")) : {};
+    const sameVbs = fs18.existsSync(vbsFile) && fs18.readFileSync(vbsFile, "utf8") === want;
     const meta = { ...prev, zcode, node, cli, port };
     if (!sameVbs) {
-      fs17.writeFileSync(vbsFile, want, { encoding: "utf8" });
-      fs17.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
+      fs18.writeFileSync(vbsFile, want, { encoding: "utf8" });
+      fs18.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
       console.log(`serve: early-launch wrapper refreshed (node=${node})`);
-    } else if (!fs17.existsSync(cmdFile)) {
-      fs17.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
+    } else if (!fs18.existsSync(cmdFile)) {
+      fs18.writeFileSync(cmdFile, serveBat, { encoding: "utf8" });
     }
-    if (JSON.stringify(prev) !== JSON.stringify(meta)) fs17.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
+    if (JSON.stringify(prev) !== JSON.stringify(meta)) fs18.writeFileSync(metaPath, JSON.stringify(meta, null, 1));
   } catch {
   }
 }
@@ -59815,31 +59905,31 @@ function msgBoxText(staleZcode) {
 }
 async function ensureMacLauncher(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const zcodeApp = MAC_ZCODE_CANDIDATES.find((p2) => fs17.existsSync(p2));
+  const zcodeApp = MAC_ZCODE_CANDIDATES.find((p2) => fs18.existsSync(p2));
   if (!zcodeApp) {
     result.skipped.push("ZCode.app not found");
     return result;
   }
   const { dir, root } = launcherHome();
-  const cli = path12.join(root, "dist", "cli.js");
-  if (!fs17.existsSync(cli)) {
+  const cli = path13.join(root, "dist", "cli.js");
+  if (!fs18.existsSync(cli)) {
     result.skipped.push("plugin install not found");
     return result;
   }
   const appName = "ZCode Wallpaper.app";
-  const appDir = path12.join(os4.homedir(), "Applications", appName);
-  const scriptPath = path12.join(appDir, "Contents", "MacOS", "zw-launch");
-  const plistPath = path12.join(appDir, "Contents", "Info.plist");
-  const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path12.join(dir, "early.log"));
+  const appDir = path13.join(os5.homedir(), "Applications", appName);
+  const scriptPath = path13.join(appDir, "Contents", "MacOS", "zw-launch");
+  const plistPath = path13.join(appDir, "Contents", "Info.plist");
+  const want = buildEarlyLaunchCommand(process.execPath, cli, port, zcodeApp, path13.join(dir, "early.log"));
   try {
-    const same = fs17.existsSync(scriptPath) && fs17.existsSync(plistPath) && fs17.readFileSync(scriptPath, "utf8") === want;
+    const same = fs18.existsSync(scriptPath) && fs18.existsSync(plistPath) && fs18.readFileSync(scriptPath, "utf8") === want;
     if (same) {
       result.skipped.push(appDir);
     } else {
-      fs17.mkdirSync(path12.dirname(scriptPath), { recursive: true });
-      fs17.writeFileSync(scriptPath, want);
-      fs17.chmodSync(scriptPath, 493);
-      fs17.writeFileSync(plistPath, buildAppBundlePlist("ZCode Wallpaper", "com.zcode-wallpaper.early"));
+      fs18.mkdirSync(path13.dirname(scriptPath), { recursive: true });
+      fs18.writeFileSync(scriptPath, want);
+      fs18.chmodSync(scriptPath, 493);
+      fs18.writeFileSync(plistPath, buildAppBundlePlist("ZCode Wallpaper", "com.zcode-wallpaper.early"));
       result.updated.push(appDir);
     }
   } catch (err) {
@@ -59849,27 +59939,27 @@ async function ensureMacLauncher(port) {
 }
 async function ensureLinuxDesktopEntries(port) {
   const result = { updated: [], skipped: [], failed: [] };
-  const base = path12.join(os4.homedir(), ".local", "share", "applications");
-  const dirs = [base, path12.join(base, "ZCode")];
+  const base = path13.join(os5.homedir(), ".local", "share", "applications");
+  const dirs = [base, path13.join(base, "ZCode")];
   const entries = [];
   for (const d of dirs) {
     try {
-      entries.push(...fs17.readdirSync(d).filter((f2) => f2.endsWith(".desktop")).map((f2) => path12.join(d, f2)));
+      entries.push(...fs18.readdirSync(d).filter((f2) => f2.endsWith(".desktop")).map((f2) => path13.join(d, f2)));
     } catch {
     }
   }
   if (entries.length === 0) return result;
   const { dir, root } = launcherHome();
-  const cli = path12.join(root, "dist", "cli.js");
-  if (!fs17.existsSync(cli)) {
+  const cli = path13.join(root, "dist", "cli.js");
+  if (!fs18.existsSync(cli)) {
     result.skipped.push("plugin install not found");
     return result;
   }
-  const wrapper = path12.join(dir, "zw-launch.sh");
-  const logFile = path12.join(dir, "early.log");
+  const wrapper = path13.join(dir, "zw-launch.sh");
+  const logFile = path13.join(dir, "early.log");
   for (const entry of entries) {
     try {
-      const content = fs17.readFileSync(entry, "utf8");
+      const content = fs18.readFileSync(entry, "utf8");
       const currentExec = /^Exec=(.*)$/m.exec(content)?.[1] ?? "";
       if (!desktopEntryIsZcode(currentExec) && !desktopEntryIsWrapped(currentExec, wrapper)) {
         result.skipped.push(entry);
@@ -59880,10 +59970,10 @@ async function ensureLinuxDesktopEntries(port) {
         result.skipped.push(entry);
         continue;
       }
-      fs17.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
-      fs17.chmodSync(wrapper, 493);
+      fs18.writeFileSync(wrapper, buildEarlyLaunchSh(process.execPath, cli, port, r2.original, logFile));
+      fs18.chmodSync(wrapper, 493);
       if (r2.next !== content) {
-        fs17.writeFileSync(entry, r2.next);
+        fs18.writeFileSync(entry, r2.next);
         result.updated.push(entry);
       } else {
         result.skipped.push(entry);
@@ -59906,7 +59996,7 @@ var init_shortcuts = __esm({
     ];
     DESKTOP_MARKER = "X-zcode-wallpaper-exec";
     FALLBACK_LNK_NAME = "ZCode Wallpaper.lnk";
-    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path12.join(os4.homedir(), "Applications", "ZCode.app")];
+    MAC_ZCODE_CANDIDATES = ["/Applications/ZCode.app", path13.join(os5.homedir(), "Applications", "ZCode.app")];
   }
 });
 
@@ -59914,19 +60004,14 @@ var init_shortcuts = __esm({
 var server_exports = {};
 __export(server_exports, {
   DEFAULT_API_PORT: () => DEFAULT_API_PORT,
-  activeWorkspaceDirs: () => activeWorkspaceDirs,
   existingServePid: () => existingServePid,
-  ownPluginId: () => ownPluginId,
-  pluginDisabledBy: () => pluginDisabledBy,
-  pluginDisabledKeyIn: () => pluginDisabledKeyIn,
   shutdownServe: () => shutdownServe,
   startServe: () => startServe
 });
 import http from "node:http";
-import fs18 from "node:fs";
-import os5 from "node:os";
-import path13 from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import fs19 from "node:fs";
+import os6 from "node:os";
+import path14 from "node:path";
 import { execFile as execFile4 } from "node:child_process";
 import { promisify as promisify4 } from "node:util";
 function sendJson(res, code, body) {
@@ -59972,7 +60057,7 @@ function readBody(req) {
 function readBodyToFile(req, dest, maxBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
-    const out = fs18.createWriteStream(dest);
+    const out = fs19.createWriteStream(dest);
     req.on("data", (c3) => {
       size += c3.length;
       if (size > maxBytes) {
@@ -60034,79 +60119,6 @@ if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-O
   }
   return "";
 }
-function pluginDisabledKeyIn(cfgPath) {
-  try {
-    const cfg = JSON.parse(fs18.readFileSync(cfgPath, "utf8"));
-    const ep = cfg?.plugins?.enabledPlugins;
-    if (!ep || typeof ep !== "object") return null;
-    const keys = Object.keys(ep).filter((k) => k.includes("zcode-wallpaper"));
-    return keys.length > 0 && keys.every((k) => ep[k] === false) ? keys.join("+") : null;
-  } catch {
-    return null;
-  }
-}
-function ownPluginId() {
-  try {
-    const rec = JSON.parse(
-      fs18.readFileSync(path13.join(os5.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json"), "utf8")
-    );
-    let dir = path13.dirname(fileURLToPath3(import.meta.url));
-    for (let i2 = 0; i2 < 6; i2++) {
-      if (fs18.existsSync(path13.join(dir, "dist", "cli.js"))) break;
-      dir = path13.dirname(dir);
-    }
-    const hit = rec.plugins?.find((p2) => p2.installPath && path13.resolve(dir).startsWith(path13.resolve(p2.installPath)));
-    return hit ? hit.id : void 0;
-  } catch {
-    return void 0;
-  }
-}
-function activeWorkspaceDirs() {
-  try {
-    const logDir = path13.join(os5.homedir(), ".zcode", "cli", "log");
-    const files = fs18.readdirSync(logDir).filter((f2) => /^zcode-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f2)).sort();
-    if (!files.length) return [];
-    const file2 = path13.join(logDir, files[files.length - 1]);
-    const stat = fs18.statSync(file2);
-    const tail = Math.min(stat.size, 256 * 1024);
-    const fd = fs18.openSync(file2, "r");
-    const buf = Buffer.alloc(tail);
-    fs18.readSync(fd, buf, 0, tail, stat.size - tail);
-    fs18.closeSync(fd);
-    const out = /* @__PURE__ */ new Set();
-    for (const m of buf.toString("utf8").matchAll(/"workspaceKey":"((?:[^"\\]|\\.)*)"/g)) {
-      out.add(JSON.parse(`"${m[1]}"`));
-    }
-    return [...out];
-  } catch {
-    return [];
-  }
-}
-function pluginDisabledBy(userCfgPath) {
-  const ownId = ownPluginId();
-  const scopes = [userCfgPath, ...activeWorkspaceDirs().map((ws) => path13.join(ws, ".zcode", "config.json"))];
-  if (ownId) {
-    const id = ownId;
-    const readMine = (p2) => {
-      try {
-        const ep = JSON.parse(fs18.readFileSync(p2, "utf8"))?.plugins?.enabledPlugins;
-        if (!ep || ep[id] === void 0) return null;
-        return { scope: p2, disabled: ep[id] === false, mtime: fs18.statSync(p2).mtimeMs };
-      } catch {
-        return null;
-      }
-    };
-    const mine = scopes.map(readMine).filter((x2) => !!x2);
-    if (!mine.length) return null;
-    const newest = mine.reduce((a2, b) => b.mtime >= a2.mtime ? b : a2);
-    return newest.disabled ? { scope: newest.scope, key: id } : null;
-  }
-  for (const p2 of scopes) {
-    const key = pluginDisabledKeyIn(p2);
-    if (key) return { scope: p2, key };
-  }
-  return null;
-}
 async function shutdownServe() {
   await shutdownSessions();
   await new Promise((r2) => activeServer ? activeServer.close(() => r2()) : r2());
@@ -60163,12 +60175,12 @@ async function startServe(opts) {
         sendJson(res, 204, {});
         return;
       }
-      const staticRoute = (file2, noStore = false) => sendStaticFile(req, res, file2, { noStore }) || sendJson(res, 404, { error: `missing file: ${path13.basename(file2)} (run \`npm run build\`)` });
+      const staticRoute = (file2, noStore = false) => sendStaticFile(req, res, file2, { noStore }) || sendJson(res, 404, { error: `missing file: ${path14.basename(file2)} (run \`npm run build\`)` });
       if (req.method === "GET" || req.method === "HEAD") {
-        if (url.pathname === "/agent.js") return void staticRoute(path13.join(liveDir(), "agent.js"), true);
-        if (url.pathname === "/panel.js") return void staticRoute(path13.join(liveDir(), "panel.js"), true);
-        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path13.join(liveDir(), "index.html"), true);
-        if (url.pathname === "/renderer.js") return void staticRoute(path13.join(liveDir(), "renderer.js"));
+        if (url.pathname === "/agent.js") return void staticRoute(path14.join(liveDir(), "agent.js"), true);
+        if (url.pathname === "/panel.js") return void staticRoute(path14.join(liveDir(), "panel.js"), true);
+        if (url.pathname === "/live/index.html" || url.pathname === "/live/") return void staticRoute(path14.join(liveDir(), "index.html"), true);
+        if (url.pathname === "/renderer.js") return void staticRoute(path14.join(liveDir(), "renderer.js"));
         if (url.pathname === "/engine/webwallgl.global.min.js") {
           const engine = engineFile();
           if (!engine) return void sendJson(res, 404, { error: "webwallgl engine not installed (npm install webwallgl)" });
@@ -60277,9 +60289,9 @@ async function startServe(opts) {
           throw new Error(`image too large (max ${MAX_WALLPAPER_BYTES / 1024 / 1024} MB)`);
         }
         const config2 = runtimeConfig();
-        fs18.mkdirSync(dataDir(), { recursive: true });
-        const dest = path13.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
-        fs18.writeFileSync(dest, bytes);
+        fs19.mkdirSync(dataDir(), { recursive: true });
+        const dest = path14.join(dataDir(), "wallpaper" + IMAGE_EXT[m[1]]);
+        fs19.writeFileSync(dest, bytes);
         primeAssets(dest, await loadWallpaper(dest));
         const next = {
           ...config2,
@@ -60403,11 +60415,11 @@ async function startServe(opts) {
         const body = JSON.parse(await readBody(req));
         const input = typeof body?.path === "string" ? body.path.trim() : "";
         if (!input) throw new Error("path is required");
-        const abs = path13.resolve(input);
+        const abs = path14.resolve(input);
         let result;
         let sourceId;
         if (/\.zip$/i.test(abs)) {
-          if (!fs18.existsSync(abs)) throw new Error(`package not found: ${abs}`);
+          if (!fs19.existsSync(abs)) throw new Error(`package not found: ${abs}`);
           const r2 = await importPackageFromFile(abs, runtimeConfig(), true);
           sourceId = r2.id;
           result = r2;
@@ -60443,9 +60455,9 @@ async function startServe(opts) {
         const zip = new AdmZip();
         zip.addLocalFolder(entry.dir);
         const safeTitle = entry.title.replace(/[\\\\/:*?"<>|]/g, "").trim().slice(0, 60) || "wallpaper";
-        const zipPath = path13.join(os5.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
+        const zipPath = path14.join(os6.tmpdir(), `zw-export-${id}-${Date.now()}.zip`);
         await zip.writeZipPromise(zipPath);
-        const size = fs18.statSync(zipPath).size;
+        const size = fs19.statSync(zipPath).size;
         res.writeHead(200, {
           "Content-Type": "application/zip",
           "Content-Length": size,
@@ -60453,14 +60465,14 @@ async function startServe(opts) {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Expose-Headers": "Content-Disposition"
         });
-        const stream = fs18.createReadStream(zipPath);
+        const stream = fs19.createReadStream(zipPath);
         stream.pipe(res);
-        stream.on("close", () => fs18.rm(zipPath, { force: true }, () => void 0));
+        stream.on("close", () => fs19.rm(zipPath, { force: true }, () => void 0));
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/import-package") {
         const apply = url.searchParams.get("apply") === "1";
-        const tempZip = path13.join(os5.tmpdir(), `zw-import-${Date.now()}.zip`);
+        const tempZip = path14.join(os6.tmpdir(), `zw-import-${Date.now()}.zip`);
         await readBodyToFile(req, tempZip, 4 * 1024 ** 3);
         try {
           const r2 = await importPackageFromFile(tempZip, runtimeConfig(), apply);
@@ -60473,18 +60485,18 @@ async function startServe(opts) {
             windows: heldWindowCount()
           });
         } finally {
-          fs18.rmSync(tempZip, { force: true });
+          fs19.rmSync(tempZip, { force: true });
         }
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/upload-wallpaper") {
         const apply = url.searchParams.get("apply") === "1";
         const name = (req.headers["x-zw-filename"] ?? "wallpaper.bin").toString();
-        const ext = path13.extname(name).toLowerCase();
+        const ext = path14.extname(name).toLowerCase();
         if (![".zip", ".pkg", ".mp4", ".webm"].includes(ext)) {
           throw new Error(`unsupported file type: ${ext || "(none)"} \u2014 use .zip / .pkg / .mp4 / .webm`);
         }
-        const tempFile = path13.join(os5.tmpdir(), `zw-upl-${Date.now()}${ext}`);
+        const tempFile = path14.join(os6.tmpdir(), `zw-upl-${Date.now()}${ext}`);
         await readBodyToFile(req, tempFile, 4 * 1024 ** 3);
         try {
           const title = name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "").trim() || "\u5BFC\u5165\u7684\u58C1\u7EB8";
@@ -60493,20 +60505,20 @@ async function startServe(opts) {
             sendJson(res, 200, { ok: true, sourceId: r2.id, title: r2.entry.title, type: r2.entry.type, mediaType: r2.mediaType, windows: heldWindowCount() });
             return;
           }
-          const dest = path13.join(dataDir(), "packages", `upl-${Date.now()}`);
-          fs18.mkdirSync(dest, { recursive: true });
+          const dest = path14.join(dataDir(), "packages", `upl-${Date.now()}`);
+          fs19.mkdirSync(dest, { recursive: true });
           if (ext === ".pkg") {
-            fs18.copyFileSync(tempFile, path13.join(dest, "scene.pkg"));
-            fs18.writeFileSync(path13.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
+            fs19.copyFileSync(tempFile, path14.join(dest, "scene.pkg"));
+            fs19.writeFileSync(path14.join(dest, "project.json"), JSON.stringify({ title, type: "scene", file: "scene.pkg", visibility: "private" }, null, 2));
           } else {
-            fs18.copyFileSync(tempFile, path13.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
-            fs18.writeFileSync(path13.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
+            fs19.copyFileSync(tempFile, path14.join(dest, name.replace(/[\\/:*?"<>|]/g, "_")));
+            fs19.writeFileSync(path14.join(dest, "project.json"), JSON.stringify({ title, type: "video", file: name.replace(/[\\/:*?"<>|]/g, "_"), visibility: "private" }, null, 2));
           }
           const { id } = registerCustomSource(dest);
           const result = await applySource(id, runtimeConfig(), apply);
           sendJson(res, 200, { ok: true, sourceId: id, title: result.entry.title, type: result.entry.type, mediaType: result.mediaType, windows: heldWindowCount() });
         } finally {
-          fs18.rmSync(tempFile, { force: true });
+          fs19.rmSync(tempFile, { force: true });
         }
         return;
       }
@@ -60527,8 +60539,8 @@ async function startServe(opts) {
           return;
         }
         const file2 = liveFrameFile(source);
-        fs18.mkdirSync(dataDir(), { recursive: true });
-        fs18.writeFileSync(file2, Buffer.from(m[1], "base64"));
+        fs19.mkdirSync(dataDir(), { recursive: true });
+        fs19.writeFileSync(file2, Buffer.from(m[1], "base64"));
         const config2 = runtimeConfig();
         if (config2.live?.sourceId === source) {
           const next = { ...config2, monetSourcePath: file2 };
@@ -60548,9 +60560,9 @@ async function startServe(opts) {
       if (req.method === "GET" && url.pathname === "/api/library") {
         const images = [];
         try {
-          for (const f2 of fs18.readdirSync(dataDir())) {
+          for (const f2 of fs19.readdirSync(dataDir())) {
             if (/\.(jpe?g|png|webp|bmp|gif)$/i.test(f2)) {
-              images.push({ name: f2, path: path13.join(dataDir(), f2) });
+              images.push({ name: f2, path: path14.join(dataDir(), f2) });
             }
           }
         } catch {
@@ -60574,7 +60586,7 @@ async function startServe(opts) {
       }
       if (req.method === "POST" && url.pathname === "/api/apply-image") {
         const body = JSON.parse(await readBody(req));
-        if (typeof body?.path !== "string" || !fs18.existsSync(body.path)) {
+        if (typeof body?.path !== "string" || !fs19.existsSync(body.path)) {
           throw new Error("provide an existing image path");
         }
         const config2 = runtimeConfig();
@@ -60624,8 +60636,8 @@ async function startServe(opts) {
       })();
     }, 3e4);
   }
-  const cfgPath = path13.join(os5.homedir(), ".zcode", "cli", "config.json");
-  const installRecordPath = path13.join(os5.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
+  const cfgPath = path14.join(os6.homedir(), ".zcode", "cli", "config.json");
+  const installRecordPath = path14.join(os6.homedir(), ".zcode", "cli", "plugins", "installed_plugins.json");
   const bootInstallId = ownPluginId();
   let uninstallTicks = 0;
   const checkDisabled = async () => {
@@ -60659,7 +60671,7 @@ async function startServe(opts) {
   };
   const armWatch = (dir) => {
     try {
-      const w = fs18.watch(dir, onCfgDirEvent);
+      const w = fs19.watch(dir, onCfgDirEvent);
       w.on("error", () => {
         try {
           w.close();
@@ -60669,10 +60681,10 @@ async function startServe(opts) {
     } catch {
     }
   };
-  const watchedDirs = /* @__PURE__ */ new Set([path13.dirname(cfgPath), path13.dirname(installRecordPath)]);
+  const watchedDirs = /* @__PURE__ */ new Set([path14.dirname(cfgPath), path14.dirname(installRecordPath)]);
   setInterval(() => {
     for (const ws of activeWorkspaceDirs()) {
-      const dir = path13.join(ws, ".zcode");
+      const dir = path14.join(ws, ".zcode");
       if (!watchedDirs.has(dir)) {
         watchedDirs.add(dir);
         armWatch(dir);
@@ -60776,6 +60788,7 @@ var init_server = __esm({
     init_ledger();
     init_livefail();
     init_earlyWatch();
+    init_enablement();
     init_ports();
     init_version();
     init_steam();
@@ -60796,13 +60809,13 @@ var init_server = __esm({
         try {
           const dir = dataDir();
           if (!teeDirReady) {
-            fs18.mkdirSync(dir, { recursive: true });
+            fs19.mkdirSync(dir, { recursive: true });
             teeDirReady = true;
           }
-          const file2 = path13.join(dir, "zw-serve.log");
-          fs18.appendFileSync(file2, line + "\n", "utf8");
-          if (++teeCount % 400 === 0 && fs18.statSync(file2).size > 524288) {
-            fs18.renameSync(file2, file2 + ".old");
+          const file2 = path14.join(dir, "zw-serve.log");
+          fs19.appendFileSync(file2, line + "\n", "utf8");
+          if (++teeCount % 400 === 0 && fs19.statSync(file2).size > 524288) {
+            fs19.renameSync(file2, file2 + ".old");
           }
         } catch {
         }
@@ -60829,8 +60842,8 @@ var init_server = __esm({
 });
 
 // src/mcp/server.ts
-import os6 from "node:os";
-import path14 from "node:path";
+import os7 from "node:os";
+import path15 from "node:path";
 
 // node_modules/zod/v4/core/core.js
 var NEVER2 = Object.freeze({
@@ -61027,10 +61040,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path15) {
-  if (!path15)
+function getElementAtPath(obj, path16) {
+  if (!path16)
     return obj;
-  return path15.reduce((acc, key) => acc?.[key], obj);
+  return path16.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -61350,11 +61363,11 @@ function aborted(x2, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path15, issues) {
+function prefixIssues(path16, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path15);
+    iss.path.unshift(path16);
     return iss;
   });
 }
@@ -64765,11 +64778,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path15) {
-  if (path15.length === 0) {
+function getDotPath(path16) {
+  if (path16.length === 0) {
     return "object root";
   }
-  return path15.reduce((acc, seg, index) => {
+  return path16.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -71355,7 +71368,7 @@ function bootstrapServe() {
   }
 }
 {
-  const path15 = (() => {
+  const path16 = (() => {
     try {
       return __require("node:path").join(
         process.env.USERPROFILE || process.env.HOME || ".",
@@ -71371,10 +71384,10 @@ function bootstrapServe() {
     }
   })();
   const journal = (kind, detail) => {
-    if (!path15) return;
+    if (!path16) return;
     try {
       __require("node:fs").appendFileSync(
-        path15,
+        path16,
         `${(/* @__PURE__ */ new Date()).toISOString()} pid=${process.pid} ${kind} ${String(detail).slice(0, 800)}
 `
       );
@@ -71567,9 +71580,9 @@ await server.connect(new StdioServerTransport());
 async function gracefulShutdown() {
   let restore = true;
   try {
-    const srv = await Promise.resolve().then(() => (init_server(), server_exports));
-    const cfgPath = path14.join(os6.homedir(), ".zcode", "cli", "config.json");
-    restore = srv.pluginDisabledBy(cfgPath) !== null;
+    const { pluginDisabledBy: pluginDisabledBy2 } = await Promise.resolve().then(() => (init_enablement(), enablement_exports));
+    const cfgPath = path15.join(os7.homedir(), ".zcode", "cli", "config.json");
+    restore = pluginDisabledBy2(cfgPath) !== null;
     console.error(
       `[serve] stdio closed \u2014 plugin ${restore ? "disabled: restoring default appearance" : "still enabled: leaving the wallpaper mounted for the successor serve"}`
     );
