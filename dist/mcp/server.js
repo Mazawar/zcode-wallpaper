@@ -55583,7 +55583,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.21";
+    VERSION = "1.0.22";
   }
 });
 

@@ -298,3 +298,22 @@
   子目录）确认引用清零才 rm wrapperDir；**任何不确定都保留**（探测失败返回 1=UNKNOWN，绝不盲删——它是快捷方式可
   启动的保底网）；**darwin 平台硬禁**（mac 的 wrapperDir===数据目录，rm 等于删用户数据）。守卫真实执行：造 wrapped
   .lnk → 计数 1 → 清理保留目录 → 还原 → 计数 0 → 清理删除目录。
+
+- **D39 工程健康轮（1.0.22）**：全码审计（无屎山结论：分层/守卫/决策记录纪律俱在，债集中在两巨型文件与工程化缺口）
+  后按序五步。三条**语义修正**：①控制 API 状态码分层——过去所有抛错一律 400，现 ApiError 携状态（输入校验 400 /
+  内部错误 500，readJsonBody 把坏 JSON 归 400），客户端终于能分辨「我的请求错了」与「serve 坏了」；②session.ts 直写
+  路径统一走 configApi.persisted()（端口钉回存储值、customSources 重读——一次性 --port/--api-port 不再落盘成新默
+  认）；③ownPluginId 的手写「向上找 dist/cli.js」统一走 paths.pluginRoot（原两处重复）。**结构**：enablement.ts 独立
+  成模块，停用判定规则提纯为 resolveDisablement（多作用域最新显式写入胜出、平局偏停用）并配新守卫
+  verify-enablement（纯解析器全场景 + 真实临时文件 + server/MCP 接线钉）；server.ts 的 27 分支路由 if 链改声明式
+  路由表（路径前缀类 /files/ 与静态文件保持定制分发；/api/wallpaper 与 /api/apply-image 两份近似 body 合并为
+  applyImageConfig）；shortcuts.ts 三处手写重复收敛（sh 握手/二次启动块 byte-identical 提取为 shServeAndHandshake、
+  PS 标准安装候选探针 psZcodeCandidateLines、collectLnkFiles 目录遍历；VBS 内的第三份属被迫保留——VBScript 无法
+  共享 TS 代码）。**工程化**：CI（windows runner：typecheck/lint/build/hermetic 守卫必过；verify-shortcuts +
+  smoke-vbs 做 real-machine 类先 continue-on-error 观察，稳了再转正）+ biome lint（formatter 刻意关闭——全量格式化
+  会淹没后续每个 diff；57 条 warning 作为已知债清单可见但不挡门；reg.every(fn,ms) 是注册表 interval 助手不是
+  Array.prototype.every，行内 biome-ignore 注明陷阱）。杂项：plugin.json category 与 marketplace.json 对齐为
+  utilities；guards.json 的 v8 wrapper 描述追平 v10；死代码清理（wrapperWritten / heal=null / 重复注释 / USAGE 缺
+  apply-scene）；repo 根 17 个发行 zip 移入 releases/（本就未入库）。守卫 11 条全绿 + 真实 serve 冒烟（400/404/SSE
+  首事件/switch/retire）+ cscript 冒烟。
+
