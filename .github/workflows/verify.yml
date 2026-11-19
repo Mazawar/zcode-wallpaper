@@ -1,0 +1,32 @@
+# CI: the cold-runner half of the local guard culture.
+#
+# `npm run verify` stays the FULL local gate — verify-shortcuts does real COM
+# .lnk work against a logged-in desktop profile and is kept out of the
+# required path here (it runs below non-blocking so a flake surfaces without
+# masking real regressions; promote it once it proves stable on runners).
+# Everything deterministic on a cold machine gates the build: typecheck,
+# lint, the build itself (artifacts are committed — a broken build must
+# never land), and the hermetic guards.
+name: verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  guards:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run verify:ci
+      - name: real-machine guards (COM shortcut round-trip + cscript wrapper compile)
+        continue-on-error: true
+        run: node scripts/verify-shortcuts.mjs && node scripts/smoke-vbs.mjs

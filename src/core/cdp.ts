@@ -67,7 +67,9 @@ export class CdpConnection {
           else p.resolve(msg.result);
         }
       } else if (msg.method) {
-        this.eventHandlers.get(msg.method)?.forEach((h) => h(msg.params));
+        this.eventHandlers.get(msg.method)?.forEach((h) => {
+          h(msg.params);
+        });
       }
     });
     this.ws.addEventListener("close", () => {

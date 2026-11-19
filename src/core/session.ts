@@ -10,7 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { applyToZCode, buildLiveUrl, buildPayload, DEFAULT_CONFIG, loadWallpaper, resetZCode, type BeautifyConfig } from "./inject.js";
+import { applyToZCode, buildLiveUrl, buildPayload, DEFAULT_CONFIG, loadWallpaper, resetZCode, type BeautifyConfig, type WallpaperAssets } from "./inject.js";
 import { dataDir, loadConfig, saveConfig } from "./launch.js";
 import { persisted } from "./configApi.js";
 import { readSessionPorts } from "./ports.js";
@@ -90,7 +90,7 @@ export async function reapplyStored(opts: ApplyOptions = {}): Promise<number> {
 
 /** Direct CDP injection from the persisted config (no serve round-trip). */
 async function directApply(config: BeautifyConfig): Promise<number> {
-  let assets;
+  let assets: WallpaperAssets | undefined;
   if (config.monetSourcePath && fs.existsSync(config.monetSourcePath)) {
     assets = await loadWallpaper(config.monetSourcePath).catch(() => undefined);
   } else if (config.mediaType === "image" && config.wallpaperPath && fs.existsSync(config.wallpaperPath)) {

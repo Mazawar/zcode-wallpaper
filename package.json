@@ -14,7 +14,9 @@
     "build": "tsc -p tsconfig.json --noEmit && node scripts/bundle.mjs",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check",
     "verify": "node scripts/verify-live-machine.mjs && node scripts/verify-contracts.mjs && node scripts/verify-guard-map.mjs && node scripts/verify-pause-semantics.mjs && node scripts/verify-early-watch.mjs && node scripts/verify-enablement.mjs && node scripts/verify-hotkey.mjs && node scripts/verify-ports.mjs && node scripts/verify-shortcuts.mjs && node scripts/panel-check.mjs",
+    "verify:ci": "node scripts/verify-live-machine.mjs && node scripts/verify-contracts.mjs && node scripts/verify-guard-map.mjs && node scripts/verify-pause-semantics.mjs && node scripts/verify-early-watch.mjs && node scripts/verify-enablement.mjs && node scripts/verify-hotkey.mjs && node scripts/verify-ports.mjs && node scripts/panel-check.mjs",
     "market": "node scripts/local-market.mjs"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
     "@types/adm-zip": "^0.5.8",
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.2",

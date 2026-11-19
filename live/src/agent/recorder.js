@@ -56,6 +56,7 @@ export function createRecorder(reg) {
     // an unconditional 3s entry floods the 800-slot ring in 40 minutes and
     // evicts the very transitions an incident review needs.
     let lastSnap = "";
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: reg.every(fn, ms) is the registry's interval helper, not Array.prototype.every
     reg.every(function () {
       const st = document.getElementById(MARKER + "-style");
       const lv = document.getElementById(MARKER + "-live");

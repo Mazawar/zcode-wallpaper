@@ -308,7 +308,9 @@ var init_cdp = __esm({
               else p2.resolve(msg.result);
             }
           } else if (msg.method) {
-            this.eventHandlers.get(msg.method)?.forEach((h) => h(msg.params));
+            this.eventHandlers.get(msg.method)?.forEach((h) => {
+              h(msg.params);
+            });
           }
         });
         this.ws.addEventListener("close", () => {

@@ -87,6 +87,7 @@ export function createMountLoop({ API, reg, buildSection }) {
     // replace the host container, taking the section with it; when the
     // appearance page is back but the section is not, requiring another DOM
     // mutation to remount reads as "the box disappeared until I clicked".
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: reg.every(fn, ms) is the registry's interval helper, not Array.prototype.every
     reg.every(function () {
       if (hbRetired) return;
       if (document.getElementById(MARKER)) return;
@@ -95,6 +96,7 @@ export function createMountLoop({ API, reg, buildSection }) {
     }, 2000);
 
     // Lifecycle heartbeat.
+    // biome-ignore lint/suspicious/useIterableCallbackReturn: reg.every(fn, ms) is the registry's interval helper, not Array.prototype.every
     reg.every(function () {
       const t0 = Date.now();
       fetch(API + "/api/health", { signal: AbortSignal.timeout(2500) })

@@ -1,0 +1,66 @@
+{
+  // Lint-only configuration (audit step 3): the formatter stays OFF on
+  // purpose — the codebase has a consistent hand style and a formatting pass
+  // would bury every future diff in churn. Enable it later as a dedicated
+  // reformat commit if wanted.
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "files": {
+    // Sources and guards only. dist/, live/agent.js and live/panel.js are
+    // committed BUILD ARTIFIFACTS (market installs never run a build);
+    // scripts/_* are untracked local tools; vendor is third-party.
+    "includes": ["src/**", "live/src/**", "live/renderer.js", "scripts/**", "!scripts/_*"]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      // Deliberate idioms of this codebase, turned off with reasons:
+      "complexity": {
+        // The page runtimes (live/src) target es2020 iife bundles written in
+        // conservative style: function expressions over arrows, string
+        // concatenation over templates, and `a && a.b` over optional chains.
+        "useArrowFunction": "off",
+        "useOptionalChain": "off"
+      },
+      "style": {
+        // Same deliberate page-runtime idiom (string concatenation).
+        "useTemplate": "off"
+      },
+      "correctness": {
+        // Late function declarations inside blocks are an intentional
+        // organization pattern in the page runtimes (block-scoped hoisting,
+        // executed for real by the guards).
+        "noInnerDeclarations": "off"
+      },
+      "suspicious": {
+        // `window.__zw = window.__zw || {}` and `while ((m = …))` are the
+        // established guard/runtime idioms.
+        "noAssignInExpressions": "off"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      // The VBS/wrapper text this guard pins is full of CRLF bytes — the \r
+      // escapes in its regexes are the whole point.
+      "includes": ["scripts/verify-ports.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noControlCharactersInRegex": "off"
+          }
+        }
+      }
+    }
+  ]
+}
