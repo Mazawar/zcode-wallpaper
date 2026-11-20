@@ -45,7 +45,7 @@ const root = new StubDiv();
 globalThis.window = {};
 globalThis.document = {
   getElementById(id) { return elements.get(id) || null; },
-  createElement(tag) { return new StubVideo(); },
+  createElement(_tag) { return new StubVideo(); },
 };
 globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 globalThis.clearTimeout = clearTimeout;
@@ -54,7 +54,6 @@ const reg = { timer(fn) { setTimeout(fn, 0); return 0; } };
 const video = createVideoActor({ reg, rec() {}, wpRoot: () => root, onReady() {} });
 const SRC = "http://x/v.mp4";
 
-function fire(el, type) { for (const fn of el._listeners[type] || []) fn({}); }
 function assert(cond, msg) { if (!cond) { console.error("FAIL:", msg); process.exitCode = 1; } else console.log("ok:", msg); }
 
 // 1) fresh pick commits + plays

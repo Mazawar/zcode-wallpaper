@@ -15,7 +15,7 @@ import { createLiveFrame } from "./liveframe.js";
 import { createVideoActor } from "./video.js";
 import { createWatchdogs } from "./watchdogs.js";
 import { createLedger } from "./ledger.js";
-import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeCombo } from "./hotkey.js";
+import { matchesCombo, hasModifier, isEditableTarget, normalizeCombo } from "./hotkey.js";
 
 (function () {
   if (window.__zwAgent) return;
@@ -55,9 +55,9 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
   // The bridge posts into the live frames; liveframe needs the bridge to
   // start() — break the cycle with a lazy getter.
   let liveframe;
-  const bridge = createBridge(reg, () => liveframe.frames(), rec);
-  liveframe = createLiveFrame({ reg, rec, wpRoot, bridge });
-  const video = createVideoActor({ reg, rec, wpRoot, onReady: () => machine.fire("VREADY") });
+  const bridge = createBridge(reg, () => liveframe.frames());
+  liveframe = createLiveFrame({ reg, wpRoot, bridge });
+  const video = createVideoActor({ reg, wpRoot, onReady: () => machine.fire("VREADY") });
   const ledger = createLedger({
     apiBase: API,
     rec,
@@ -77,7 +77,7 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     try {
       const q = new URL(LIVE_SRC, location.href).searchParams;
       return q.get("src") || "";
-    } catch (e) { return ""; }
+    } catch { return ""; }
   }
 
   /** live/failed: soft failures retry in-session; hard failures report to
@@ -301,7 +301,7 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     let es;
     try {
       es = new EventSource(API + "/api/events?client=agent");
-    } catch (e) {
+    } catch {
       return; // standalone (CLI direct) mode
     }
     sseHandle = es;
@@ -309,13 +309,13 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     es.addEventListener("cfg", function (ev) {
       try {
         apply(JSON.parse(ev.data));
-      } catch (e) {
+      } catch {
         rec("SSE", "bad payload");
       }
     });
     es.onopen = function () { delay = 1000; };
     es.onerror = function () {
-      try { es.close(); } catch (e) {}
+      try { es.close(); } catch {}
       if (sseHandle === es) sseHandle = null;
       const t = setTimeout(connectSse, delay);
       timers.push(t);
@@ -329,13 +329,13 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
 
   // ── teardown (bootstrap heartbeat / reset script) ──────────────────────────
   window.__zwTeardownAgent = function () {
-    if (sseHandle) { try { sseHandle.close(); } catch (e) {} sseHandle = null; }
+    if (sseHandle) { try { sseHandle.close(); } catch {} sseHandle = null; }
     ledger.stop();
     timers.forEach(function (t) { clearTimeout(t); clearInterval(t); });
     listeners.forEach(function (l) {
-      try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) {}
+      try { l[0].removeEventListener(l[1], l[2], l[3]); } catch {}
     });
-    observers.forEach(function (o) { try { o.disconnect(); } catch (e) {} });
+    observers.forEach(function (o) { try { o.disconnect(); } catch {} });
     [MARKER + "-style", MARKER + "-wallpaper", MARKER + "-backdrop", MARKER + "-fade",
      MARKER + "-live", MARKER + "-live-next", MARKER + "-video"].forEach(function (id) {
       const n = document.getElementById(id);
@@ -346,6 +346,6 @@ import { comboFromEvent, matchesCombo, hasModifier, isEditableTarget, normalizeC
     S.liveSrc = null;
     S.trans = null;
     window.__zwAgent = null;
-    try { rec("TEARDOWN", "agent"); } catch (e) {}
+    try { rec("TEARDOWN", "agent"); } catch {}
   };
 })();

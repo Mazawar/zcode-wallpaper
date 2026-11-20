@@ -12,7 +12,7 @@ import crypto from "node:crypto";
 import { resolveSourceDir, enumerateWallpapers, type WallpaperEntry } from "./steam.js";
 import { detectWallpaperType } from "./wallpaperType.js";
 import { dataDir, loadConfig, saveConfig } from "./launch.js";
-import { DEFAULT_API_PORT, DEFAULT_CONFIG, type BeautifyConfig, type CustomSource } from "./inject.js";
+import { DEFAULT_API_PORT, DEFAULT_CONFIG, type BeautifyConfig } from "./inject.js";
 import { persisted, storedCustomSources } from "./configApi.js";
 import { clearLiveFailure } from "./livefail.js";
 import { publishConfig } from "./broadcast.js";

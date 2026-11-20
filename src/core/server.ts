@@ -32,7 +32,7 @@ import { loadWallpaper } from "./monet.js";
 import { loadConfig, saveConfig, dataDir } from "./launch.js";
 import { safeJoin, sendStaticFile } from "./media.js";
 import { transferBegin, transferChunk, transferSnapshot } from "./ledger.js";
-import { liveFailureOf, recordLiveFailure, clearLiveFailure } from "./livefail.js";
+import { recordLiveFailure, clearLiveFailure } from "./livefail.js";
 import { earlyHostTick, type EarlyHostWatch } from "./earlyWatch.js";
 // Enablement probing (plugin-switched-off detection + uninstall identity)
 // lives in enablement.ts; this module only consumes the verdicts.
@@ -40,7 +40,7 @@ import { pluginDisabledBy, ownPluginId, activeWorkspaceDirs } from "./enablement
 import { apiCandidates, isPortFree, pickCdpPort, readSessionPorts, writeSessionPorts } from "./ports.js";
 import { VERSION } from "./version.js";
 import { enumerateWallpapers, resolveSourceDir } from "./steam.js";
-import { currentConfig, publicConfig, persisted, sanitize, storedCustomSources, hasBackup, readBackup, writeBackup } from "./configApi.js";
+import { currentConfig, publicConfig, persisted, sanitize, storedCustomSources, readBackup, writeBackup } from "./configApi.js";
 import { primeAssets, invalidateAssets } from "./assets.js";
 import { hub, publishConfig, currentRuntimePayload } from "./broadcast.js";
 import {

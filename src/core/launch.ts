@@ -67,15 +67,15 @@ const ZCODE_EXE_CANDIDATES =
           : undefined,
         "C:\\Program Files\\ZCode\\ZCode.exe",
         path.join(os.homedir(), "AppData", "Local", "Programs", "ZCode", "ZCode.exe"),
-      ].filter(Boolean)
+      ].filter((p): p is string => p !== undefined)
     : process.platform === "darwin"
       ? ["/Applications/ZCode.app/Contents/MacOS/ZCode"]
       : ["/usr/bin/zcode", "/opt/ZCode/zcode"];
 
 export function findZcodeExecutable(): string | undefined {
-  return ZCODE_EXE_CANDIDATES.map((p) => p!).find((p) => {
+  return ZCODE_EXE_CANDIDATES.find((p) => {
     try {
-      return fs.statSync(p!).isFile();
+      return fs.statSync(p).isFile();
     } catch {
       return false;
     }

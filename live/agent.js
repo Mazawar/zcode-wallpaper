@@ -114,7 +114,7 @@
       },
       canFire(event) {
         const row = TRANSITIONS[phase];
-        return !!row && Object.prototype.hasOwnProperty.call(row, event);
+        return !!row && Object.hasOwn(row, event);
       },
       fire(event, data) {
         if (event === "SET_SOURCE") {
@@ -131,7 +131,7 @@
           return true;
         }
         const row = TRANSITIONS[phase];
-        if (!row || !Object.prototype.hasOwnProperty.call(row, event)) return reject(event, data);
+        if (!row || !Object.hasOwn(row, event)) return reject(event, data);
         const to = row[event];
         if (to === true) {
           const from = phase;
@@ -169,7 +169,7 @@
           lastEntry = line;
           window.__zwLog.push({ t: (/* @__PURE__ */ new Date()).toISOString().slice(11, 23), tag, d: d === void 0 ? "" : String(d).slice(0, 160) });
           if (window.__zwLog.length > 800) window.__zwLog.shift();
-        } catch (e) {
+        } catch {
         }
       };
     }
@@ -212,20 +212,20 @@
       reg.on(window, "error", function(e) {
         rec("PAGEERR", (e.message || "") + " @" + (e.lineno || 0));
       });
-    } catch (e) {
+    } catch {
     }
     rec("BOOT", "agent runtime installed");
     return rec;
   }
 
   // live/src/agent/bridge.js
-  function createBridge(reg, frames, rec) {
+  function createBridge(reg, frames) {
     let bound = false;
     function postAll(msg) {
       frames().forEach(function(f) {
         try {
           f.contentWindow.postMessage(msg, "*");
-        } catch (e) {
+        } catch {
         }
       });
     }
@@ -285,11 +285,11 @@
       ["type", "src", "file", "fit", "fps", "muted", "poster", "dpr", "aa", "pq", "pp", "vts"].forEach(function(k) {
         out[k] = q.get(k) || "";
       });
-    } catch (e) {
+    } catch {
     }
     return out;
   }
-  function createLiveFrame({ reg, rec, wpRoot, bridge }) {
+  function createLiveFrame({ reg, wpRoot, bridge }) {
     let applied = "";
     let api = "";
     function frames() {
@@ -299,7 +299,7 @@
       frames().forEach(function(f) {
         try {
           f.contentWindow.postMessage(msg, "*");
-        } catch (e) {
+        } catch {
         }
       });
     }
@@ -469,7 +469,7 @@
   }
 
   // live/src/agent/video.js
-  function createVideoActor({ reg, rec, wpRoot, onReady }) {
+  function createVideoActor({ reg, wpRoot, onReady }) {
     const S = window.__zw = window.__zw || {};
     let currentSrc = "";
     function findVideo() {
@@ -880,9 +880,9 @@
       return document.getElementById(MARKER + "-wallpaper");
     }
     let liveframe;
-    const bridge = createBridge(reg, () => liveframe.frames(), rec);
-    liveframe = createLiveFrame({ reg, rec, wpRoot, bridge });
-    const video = createVideoActor({ reg, rec, wpRoot, onReady: () => machine.fire("VREADY") });
+    const bridge = createBridge(reg, () => liveframe.frames());
+    liveframe = createLiveFrame({ reg, wpRoot, bridge });
+    const video = createVideoActor({ reg, wpRoot, onReady: () => machine.fire("VREADY") });
     const ledger = createLedger({
       apiBase: API,
       rec,
@@ -903,7 +903,7 @@
       try {
         const q = new URL(LIVE_SRC, location.href).searchParams;
         return q.get("src") || "";
-      } catch (e) {
+      } catch {
         return "";
       }
     }
@@ -1066,7 +1066,7 @@
       let es;
       try {
         es = new EventSource(API + "/api/events?client=agent");
-      } catch (e) {
+      } catch {
         return;
       }
       sseHandle = es;
@@ -1074,7 +1074,7 @@
       es.addEventListener("cfg", function(ev) {
         try {
           apply(JSON.parse(ev.data));
-        } catch (e) {
+        } catch {
           rec("SSE", "bad payload");
         }
       });
@@ -1084,7 +1084,7 @@
       es.onerror = function() {
         try {
           es.close();
-        } catch (e) {
+        } catch {
         }
         if (sseHandle === es) sseHandle = null;
         const t = setTimeout(connectSse, delay);
@@ -1098,7 +1098,7 @@
       if (sseHandle) {
         try {
           sseHandle.close();
-        } catch (e) {
+        } catch {
         }
         sseHandle = null;
       }
@@ -1110,13 +1110,13 @@
       listeners.forEach(function(l) {
         try {
           l[0].removeEventListener(l[1], l[2], l[3]);
-        } catch (e) {
+        } catch {
         }
       });
       observers.forEach(function(o) {
         try {
           o.disconnect();
-        } catch (e) {
+        } catch {
         }
       });
       [
@@ -1138,7 +1138,7 @@
       window.__zwAgent = null;
       try {
         rec("TEARDOWN", "agent");
-      } catch (e) {
+      } catch {
       }
     };
   })();

@@ -50,8 +50,8 @@ export function pickRendererTargets(targets: CdpTarget[]): CdpTarget[] {
 export class CdpConnection {
   private ws: WebSocket;
   private nextId = 1;
-  private pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
-  private eventHandlers = new Map<string, Set<(params: any) => void>>();
+  private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private eventHandlers = new Map<string, Set<(params: unknown) => void>>();
   readonly targetUrl: string;
 
   private constructor(wsUrl: string) {
@@ -97,7 +97,7 @@ export class CdpConnection {
     return this.ws.readyState === WebSocket.OPEN;
   }
 
-  send(method: string, params: Record<string, unknown> = {}): Promise<any> {
+  send(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
@@ -105,7 +105,7 @@ export class CdpConnection {
     });
   }
 
-  on(event: string, handler: (params: any) => void): void {
+  on(event: string, handler: (params: unknown) => void): void {
     let set = this.eventHandlers.get(event);
     if (!set) {
       this.eventHandlers.set(event, (set = new Set()));
@@ -275,7 +275,8 @@ export async function injectIntoTarget(
   target: CdpTarget,
   payload: InjectionPayload
 ): Promise<void> {
-  const conn = await CdpConnection.connect(target.webSocketDebuggerUrl!);
+  if (!target.webSocketDebuggerUrl) throw new Error(`renderer target "${target.title}" has no debug URL`);
+  const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
   try {
     await conn.send("Page.enable");
     await conn.send("Runtime.enable");

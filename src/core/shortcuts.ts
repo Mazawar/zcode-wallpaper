@@ -625,7 +625,11 @@ ${psZcodeCandidateLines("zcode").map((l) => "  " + l).join("\n")}
   if (-not (Test-Path $zcode)) { Write-Output ('ok|zcode-missing|' + $zcode); exit }
   $anti = @('${antiOcclusion.join("', '")}')
   # rebuild zcode args: strip any wrapper reference + managed flags, append canonical
-  $argStr = ([string]$s.Arguments) -replace '^"[^"]*zw-launch\.vbs"\s*','' -replace '^\S*zw-launch\.vbs\s*',''
+  # (regex separators are DOUBLED in the TS template so PowerShell receives real
+  #  escapes — single backslashes are eaten by JS string unescaping and the
+  #  unquoted-arg form never matched; same disease as the v10 probe bug where
+  #  the emitted path degenerated to "distcli.js")
+  $argStr = ([string]$s.Arguments) -replace '^"[^"]*zw-launch\\.vbs"\\s*','' -replace '^\\S*zw-launch\\.vbs\\s*',''
   $parts = @($argStr -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
   $canonical = @('--remote-debugging-port=${port}') + $anti
   $zargs = ($parts + $canonical) -join ' '
@@ -764,7 +768,12 @@ export function writeEarlyLaunchVbs(port: number, zcode: string, launcher: { dir
     "    newest = \"\"",
     "    Set pfold = fso.GetFolder(pd)",
     "    For Each v In pfold.SubFolders",
-    "      c = v.Path & \"\dist\cli.js\"",
+    // NOTE: this is a JS string feeding VBS — the separators MUST be doubled
+    // here or JS unescaping eats them and the probe matches nothing (the
+    // v10 bug biome's useless-escape check surfaced: emitted was
+    // "distcli.js", self-consistently asserted by an equally degenerate
+    // guard string, so both sides were wrong together).
+    "      c = v.Path & \"\\dist\\cli.js\"",
     "      If fso.FileExists(c) Then",
     "        If newest = \"\" Then",
     "          newest = c",

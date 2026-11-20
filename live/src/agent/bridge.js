@@ -3,11 +3,11 @@
  * drives scene parallax at rAF frequency.
  */
 
-export function createBridge(reg, frames, rec) {
+export function createBridge(reg, frames) {
   let bound = false;
   function postAll(msg) {
     frames().forEach(function (f) {
-      try { f.contentWindow.postMessage(msg, "*"); } catch (e) { /* mid-swap */ }
+      try { f.contentWindow.postMessage(msg, "*"); } catch { /* mid-swap */ }
     });
   }
   function start() {

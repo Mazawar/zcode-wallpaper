@@ -14,7 +14,6 @@ import {
   buildResetScript,
   listTargets,
   pickRendererTargets,
-  type CdpTarget,
 } from "./cdp.js";
 import type { BeautifyConfig } from "./inject.js";
 import { liveFailureOf } from "./livefail.js";
@@ -77,11 +76,11 @@ async function holdSession(
   await conn.send("Page.setBypassCSP", { enabled: true }).catch(() => undefined);
 
   const bootstrap = await bootstrapScriptFor(config, apiPort);
-  const { identifier: bootstrapId } = await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap });
+  const { identifier: bootstrapId } = (await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap })) as { identifier: string };
   await conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
 
   const panel = buildPanelLoader(apiPort);
-  const { identifier: panelId } = await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: panel });
+  const { identifier: panelId } = (await conn.send("Page.addScriptToEvaluateOnNewDocument", { source: panel })) as { identifier: string };
   await conn.send("Runtime.evaluate", { expression: panel, returnByValue: true });
 
   held.set(target.id, { conn, bootstrapId, panelId });
@@ -103,7 +102,7 @@ async function poll(config: BeautifyConfig, apiPort: number): Promise<void> {
     }
     for (const id of [...held.keys()]) {
       if (!current.has(id)) {
-        held.get(id)!.conn.close();
+        held.get(id)?.conn.close();
         held.delete(id);
       }
     }
@@ -150,7 +149,7 @@ export async function rearmSessions(config: BeautifyConfig, apiPort: number): Pr
           .send("Page.removeScriptToEvaluateOnNewDocument", { identifier: session.bootstrapId })
           .catch(() => {});
       }
-      const { identifier } = await session.conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap });
+      const { identifier } = (await session.conn.send("Page.addScriptToEvaluateOnNewDocument", { source: bootstrap })) as { identifier: string };
       session.bootstrapId = identifier;
       await session.conn.send("Runtime.evaluate", { expression: bootstrap, returnByValue: true });
     } catch {

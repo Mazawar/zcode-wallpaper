@@ -317,3 +317,20 @@
   apply-scene）；repo 根 17 个发行 zip 移入 releases/（本就未入库）。守卫 11 条全绿 + 真实 serve 冒烟（400/404/SSE
   首事件/switch/retire）+ cscript 冒烟。
 
+- **D40 lint 清零顺藤摸出 v10 探针真 bug（1.0.23）**：BACKLOG A 轨执行 A1-A3。A1 补上 D39 漏做的 ARCHITECTURE 规则 7
+  （console 补丁顺序契约：mcp/server.ts 对 core/server.ts 只准动态 import，静态化即打爆 MCP framing）。A2 清零
+  biome 全部 57 条 warning 时，`noUselessEscapeInString` 咬开的却是一处**上线即坏的真 bug**：writeEarlyLaunchVbs 的
+  v9/v10 探针行源码写作 `\"\\dist\\cli.js\"`（单反斜杠），JS 字符串转义把两个分隔符都吃掉——**实际部署的 VBS 里是
+  `c = v.Path & \"distcli.js\"`**，探针永远匹配不到任何候选、静默回落烘焙路径，D36 的「重装后首启即满血」自上线起
+  就没生效过。守卫为何同瞎：verify-ports 的断言串 `'\"\\dist\\cli.js\"` 同样被转义吃成 `\"distcli.js\"`——**两边自洽
+  地错**（守卫对账了标记，标记本身错了）。同病灶第二处：per-lnk 重包装脚本的参数剥离正则 `^\\S*zw-launch\\.vbs\\s*`
+  同样退化成 `^S*…`，未加引号的 vbs 参数形式从未被剥离（主用的引号形式侥幸不受影响）。修复：VBS 行与两处 PS 正则
+  全部改**双反斜杠源码**（PowerShell/VBS 收到真转义）；守卫断言改锚定真分隔符 `\"\\\\dist\\\\cli.js\"` 并在断言文
+  本里记下这次教训；生成器旁注释写明「模板字面量里反斜杠必须翻倍」。教训入册：**生成外部语言脚本的字符串，其
+  转义层必须由守卫以「运行时求值后的字节」对账**（本次守卫只对了源码字面量）。A2 其余：catch{} 化未用绑定、删
+  library.js 死 fetchJson 与 verify-pause 死 fire、Object.hasOwn 换 state.js 两处、exec.ts/cdp.ts/session.ts/
+  configApi.ts 的 any 全部真类型化（sanitize 保持 body?.xxx 文本形态——verify-contracts 的白名单正则靠它）、
+  bridge/liveframe/video 签名去掉从未使用的 rec 参数、`biome migrate`（recommended→preset，弃用告警清零）。本机
+  zw-launch.vbs 将在下一次插件会话重烘焙时拿到修复（内容比对必不相等）。11 守卫 + cscript 冒烟全绿，lint 0/0。
+
+

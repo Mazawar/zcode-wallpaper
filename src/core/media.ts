@@ -9,7 +9,7 @@
 
 import fs from "node:fs";
 import crypto from "node:crypto";
-import http from "node:http";
+import type * as http from "node:http";
 import path from "node:path";
 
 const MIME: Record<string, string> = {

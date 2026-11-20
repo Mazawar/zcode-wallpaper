@@ -9,7 +9,6 @@
  * fire-and-forget: a slow or failed bootstrap must never delay MCP startup.
  */
 
-import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

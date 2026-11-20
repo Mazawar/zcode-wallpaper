@@ -11,7 +11,7 @@
 
 import { MARKER } from "./recorder.js";
 
-export function createVideoActor({ reg, rec, wpRoot, onReady }) {
+export function createVideoActor({ reg, wpRoot, onReady }) {
   const S = (window.__zw = window.__zw || {});
   let currentSrc = ""; // committed element's src
 

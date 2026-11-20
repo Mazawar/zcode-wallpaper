@@ -15,11 +15,11 @@ function queryOf(u) {
   try {
     const q = new URL(u, location.href).searchParams;
     ["type", "src", "file", "fit", "fps", "muted", "poster", "dpr", "aa", "pq", "pp", "vts"].forEach(function (k) { out[k] = q.get(k) || ""; });
-  } catch (e) { /* bad url */ }
+  } catch { /* bad url */ }
   return out;
 }
 
-export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
+export function createLiveFrame({ reg, wpRoot, bridge }) {
   let applied = ""; // LAST APPLIED url — hot-updates never rewrite the attribute
   let api = "";
 
@@ -28,7 +28,7 @@ export function createLiveFrame({ reg, rec, wpRoot, bridge }) {
   }
   function postAll(msg) {
     frames().forEach(function (f) {
-      try { f.contentWindow.postMessage(msg, "*"); } catch (e) { /* mid-swap */ }
+      try { f.contentWindow.postMessage(msg, "*"); } catch { /* mid-swap */ }
     });
   }
   function makeFrame(id, src, extraCss) {

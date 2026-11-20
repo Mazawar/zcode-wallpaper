@@ -241,11 +241,6 @@
   var TYPE_LABEL = { scene: "\u573A\u666F", video: "\u89C6\u9891", web: "\u7F51\u9875", image: "\u56FE\u7247", unknown: "\u672A\u77E5" };
   var ORIGIN_LABEL = { workshop: "\u5DE5\u574A\u8BA2\u9605", custom: "\u672C\u673A\u5BFC\u5165", default: "WE \u5185\u7F6E", myprojects: "WE \u5DE5\u7A0B" };
   function createLibrary({ API, PAGE_SIZE, post, state, ui }) {
-    function fetchJson(url, opts) {
-      return fetch(API + url, opts).then(function(r) {
-        return r.json();
-      });
-    }
     function filteredList(list) {
       var q = (state.filter || "").trim().toLowerCase();
       var t = state.typeF || "all";
@@ -623,7 +618,7 @@
   (function() {
     if (window.__zwPanel) return;
     window.__zwPanel = true;
-    const PANEL_VERSION = false ? "dev" : "1.0.22";
+    const PANEL_VERSION = false ? "dev" : "1.0.23";
     const API = window.__zwApiBase || "http://127.0.0.1:28257";
     const PAGE_SIZE = 15;
     const timers = [];
@@ -734,7 +729,7 @@
         es.addEventListener("cfg", function() {
           refresh();
         });
-      } catch (e) {
+      } catch {
       }
     }
     function buildSection(host) {
@@ -811,7 +806,7 @@
         state.tab = isLib ? "lib" : "play";
         try {
           localStorage.setItem("zw-panel-tab", state.tab);
-        } catch (e) {
+        } catch {
         }
       }
       tabLibBtn.addEventListener("click", function() {
@@ -824,7 +819,7 @@
       showTab((function() {
         try {
           return localStorage.getItem("zw-panel-tab") || "lib";
-        } catch (e) {
+        } catch {
           return "lib";
         }
       })());
@@ -1009,13 +1004,13 @@
           if ((f.getAttribute("src") || "").indexOf("/live/index.html") !== -1) {
             try {
               f.contentWindow.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*");
-            } catch (e) {
+            } catch {
             }
           }
         });
         try {
           window.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*");
-        } catch (e) {
+        } catch {
         }
       }, "\u6682\u505C/\u6062\u590D\u5F53\u524D\u58C1\u7EB8");
       actRow.appendChild(pauseBtn);
@@ -1176,7 +1171,7 @@
       });
       try {
         if (es) es.close();
-      } catch (e) {
+      } catch {
       }
       mount.teardown();
       window.__zwPanel = null;

@@ -99,7 +99,7 @@ export function publicConfig(config: BeautifyConfig) {
   };
 }
 
-export function sanitize(body: any): Partial<BeautifyConfig> {
+export function sanitize(body: Record<string, unknown>): Partial<BeautifyConfig> {
   const out: Partial<BeautifyConfig> = {};
   if (typeof body?.blur === "number" && body.blur >= 0 && body.blur <= 100) out.blur = body.blur;
   if (typeof body?.dim === "number" && body.dim >= 0 && body.dim <= 100) out.dim = body.dim;
@@ -108,7 +108,7 @@ export function sanitize(body: any): Partial<BeautifyConfig> {
   if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
   if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
   if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
-  if (["low", "balanced", "high", "ultra"].includes(body?.liveQuality)) out.liveQuality = body.liveQuality;
+  if (body?.liveQuality === "low" || body?.liveQuality === "balanced" || body?.liveQuality === "high" || body?.liveQuality === "ultra") out.liveQuality = body.liveQuality;
   // dsh-style picture knobs
   if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
   if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
@@ -118,8 +118,8 @@ export function sanitize(body: any): Partial<BeautifyConfig> {
   if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
   if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
   if (typeof body?.flip === "boolean") out.flip = body.flip;
-  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
-  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
+  if (body?.switchTransition === "cut" || body?.switchTransition === "fade" || body?.switchTransition === "push" || body?.switchTransition === "wipe" || body?.switchTransition === "iris" || body?.switchTransition === "zoom") out.switchTransition = body.switchTransition;
+  if (body?.switchTransitionSpeed === "fast" || body?.switchTransitionSpeed === "normal" || body?.switchTransitionSpeed === "slow") out.switchTransitionSpeed = body.switchTransitionSpeed;
   // auto-rotation
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));

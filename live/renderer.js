@@ -387,7 +387,7 @@ setInterval(function () {
       return;
     }
     if (Date.now() - liveAt > 20000) reloadOnce();
-  } catch (e) {
+  } catch {
     /* engine gone — the host's heal loop re-injects */
   }
 }, 2000);

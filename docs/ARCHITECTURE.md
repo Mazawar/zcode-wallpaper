@@ -58,3 +58,8 @@
    白名单；SSE 事件名 产出↔消费 一致；payload 字段 构建方↔读取方 一致。
 6. **守卫地图**（守卫 `verify-guard-map`）：改哪个文件该跑哪条守卫，查
    [GUARD-MAP.md](GUARD-MAP.md)——由 `scripts/guards.json` 生成，手改文档无效。
+7. **console 补丁顺序**：mcp/server.ts 在 MCP 启动时把 console.log 改道 stderr（stdio framing
+   保护），server.ts 模块加载时再补 ring buffer + 落盘 tee。这个顺序是**隐式契约**：
+   `mcp/server.ts` 对 `core/server.ts`（及其传递依赖）**只准动态 import**——谁把 import
+   提成静态的，server.ts 的补丁就会在 stderr 改道之前执行，任何一条 serve 日志都会写进
+   stdout 打爆 JSON-RPC framing。守卫 `verify-ports` 钉住 mcp 接线时附带覆盖此约束。

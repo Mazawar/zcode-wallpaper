@@ -29,7 +29,7 @@ function account(sourceId: string, rel: string): FileAccount {
   return a;
 }
 
-export function transferBegin(sourceId: string, rel: string, start: number, end: number): void {
+export function transferBegin(sourceId: string, rel: string, _start: number, end: number): void {
   const a = account(sourceId, rel);
   a.requested = Math.max(a.requested, end + 1);
   a.lastAt = Date.now();

@@ -9,7 +9,7 @@
  * registration (once per hold) and the 30s heal probe.
  */
 
-import http from "node:http";
+import type * as http from "node:http";
 import type { BeautifyConfig } from "./inject.js";
 import { buildRuntimePayload } from "./payload.js";
 

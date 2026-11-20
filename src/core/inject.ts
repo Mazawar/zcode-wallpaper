@@ -396,9 +396,10 @@ export async function resetZCode(port: number): Promise<number> {
   const targets = pickRendererTargets(await listTargets(port));
   let count = 0;
   for (const target of targets) {
+    if (!target.webSocketDebuggerUrl) continue;
     try {
       const { CdpConnection } = await import("./cdp.js");
-      const conn = await CdpConnection.connect(target.webSocketDebuggerUrl!);
+      const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
       await conn.send("Runtime.evaluate", { expression: buildResetScript() });
       conn.close();
       count++;

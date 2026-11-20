@@ -122,7 +122,7 @@ import { MARKER, createMountLoop } from "./mount.js";
     try {
       es = new EventSource(API + "/api/events?client=panel");
       es.addEventListener("cfg", function () { refresh(); });
-    } catch (e) {
+    } catch {
       /* standalone mode — refresh() stays manual */
     }
   }
@@ -204,12 +204,12 @@ import { MARKER, createMountLoop } from "./mount.js";
       tabBar.setAttribute("data-value", isLib ? "lib" : "play");
       tabBar.__zwPaint();
       state.tab = isLib ? "lib" : "play";
-      try { localStorage.setItem("zw-panel-tab", state.tab); } catch (e) { /* private mode */ }
+      try { localStorage.setItem("zw-panel-tab", state.tab); } catch { /* private mode */ }
     }
     tabLibBtn.addEventListener("click", function () { showTab("lib"); });
     tabPlayBtn.addEventListener("click", function () { showTab("play"); });
     tabBar.__zwPaint();
-    showTab((function () { try { return localStorage.getItem("zw-panel-tab") || "lib"; } catch (e) { return "lib"; } })());
+    showTab((function () { try { return localStorage.getItem("zw-panel-tab") || "lib"; } catch { return "lib"; } })());
 
     tabLib.appendChild(groupLabel("当前壁纸"));
     // Current wallpaper strip: poster + title + meta + badge.
@@ -389,10 +389,10 @@ import { MARKER, createMountLoop } from "./mount.js";
       pauseBtn.textContent = livePaused ? "继续" : "暂停";
       Array.prototype.forEach.call(document.querySelectorAll("iframe"), function (f) {
         if ((f.getAttribute("src") || "").indexOf("/live/index.html") !== -1) {
-          try { f.contentWindow.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*"); } catch (e) { /* mid-swap */ }
+          try { f.contentWindow.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*"); } catch { /* mid-swap */ }
         }
       });
-      try { window.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*"); } catch (e) { /* agent absent */ }
+      try { window.postMessage({ zw: livePaused ? "pause" : "resume", user: true }, "*"); } catch { /* agent absent */ }
     }, "暂停/恢复当前壁纸");
     actRow.appendChild(pauseBtn);
     actRow.appendChild(button("刷新", function () { refresh(); }));
@@ -528,7 +528,7 @@ import { MARKER, createMountLoop } from "./mount.js";
   window.__zwTeardownPanel = function () {
     timers.forEach(function (t) { clearTimeout(t); clearInterval(t); });
     observers.forEach(function (o) { o.disconnect(); });
-    try { if (es) es.close(); } catch (e) {}
+    try { if (es) es.close(); } catch {}
     mount.teardown();
     window.__zwPanel = null;
     window.__zwPanelRefresh = null;

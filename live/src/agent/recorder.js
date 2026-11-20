@@ -25,7 +25,7 @@ export function createRecorder(reg) {
         lastEntry = line;
         window.__zwLog.push({ t: new Date().toISOString().slice(11, 23), tag: tag, d: d === undefined ? "" : String(d).slice(0, 160) });
         if (window.__zwLog.length > 800) window.__zwLog.shift();
-      } catch (e) { /* recorder must never break the runtime */ }
+      } catch { /* recorder must never break the runtime */ }
     };
   }
   const rec = window.__zwRec;
@@ -68,7 +68,7 @@ export function createRecorder(reg) {
       }
     }, 3000);
     reg.on(window, "error", function (e) { rec("PAGEERR", (e.message || "") + " @" + (e.lineno || 0)); });
-  } catch (e) { /* never break the runtime */ }
+  } catch { /* never break the runtime */ }
   rec("BOOT", "agent runtime installed");
   return rec;
 }

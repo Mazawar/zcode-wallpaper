@@ -174,7 +174,7 @@ export function createMachine(onEvent) {
     get history() { return history; },
     canFire(event) {
       const row = TRANSITIONS[phase];
-      return !!row && Object.prototype.hasOwnProperty.call(row, event);
+      return !!row && Object.hasOwn(row, event);
     },
     fire(event, data) {
       if (event === "SET_SOURCE") {
@@ -191,7 +191,7 @@ export function createMachine(onEvent) {
         return true;
       }
       const row = TRANSITIONS[phase];
-      if (!row || !Object.prototype.hasOwnProperty.call(row, event)) return reject(event, data);
+      if (!row || !Object.hasOwn(row, event)) return reject(event, data);
       const to = row[event];
       if (to === true) { // self-transition: restart in place (e.g. load restart)
         const from = phase;

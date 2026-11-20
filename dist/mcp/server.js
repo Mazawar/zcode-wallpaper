@@ -11420,7 +11420,7 @@ function saveConfig(config2) {
   fs.writeFileSync(configFile(), JSON.stringify(config2, null, 2));
 }
 function findZcodeExecutable() {
-  return ZCODE_EXE_CANDIDATES.map((p2) => p2).find((p2) => {
+  return ZCODE_EXE_CANDIDATES.find((p2) => {
     try {
       return fs.statSync(p2).isFile();
     } catch {
@@ -11493,7 +11493,7 @@ var init_launch = __esm({
       process.env.ZCODE_WINDOWS_APP_INSTALL_DIR ? path.join(process.env.ZCODE_WINDOWS_APP_INSTALL_DIR, "ZCode.exe") : void 0,
       "C:\\Program Files\\ZCode\\ZCode.exe",
       path.join(os.homedir(), "AppData", "Local", "Programs", "ZCode", "ZCode.exe")
-    ].filter(Boolean) : process.platform === "darwin" ? ["/Applications/ZCode.app/Contents/MacOS/ZCode"] : ["/usr/bin/zcode", "/opt/ZCode/zcode"];
+    ].filter((p2) => p2 !== void 0) : process.platform === "darwin" ? ["/Applications/ZCode.app/Contents/MacOS/ZCode"] : ["/usr/bin/zcode", "/opt/ZCode/zcode"];
     execFileAsync = promisify(execFile);
   }
 });
@@ -11662,6 +11662,7 @@ function readAgentCode() {
   return fs3.readFileSync(`${liveDir()}/agent.js`.replace(/\\/g, "/"), "utf8");
 }
 async function injectIntoTarget(target, payload) {
+  if (!target.webSocketDebuggerUrl) throw new Error(`renderer target "${target.title}" has no debug URL`);
   const conn = await CdpConnection.connect(target.webSocketDebuggerUrl);
   try {
     await conn.send("Page.enable");
@@ -54947,6 +54948,7 @@ async function resetZCode(port) {
   const targets = pickRendererTargets(await listTargets(port));
   let count = 0;
   for (const target of targets) {
+    if (!target.webSocketDebuggerUrl) continue;
     try {
       const { CdpConnection: CdpConnection2 } = await Promise.resolve().then(() => (init_cdp(), cdp_exports));
       const conn = await CdpConnection2.connect(target.webSocketDebuggerUrl);
@@ -55129,7 +55131,7 @@ function sanitize(body) {
   if (body?.fit === "cover" || body?.fit === "contain" || body?.fit === "smart" || body?.fit === "stretch") out.fit = body.fit;
   if (typeof body?.liveFps === "number" && body.liveFps >= 10 && body.liveFps <= 60) out.liveFps = Math.round(body.liveFps);
   if (typeof body?.liveMuted === "boolean") out.liveMuted = body.liveMuted;
-  if (["low", "balanced", "high", "ultra"].includes(body?.liveQuality)) out.liveQuality = body.liveQuality;
+  if (body?.liveQuality === "low" || body?.liveQuality === "balanced" || body?.liveQuality === "high" || body?.liveQuality === "ultra") out.liveQuality = body.liveQuality;
   if (typeof body?.wallBrightness === "number") out.wallBrightness = Math.min(160, Math.max(40, Math.round(body.wallBrightness)));
   if (typeof body?.wallContrast === "number") out.wallContrast = Math.min(200, Math.max(40, Math.round(body.wallContrast)));
   if (typeof body?.wallSaturate === "number") out.wallSaturate = Math.min(200, Math.max(0, Math.round(body.wallSaturate)));
@@ -55138,8 +55140,8 @@ function sanitize(body) {
   if (typeof body?.posY === "number") out.posY = Math.min(100, Math.max(0, Math.round(body.posY)));
   if (typeof body?.layerScale === "number") out.layerScale = Math.min(150, Math.max(50, Math.round(body.layerScale)));
   if (typeof body?.flip === "boolean") out.flip = body.flip;
-  if (["cut", "fade", "push", "wipe", "iris", "zoom"].includes(body?.switchTransition)) out.switchTransition = body.switchTransition;
-  if (["fast", "normal", "slow"].includes(body?.switchTransitionSpeed)) out.switchTransitionSpeed = body.switchTransitionSpeed;
+  if (body?.switchTransition === "cut" || body?.switchTransition === "fade" || body?.switchTransition === "push" || body?.switchTransition === "wipe" || body?.switchTransition === "iris" || body?.switchTransition === "zoom") out.switchTransition = body.switchTransition;
+  if (body?.switchTransitionSpeed === "fast" || body?.switchTransitionSpeed === "normal" || body?.switchTransitionSpeed === "slow") out.switchTransitionSpeed = body.switchTransitionSpeed;
   if (typeof body?.rotationEnabled === "boolean") out.rotationEnabled = body.rotationEnabled;
   if (typeof body?.rotationMinutes === "number") out.rotationMinutes = Math.min(1440, Math.max(1, Math.round(body.rotationMinutes)));
   if (body?.rotationOrder === "sequence" || body?.rotationOrder === "random") out.rotationOrder = body.rotationOrder;
@@ -55583,7 +55585,7 @@ var VERSION;
 var init_version = __esm({
   "src/core/version.ts"() {
     "use strict";
-    VERSION = "1.0.22";
+    VERSION = "1.0.23";
   }
 });
 
@@ -55726,7 +55728,7 @@ function account(sourceId, rel) {
   }
   return a2;
 }
-function transferBegin(sourceId, rel, start, end) {
+function transferBegin(sourceId, rel, _start, end) {
   const a2 = account(sourceId, rel);
   a2.requested = Math.max(a2.requested, end + 1);
   a2.lastAt = Date.now();
@@ -59048,7 +59050,7 @@ async function poll(config2, apiPort) {
     }
     for (const id of [...held.keys()]) {
       if (!current.has(id)) {
-        held.get(id).conn.close();
+        held.get(id)?.conn.close();
         held.delete(id);
       }
     }
@@ -59169,12 +59171,14 @@ var init_sessions = __esm({
 // src/core/exec.ts
 import { execFile as execFile3 } from "node:child_process";
 import { promisify as promisify3 } from "node:util";
-var execRaw, execFileP;
+function execFileP(cmd, args, opts = {}) {
+  return execRaw(cmd, args, { windowsHide: true, ...opts });
+}
+var execRaw;
 var init_exec = __esm({
   "src/core/exec.ts"() {
     "use strict";
     execRaw = promisify3(execFile3);
-    execFileP = ((cmd, args, opts = {}) => execRaw(cmd, args, { windowsHide: true, ...opts }));
   }
 });
 
@@ -59612,7 +59616,11 @@ ${psZcodeCandidateLines("zcode").map((l2) => "  " + l2).join("\n")}
   if (-not (Test-Path $zcode)) { Write-Output ('ok|zcode-missing|' + $zcode); exit }
   $anti = @('${antiOcclusion.join("', '")}')
   # rebuild zcode args: strip any wrapper reference + managed flags, append canonical
-  $argStr = ([string]$s.Arguments) -replace '^"[^"]*zw-launch.vbs"s*','' -replace '^S*zw-launch.vbss*',''
+  # (regex separators are DOUBLED in the TS template so PowerShell receives real
+  #  escapes \u2014 single backslashes are eaten by JS string unescaping and the
+  #  unquoted-arg form never matched; same disease as the v10 probe bug where
+  #  the emitted path degenerated to "distcli.js")
+  $argStr = ([string]$s.Arguments) -replace '^"[^"]*zw-launch\\.vbs"\\s*','' -replace '^\\S*zw-launch\\.vbs\\s*',''
   $parts = @($argStr -split ' ' | Where-Object { $_ -ne '' -and $_ -notlike '--remote-debugging-port=*' -and $anti -notcontains $_ })
   $canonical = @('--remote-debugging-port=${port}') + $anti
   $zargs = ($parts + $canonical) -join ' '
@@ -59719,7 +59727,12 @@ function writeEarlyLaunchVbs(port, zcode, launcher) {
     '    newest = ""',
     "    Set pfold = fso.GetFolder(pd)",
     "    For Each v In pfold.SubFolders",
-    '      c = v.Path & "distcli.js"',
+    // NOTE: this is a JS string feeding VBS — the separators MUST be doubled
+    // here or JS unescaping eats them and the probe matches nothing (the
+    // v10 bug biome's useless-escape check surfaced: emitted was
+    // "distcli.js", self-consistently asserted by an equally degenerate
+    // guard string, so both sides were wrong together).
+    '      c = v.Path & "\\dist\\cli.js"',
     "      If fso.FileExists(c) Then",
     '        If newest = "" Then',
     "          newest = c",

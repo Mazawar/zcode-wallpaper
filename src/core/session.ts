@@ -48,14 +48,14 @@ export async function isServeAlive(apiPort: number): Promise<boolean> {
   return health.ok && health.service === "zcode-wallpaper";
 }
 
-async function serveApi(apiPort: number, pathname: string, body?: unknown): Promise<Record<string, any>> {
+async function serveApi(apiPort: number, pathname: string, body?: unknown): Promise<Record<string, unknown>> {
   const res = await fetch(`http://127.0.0.1:${apiPort}${pathname}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body ?? {}),
     signal: AbortSignal.timeout(20_000),
   });
-  const json = (await res.json()) as Record<string, any>;
+  const json = (await res.json()) as Record<string, unknown>;
   if (!res.ok) throw new Error(String(json?.error ?? `serve API ${pathname} failed`));
   return json;
 }

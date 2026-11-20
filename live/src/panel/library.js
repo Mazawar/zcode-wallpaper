@@ -9,10 +9,6 @@ export const TYPE_LABEL = { scene: "场景", video: "视频", web: "网页", ima
 export const ORIGIN_LABEL = { workshop: "工坊订阅", custom: "本机导入", default: "WE 内置", myprojects: "WE 工程" };
 
 export function createLibrary({ API, PAGE_SIZE, post, state, ui }) {
-  function fetchJson(url, opts) {
-    return fetch(API + url, opts).then(function (r) { return r.json(); });
-  }
-
   function filteredList(list) {
     var q = (state.filter || "").trim().toLowerCase();
     var t = state.typeF || "all";
