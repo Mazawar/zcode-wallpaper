@@ -15,6 +15,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const table = JSON.parse(fs.readFileSync(path.join(root, "scripts/guards.json"), "utf8"));
 const docPath = path.join(root, "docs/GUARD-MAP.md");
 
+/** Byte-for-byte is about CONTENT; line endings are checkout machinery
+ *  (windows runners autocrlf=true turn the LF blob into a CRLF working copy
+ *  and the naive compare fails there while passing on LF machines). */
+function normalizeEol(s) {
+  return s.replace(/\r\n/g, "\n");
+}
+
 function render() {
   const lines = [
     "# 守卫地图（生成物，勿手改）",
@@ -57,7 +64,8 @@ for (const g of table.guards) {
 }
 if (!process.argv.includes("--write")) {
   if (!fs.existsSync(docPath)) failures.push("docs/GUARD-MAP.md missing — run with --write");
-  else if (fs.readFileSync(docPath, "utf8") !== rendered) failures.push("docs/GUARD-MAP.md is stale — regenerate with --write after editing scripts/guards.json");
+  else if (normalizeEol(fs.readFileSync(docPath, "utf8")) !== normalizeEol(rendered))
+    failures.push("docs/GUARD-MAP.md is stale — regenerate with --write after editing scripts/guards.json");
 }
 
 if (failures.length) {
